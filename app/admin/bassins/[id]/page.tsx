@@ -61,6 +61,8 @@ export default function AdminBassinDetailPage() {
   // Modal ajout garantie
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editingGarantie, setEditingGarantie] = useState<GarantieRow | null>(null)
+  const [modalTitle, setModalTitle] = useState('Nouvelle garantie')
   const [formTypeGarantieId, setFormTypeGarantieId] = useState('')
   const [formFournisseur, setFormFournisseur] = useState('')
   const [formNumero, setFormNumero] = useState('')
@@ -158,84 +160,202 @@ export default function AdminBassinDetailPage() {
     setPdfFile(file)
   }
 
-  const openModal = () => {
-    setFormTypeGarantieId('')
-    setFormFournisseur('')
-    setFormNumero('')
-    setFormDateDebut('')
-    setFormDateFin('')
-    setFormStatutId('')
-    setFormCouverture('')
-    setFormCommentaire('')
-    setPdfFile(null)
+  const openModal = (garantie?: GarantieRow) => {
+    if (garantie) {
+      // MODE ÉDITION
+      setEditingGarantie(garantie)
+      setModalTitle('Modifier la garantie')
+
+      setFormTypeGarantieId(garantie.type_garantie_id || '')
+      setFormFournisseur(garantie.fournisseur || '')
+      setFormNumero(garantie.numero_garantie || '')
+      setFormDateDebut(garantie.date_debut || '')
+      setFormDateFin(garantie.date_fin || '')
+      setFormStatutId(garantie.statut_id || '')
+      setFormCouverture(garantie.couverture || '')
+      setFormCommentaire(garantie.commentaire || '')
+      setPdfFile(null)
+    } else {
+      // MODE CRÉATION
+      setEditingGarantie(null)
+      setModalTitle('Nouvelle garantie')
+
+      setFormTypeGarantieId('')
+      setFormFournisseur('')
+      setFormNumero('')
+      setFormDateDebut('')
+      setFormDateFin('')
+      setFormStatutId('')
+      setFormCouverture('')
+      setFormCommentaire('')
+      setPdfFile(null)
+    }
+
     setShowModal(true)
   }
 
   const closeModal = () => {
     if (saving) return
     setShowModal(false)
+    setEditingGarantie(null)
   }
 
-  const handleSubmitGarantie = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!bassinId) return
+const handleSubmitGarantie = async (e: FormEvent) => {
+  e.preventDefault()
 
-    setSaving(true)
+  // On s'assure qu'on a bien un bassin chargé
+  if (!bassin || !bassin.id) {
+    alert('Bassin introuvable (id manquant).')
+    return
+  }
 
-    let fichierUrl: string | null = null
+  setSaving(true)
 
-    // Upload du PDF si présent
-    if (pdfFile) {
-      const ext = pdfFile.name.split('.').pop() || 'pdf'
-      const path = `${bassinId}/${crypto.randomUUID()}.${ext}`
+  // 1) Gestion du PDF
+  let fichierUrl: string | null = editingGarantie?.fichier_pdf_url ?? null
 
-      const { error: uploadError } = await supabaseBrowser.storage
-        .from('garanties')
-        .upload(path, pdfFile)
+  if (pdfFile) {
+    const ext = pdfFile.name.split('.').pop() || 'pdf'
+    const path = `${bassin.id}/${crypto.randomUUID()}.${ext}`
 
-      if (uploadError) {
-        setSaving(false)
-        alert('Erreur lors du téléversement du PDF : ' + uploadError.message)
-        return
-      }
+    const { error: uploadError } = await supabaseBrowser.storage
+      .from('garanties')
+      .upload(path, pdfFile, {
+        upsert: false,
+      })
 
-      const { data: publicData } = supabaseBrowser.storage
-        .from('garanties')
-        .getPublicUrl(path)
-
-      fichierUrl = publicData?.publicUrl ?? null
+    if (uploadError) {
+      setSaving(false)
+      alert('Erreur lors du téléversement du PDF : ' + uploadError.message)
+      return
     }
 
-    const { data, error } = await supabaseBrowser
+    const { data: publicData } = supabaseBrowser.storage
       .from('garanties')
-      .insert({
-        bassin_id: bassinId,
-        type_garantie_id: formTypeGarantieId || null,
-        fournisseur: formFournisseur || null,
-        numero_garantie: formNumero || null,
-        date_debut: formDateDebut || null,
-        date_fin: formDateFin || null,
-        statut_id: formStatutId || null,
-        couverture: formCouverture || null,
-        commentaire: formCommentaire || null,
-        fichier_pdf_url: fichierUrl,
+      .getPublicUrl(path)
+
+    fichierUrl = publicData?.publicUrl ?? null
+  }
+
+  // 2) Champs UUID sécurisés (jamais "undefined", jamais "")
+  const safeTypeGarantieId =
+    formTypeGarantieId && formTypeGarantieId.trim() !== ''
+      ? formTypeGarantieId
+      : null
+
+  const safeStatutId =
+    formStatutId && formStatutId.trim() !== ''
+      ? formStatutId
+      : null
+
+  // 3) Payload commun
+  const payload = {
+    bassin_id: bassin.id,           // vient de la BD, donc toujours un vrai uuid
+    type_garantie_id: safeTypeGarantieId,
+    fournisseur: formFournisseur || null,
+    numero_garantie: formNumero || null,
+    date_debut: formDateDebut || null,
+    date_fin: formDateFin || null,
+    statut_id: safeStatutId,
+    couverture: formCouverture || null,
+    commentaire: formCommentaire || null,
+    fichier_pdf_url: fichierUrl,
+  }
+
+    // DEBUG SÉVÈRE : refuse d'envoyer si un champ uuid contient "undefined"
+  const badUuidFields: string[] = []
+    if ((payload.bassin_id as any) === 'undefined') badUuidFields.push('bassin_id')
+    if ((payload.type_garantie_id as any) === 'undefined') badUuidFields.push('type_garantie_id')
+    if ((payload.statut_id as any) === 'undefined') badUuidFields.push('statut_id')
+
+    if (badUuidFields.length > 0) {
+      console.error('BUG: champs uuid = "undefined" dans payload', {
+        payload,
+        badUuidFields,
       })
+      alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
+      setSaving(false)
+      return
+  }
+
+  console.log('GARANTIE PAYLOAD ENVOYÉ →', payload, {
+    editingGarantie,
+  })
+
+  let data: GarantieRow | null = null
+  let error: any = null
+
+  if (editingGarantie && editingGarantie.id) {
+    // === MODE ÉDITION (UPDATE) ===
+    const res = await supabaseBrowser
+      .from('garanties')
+      .update(payload)
+      .eq('id', editingGarantie.id)
       .select(
         'id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url'
       )
       .single()
 
-    setSaving(false)
+    data = res.data as GarantieRow | null
+    error = res.error
+  } else {
+    // === MODE CRÉATION (INSERT) ===
+    const res = await supabaseBrowser
+      .from('garanties')
+      .insert(payload)
+      .select(
+        'id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url'
+      )
+      .single()
+
+    data = res.data as GarantieRow | null
+    error = res.error
+  }
+
+  setSaving(false)
+
+  if (error) {
+    console.error('Erreur Supabase insert/update garantie', {
+      message: (error as any)?.message,
+      details: (error as any)?.details,
+      hint: (error as any)?.hint,
+      code: (error as any)?.code,
+    })
+
+    alert(
+      'Erreur lors de l’enregistrement de la garantie : ' +
+        ((error as any)?.message ?? 'Erreur inconnue')
+    )
+    return
+  }
+
+  if (data) {
+    if (editingGarantie) {
+      setGaranties(prev => prev.map(g => (g.id === data.id ? data : g)))
+    } else {
+      setGaranties(prev => [...prev, data])
+    }
+    closeModal()
+  }
+}
+
+  const handleDeleteGarantie = async (garantie: GarantieRow) => {
+    const ok = window.confirm(
+      "Voulez-vous vraiment supprimer cette garantie ?"
+    )
+    if (!ok) return
+
+    const { error } = await supabaseBrowser
+      .from('garanties')
+      .delete()
+      .eq('id', garantie.id)
 
     if (error) {
-      alert('Erreur lors de la création de la garantie : ' + error.message)
+      alert('Erreur lors de la suppression : ' + error.message)
       return
     }
 
-    if (data) {
-      setGaranties(prev => [...prev, data])
-      closeModal()
-    }
+    setGaranties(prev => prev.filter(g => g.id !== garantie.id))
   }
 
   if (loading) {
@@ -283,7 +403,7 @@ export default function AdminBassinDetailPage() {
         <button
           type="button"
           className="btn-primary"
-          onClick={openModal}
+          onClick={() => openModal()}
         >
           Ajouter une garantie
         </button>
@@ -311,6 +431,7 @@ export default function AdminBassinDetailPage() {
               <th style={{ border: '1px solid #ccc', padding: 6 }}>Statut</th>
               <th style={{ border: '1px solid #ccc', padding: 6 }}>Couverture</th>
               <th style={{ border: '1px solid #ccc', padding: 6 }}>PDF</th>
+              <th style={{ border: '1px solid #ccc', padding: 6 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -354,6 +475,23 @@ export default function AdminBassinDetailPage() {
                       '—'
                     )}
                   </td>
+                  <td style={{ border: '1px solid #ccc', padding: 6 }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{ marginRight: 8 }}
+                      onClick={() => openModal(g)}
+                    >
+                      Modifier
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-danger"
+                      onClick={() => handleDeleteGarantie(g)}
+                    >
+                      Supprimer
+                    </button>
+                  </td>
                 </tr>
               )
             })}
@@ -365,7 +503,7 @@ export default function AdminBassinDetailPage() {
       {showModal && (
         <div className="modal-backdrop">
           <div className="modal-panel">
-            <h3 className="modal-title">Nouvelle garantie</h3>
+            <h3 className="modal-title">{modalTitle}</h3>
             <p className="modal-subtitle">
               Bassin : {bassin.name}
             </p>
