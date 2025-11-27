@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { m2ToFt2 } from '@/lib/units'
 import { GoogleMap, Polygon, useLoadScript } from '@react-google-maps/api'
 
+const MAP_LIBRARIES = ['drawing', 'geometry'] as const
+
 type GeoJSONPolygon = {
   type: 'Polygon'
   coordinates: number[][][]
@@ -70,7 +72,7 @@ export default function AdminBatimentDetailPage() {
   const [formReference, setFormReference] = useState('')
   const [formNotes, setFormNotes] = useState('')
 
-  // survol d’un bassin (pour lien carte ↔ tableau)
+  // survol d’un bassin (carte ↔ tableau)
   const [hoveredBassinId, setHoveredBassinId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -615,7 +617,7 @@ function BatimentBasinsMap({
 
   const { isLoaded } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
-    libraries: [],
+    libraries: MAP_LIBRARIES as unknown as string[],
   })
 
   if (!isLoaded) {
