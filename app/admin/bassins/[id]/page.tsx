@@ -3,6 +3,12 @@
 import { useEffect, useState, FormEvent, ChangeEvent } from 'react'
 import { useParams } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import BassinMap from '@/components/maps/BassinMap'
+
+type GeoJSONPolygon = {
+  type: 'Polygon'
+  coordinates: number[][][]
+}
 
 type BassinRow = {
   id: string
@@ -16,6 +22,7 @@ type BassinRow = {
   duree_vie_text: string | null
   reference_interne: string | null
   notes: string | null
+  polygone_geojson: GeoJSONPolygon | null
 }
 
 type BatimentRow = {
@@ -24,6 +31,8 @@ type BatimentRow = {
   address: string | null
   city: string | null
   postal_code: string | null
+  latitude: number | null
+  longitude: number | null
 }
 
 type ListeChoix = {
@@ -58,7 +67,7 @@ export default function AdminBassinDetailPage() {
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  // Modal ajout garantie
+  // Modal ajout/modif garantie
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editingGarantie, setEditingGarantie] = useState<GarantieRow | null>(null)
@@ -84,7 +93,7 @@ export default function AdminBassinDetailPage() {
       const { data: bassinData, error: bassinError } = await supabaseBrowser
         .from('bassins')
         .select(
-          'id, batiment_id, name, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes'
+          'id, batiment_id, name, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
         )
         .eq('id', bassinId)
         .single()
@@ -95,16 +104,16 @@ export default function AdminBassinDetailPage() {
         return
       }
 
-      // 2) Bâtiment (pour contexte)
+      // 2) Bâtiment
       let batData: BatimentRow | null = null
       if (bassinData?.batiment_id) {
         const { data, error } = await supabaseBrowser
           .from('batiments')
-          .select('id, name, address, city, postal_code')
+          .select('id, name, address, city, postal_code, latitude, longitude')
           .eq('id', bassinData.batiment_id)
           .single()
         if (!error) {
-          batData = data
+          batData = data as BatimentRow
         }
       }
 
@@ -135,7 +144,7 @@ export default function AdminBassinDetailPage() {
         return
       }
 
-      setBassin(bassinData)
+      setBassin(bassinData as BassinRow)
       setBatiment(batData)
       setListes(listesData || [])
       setGaranties(garantiesData || [])
@@ -145,7 +154,7 @@ export default function AdminBassinDetailPage() {
     void fetchData()
   }, [bassinId])
 
-  // Listes de choix
+  // Listes de choix garanties
   const typesGarantie = listes.filter(l => l.categorie === 'type_garantie')
   const statutsGarantie = listes.filter(l => l.categorie === 'statut_garantie')
 
@@ -154,6 +163,43 @@ export default function AdminBassinDetailPage() {
     const arr = category === 'type_garantie' ? typesGarantie : statutsGarantie
     return arr.find(l => l.id === id)?.label ?? ''
   }
+
+  // Couleur du polygone selon l'état / durée de vie
+  const couleurEtat: string | undefined = (() => {
+    if (!bassin) return undefined
+
+    const etatId = bassin.etat_id
+    const dureeId = bassin.duree_vie_id
+
+    const preferEtatCategories = ['etat_bassin', 'etat_toiture', 'etat']
+    const preferDureeCategories = ['duree_vie_bassin', 'duree_vie_toiture', 'duree_vie']
+
+    if (etatId) {
+      const match =
+        listes.find(
+          l => l.id === etatId && preferEtatCategories.includes(l.categorie)
+        ) || listes.find(l => l.id === etatId)
+
+      if (match?.couleur) return match.couleur
+    }
+
+    if (dureeId) {
+      const match =
+        listes.find(
+          l => l.id === dureeId && preferDureeCategories.includes(l.categorie)
+        ) || listes.find(l => l.id === dureeId)
+
+      if (match?.couleur) return match.couleur
+    }
+
+    return undefined
+  })()
+
+  // Centre de la carte (coords du bâtiment si dispo)
+  const mapCenter =
+    batiment?.latitude != null && batiment?.longitude != null
+      ? { lat: batiment.latitude, lng: batiment.longitude }
+      : { lat: 46.35, lng: -72.55 }
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null
@@ -200,70 +246,68 @@ export default function AdminBassinDetailPage() {
     setEditingGarantie(null)
   }
 
-const handleSubmitGarantie = async (e: FormEvent) => {
-  e.preventDefault()
+  const handleSubmitGarantie = async (e: FormEvent) => {
+    e.preventDefault()
 
-  // On s'assure qu'on a bien un bassin chargé
-  if (!bassin || !bassin.id) {
-    alert('Bassin introuvable (id manquant).')
-    return
-  }
-
-  setSaving(true)
-
-  // 1) Gestion du PDF
-  let fichierUrl: string | null = editingGarantie?.fichier_pdf_url ?? null
-
-  if (pdfFile) {
-    const ext = pdfFile.name.split('.').pop() || 'pdf'
-    const path = `${bassin.id}/${crypto.randomUUID()}.${ext}`
-
-    const { error: uploadError } = await supabaseBrowser.storage
-      .from('garanties')
-      .upload(path, pdfFile, {
-        upsert: false,
-      })
-
-    if (uploadError) {
-      setSaving(false)
-      alert('Erreur lors du téléversement du PDF : ' + uploadError.message)
+    if (!bassin || !bassin.id) {
+      alert('Bassin introuvable (id manquant).')
       return
     }
 
-    const { data: publicData } = supabaseBrowser.storage
-      .from('garanties')
-      .getPublicUrl(path)
+    setSaving(true)
 
-    fichierUrl = publicData?.publicUrl ?? null
-  }
+    // 1) Gestion du PDF
+    let fichierUrl: string | null = editingGarantie?.fichier_pdf_url ?? null
 
-  // 2) Champs UUID sécurisés (jamais "undefined", jamais "")
-  const safeTypeGarantieId =
-    formTypeGarantieId && formTypeGarantieId.trim() !== ''
-      ? formTypeGarantieId
-      : null
+    if (pdfFile) {
+      const ext = pdfFile.name.split('.').pop() || 'pdf'
+      const path = `${bassin.id}/${crypto.randomUUID()}.${ext}`
 
-  const safeStatutId =
-    formStatutId && formStatutId.trim() !== ''
-      ? formStatutId
-      : null
+      const { error: uploadError } = await supabaseBrowser.storage
+        .from('garanties')
+        .upload(path, pdfFile, {
+          upsert: false,
+        })
 
-  // 3) Payload commun
-  const payload = {
-    bassin_id: bassin.id,           // vient de la BD, donc toujours un vrai uuid
-    type_garantie_id: safeTypeGarantieId,
-    fournisseur: formFournisseur || null,
-    numero_garantie: formNumero || null,
-    date_debut: formDateDebut || null,
-    date_fin: formDateFin || null,
-    statut_id: safeStatutId,
-    couverture: formCouverture || null,
-    commentaire: formCommentaire || null,
-    fichier_pdf_url: fichierUrl,
-  }
+      if (uploadError) {
+        setSaving(false)
+        alert('Erreur lors du téléversement du PDF : ' + uploadError.message)
+        return
+      }
 
-    // DEBUG SÉVÈRE : refuse d'envoyer si un champ uuid contient "undefined"
-  const badUuidFields: string[] = []
+      const { data: publicData } = supabaseBrowser.storage
+        .from('garanties')
+        .getPublicUrl(path)
+
+      fichierUrl = publicData?.publicUrl ?? null
+    }
+
+    // 2) Champs UUID sécurisés
+    const safeTypeGarantieId =
+      formTypeGarantieId && formTypeGarantieId.trim() !== ''
+        ? formTypeGarantieId
+        : null
+
+    const safeStatutId =
+      formStatutId && formStatutId.trim() !== ''
+        ? formStatutId
+        : null
+
+    // 3) Payload
+    const payload = {
+      bassin_id: bassin.id,
+      type_garantie_id: safeTypeGarantieId,
+      fournisseur: formFournisseur || null,
+      numero_garantie: formNumero || null,
+      date_debut: formDateDebut || null,
+      date_fin: formDateFin || null,
+      statut_id: safeStatutId,
+      couverture: formCouverture || null,
+      commentaire: formCommentaire || null,
+      fichier_pdf_url: fichierUrl,
+    }
+
+    const badUuidFields: string[] = []
     if ((payload.bassin_id as any) === 'undefined') badUuidFields.push('bassin_id')
     if ((payload.type_garantie_id as any) === 'undefined') badUuidFields.push('type_garantie_id')
     if ((payload.statut_id as any) === 'undefined') badUuidFields.push('statut_id')
@@ -276,72 +320,60 @@ const handleSubmitGarantie = async (e: FormEvent) => {
       alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
       setSaving(false)
       return
-  }
-
-  console.log('GARANTIE PAYLOAD ENVOYÉ →', payload, {
-    editingGarantie,
-  })
-
-  let data: GarantieRow | null = null
-  let error: any = null
-
-  if (editingGarantie && editingGarantie.id) {
-    // === MODE ÉDITION (UPDATE) ===
-    const res = await supabaseBrowser
-      .from('garanties')
-      .update(payload)
-      .eq('id', editingGarantie.id)
-      .select(
-        'id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url'
-      )
-      .single()
-
-    data = res.data as GarantieRow | null
-    error = res.error
-  } else {
-    // === MODE CRÉATION (INSERT) ===
-    const res = await supabaseBrowser
-      .from('garanties')
-      .insert(payload)
-      .select(
-        'id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url'
-      )
-      .single()
-
-    data = res.data as GarantieRow | null
-    error = res.error
-  }
-
-  setSaving(false)
-
-  if (error) {
-    console.error('Erreur Supabase insert/update garantie', {
-      message: (error as any)?.message,
-      details: (error as any)?.details,
-      hint: (error as any)?.hint,
-      code: (error as any)?.code,
-    })
-
-    alert(
-      'Erreur lors de l’enregistrement de la garantie : ' +
-        ((error as any)?.message ?? 'Erreur inconnue')
-    )
-    return
-  }
-
-  if (data) {
-    if (editingGarantie) {
-      setGaranties(prev => prev.map(g => (g.id === data.id ? data : g)))
-    } else {
-      setGaranties(prev => [...prev, data])
     }
-    closeModal()
+
+    let data: GarantieRow | null = null
+    let error: any = null
+
+    if (editingGarantie && editingGarantie.id) {
+      const res = await supabaseBrowser
+        .from('garanties')
+        .update(payload)
+        .eq('id', editingGarantie.id)
+        .select(
+          'id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url'
+        )
+        .single()
+
+      data = res.data as GarantieRow | null
+      error = res.error
+    } else {
+      const res = await supabaseBrowser
+        .from('garanties')
+        .insert(payload)
+        .select(
+          'id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url'
+        )
+        .single()
+
+      data = res.data as GarantieRow | null
+      error = res.error
+    }
+
+    setSaving(false)
+
+    if (error) {
+      console.error('Erreur Supabase insert/update garantie', error)
+      alert(
+        'Erreur lors de l’enregistrement de la garantie : ' +
+          ((error as any)?.message ?? 'Erreur inconnue')
+      )
+      return
+    }
+
+    if (data) {
+      if (editingGarantie) {
+        setGaranties(prev => prev.map(g => (g.id === data!.id ? data! : g)))
+      } else {
+        setGaranties(prev => [...prev, data])
+      }
+      closeModal()
+    }
   }
-}
 
   const handleDeleteGarantie = async (garantie: GarantieRow) => {
     const ok = window.confirm(
-      "Voulez-vous vraiment supprimer cette garantie ?"
+      'Voulez-vous vraiment supprimer cette garantie ?'
     )
     if (!ok) return
 
@@ -370,6 +402,10 @@ const handleSubmitGarantie = async (e: FormEvent) => {
     return <p>Bassin introuvable.</p>
   }
 
+  // Surface affichée en pi² (BD reste en m²)
+  const surfaceFt2 =
+    bassin.surface_m2 != null ? Math.round(bassin.surface_m2 * 10.7639) : null
+
   return (
     <section>
       {/* Contexte bâtiment + bassin */}
@@ -385,10 +421,28 @@ const handleSubmitGarantie = async (e: FormEvent) => {
       </h2>
 
       <p style={{ marginBottom: 16, color: '#555', fontSize: 14 }}>
-        Surface : {bassin.surface_m2 ?? 'n/d'} m² · Année installation :{' '}
+        Surface : {surfaceFt2 ?? 'n/d'} pi² · Année installation :{' '}
         {bassin.annee_installation ?? 'n/d'} · Dernière réfection :{' '}
         {bassin.date_derniere_refection ?? 'n/d'}
       </p>
+
+      {/* Carte + polygone */}
+      <div style={{ marginBottom: 24 }}>
+        <h3 style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>
+          Polygone de toiture
+        </h3>
+        <p style={{ fontSize: 13, color: '#555', marginBottom: 8 }}>
+          Utilise la vue satellite et les outils de dessin pour tracer le bassin.
+          Le polygone sera sauvegardé automatiquement dans la base de données.
+        </p>
+
+        <BassinMap
+          bassinId={bassin.id}
+          center={mapCenter}
+          initialPolygon={bassin.polygone_geojson}
+          couleurPolygon={couleurEtat}
+        />
+      </div>
 
       {/* En-tête section garanties */}
       <div
@@ -499,7 +553,7 @@ const handleSubmitGarantie = async (e: FormEvent) => {
         </table>
       )}
 
-      {/* Modal ajout garantie */}
+      {/* Modal ajout / modification garantie */}
       {showModal && (
         <div className="modal-backdrop">
           <div className="modal-panel">

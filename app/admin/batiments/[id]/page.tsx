@@ -1,9 +1,16 @@
 'use client'
 
 import { useEffect, useState, FormEvent } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import Link from 'next/link'
+import { m2ToFt2 } from '@/lib/units'
+import { GoogleMap, Polygon, useLoadScript } from '@react-google-maps/api'
+
+type GeoJSONPolygon = {
+  type: 'Polygon'
+  coordinates: number[][][]
+}
 
 type BatimentRow = {
   id: string
@@ -11,6 +18,8 @@ type BatimentRow = {
   address: string | null
   city: string | null
   postal_code: string | null
+  latitude: number | null
+  longitude: number | null
 }
 
 type ListeChoix = {
@@ -32,6 +41,7 @@ type BassinRow = {
   duree_vie_text: string | null
   reference_interne: string | null
   notes: string | null
+  polygone_geojson: GeoJSONPolygon | null
 }
 
 export default function AdminBatimentDetailPage() {
@@ -47,15 +57,21 @@ export default function AdminBatimentDetailPage() {
   // état modal
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editingBassin, setEditingBassin] = useState<BassinRow | null>(null)
+  const [modalTitle, setModalTitle] = useState('Nouveau bassin')
+
   const [formName, setFormName] = useState('')
   const [formMembraneId, setFormMembraneId] = useState('')
-  const [formSurface, setFormSurface] = useState('')
+  const [formSurface, setFormSurface] = useState('') // en pi² dans l’UI
   const [formAnneeInstalle, setFormAnneeInstalle] = useState('')
   const [formDateDerniere, setFormDateDerniere] = useState('')
   const [formEtatId, setFormEtatId] = useState('')
   const [formDureeVieId, setFormDureeVieId] = useState('')
   const [formReference, setFormReference] = useState('')
   const [formNotes, setFormNotes] = useState('')
+
+  // survol d’un bassin (pour lien carte ↔ tableau)
+  const [hoveredBassinId, setHoveredBassinId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!batimentId) return
@@ -67,7 +83,9 @@ export default function AdminBatimentDetailPage() {
       // 1) Bâtiment
       const { data: batData, error: batError } = await supabaseBrowser
         .from('batiments')
-        .select('id, name, address, city, postal_code')
+        .select(
+          'id, name, address, city, postal_code, latitude, longitude'
+        )
         .eq('id', batimentId)
         .single()
 
@@ -92,7 +110,7 @@ export default function AdminBatimentDetailPage() {
       const { data: bassinsData, error: bassinsError } = await supabaseBrowser
         .from('bassins')
         .select(
-          'id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes'
+          'id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
         )
         .eq('batiment_id', batimentId)
         .order('name', { ascending: true })
@@ -103,7 +121,7 @@ export default function AdminBatimentDetailPage() {
         return
       }
 
-      setBatiment(batData)
+      setBatiment(batData as BatimentRow)
       setListes(listesData || [])
       setBassins(bassinsData || [])
       setLoading(false)
@@ -137,7 +155,9 @@ export default function AdminBatimentDetailPage() {
     return etat?.couleur || undefined
   }
 
-  const openModal = () => {
+  // --------- MODAL : ouverture / fermeture ---------
+
+  const resetForm = () => {
     setFormName('')
     setFormMembraneId('')
     setFormSurface('')
@@ -147,13 +167,42 @@ export default function AdminBatimentDetailPage() {
     setFormDureeVieId('')
     setFormReference('')
     setFormNotes('')
+  }
+
+  const openCreateModal = () => {
+    setEditingBassin(null)
+    setModalTitle('Nouveau bassin')
+    resetForm()
+    setShowModal(true)
+  }
+
+  const openEditModal = (bassin: BassinRow) => {
+    setEditingBassin(bassin)
+    setModalTitle(`Modifier le bassin ${bassin.name ?? ''}`)
+
+    setFormName(bassin.name ?? '')
+    setFormMembraneId(bassin.membrane_type_id ?? '')
+    const surfaceFt2 = m2ToFt2(bassin.surface_m2)
+    setFormSurface(surfaceFt2 != null ? String(surfaceFt2) : '')
+    setFormAnneeInstalle(
+      bassin.annee_installation != null ? String(bassin.annee_installation) : ''
+    )
+    setFormDateDerniere(bassin.date_derniere_refection ?? '')
+    setFormEtatId(bassin.etat_id ?? '')
+    setFormDureeVieId(bassin.duree_vie_id ?? '')
+    setFormReference(bassin.reference_interne ?? '')
+    setFormNotes(bassin.notes ?? '')
+
     setShowModal(true)
   }
 
   const closeModal = () => {
     if (saving) return
     setShowModal(false)
+    setEditingBassin(null)
   }
+
+  // --------- SUBMIT (CREATE / UPDATE) ---------
 
   const handleSubmitBassin = async (e: FormEvent) => {
     e.preventDefault()
@@ -166,38 +215,77 @@ export default function AdminBatimentDetailPage() {
         ? durees.find(d => d.id === formDureeVieId)?.label ?? null
         : null
 
-    const { data, error } = await supabaseBrowser
-      .from('bassins')
-      .insert({
-        batiment_id: batimentId,
-        name: formName || null,
-        membrane_type_id: formMembraneId || null,
-        surface_m2: formSurface ? Number(formSurface) : null,
-        annee_installation: formAnneeInstalle ? Number(formAnneeInstalle) : null,
-        date_derniere_refection: formDateDerniere || null,
-        etat_id: formEtatId || null,
-        duree_vie_id: formDureeVieId || null,
-        duree_vie_text: dureeLabel,
-        reference_interne: formReference || null,
-        notes: formNotes || null,
-      })
-      .select(
-        'id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes'
-      )
-      .single()
+    // formSurface est en pi² → conversion en m² pour la BD
+    const surfaceM2 =
+      formSurface.trim() !== ''
+        ? Number(formSurface) / 10.7639
+        : null
+
+    const payload = {
+      batiment_id: batimentId,
+      name: formName || null,
+      membrane_type_id: formMembraneId || null,
+      surface_m2: surfaceM2,
+      annee_installation: formAnneeInstalle ? Number(formAnneeInstalle) : null,
+      date_derniere_refection: formDateDerniere || null,
+      etat_id: formEtatId || null,
+      duree_vie_id: formDureeVieId || null,
+      duree_vie_text: dureeLabel,
+      reference_interne: formReference || null,
+      notes: formNotes || null,
+    }
+
+    let data: BassinRow | null = null
+    let error: any = null
+
+    if (editingBassin) {
+      // UPDATE
+      const res = await supabaseBrowser
+        .from('bassins')
+        .update(payload)
+        .eq('id', editingBassin.id)
+        .select(
+          'id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
+        )
+        .single()
+
+      data = res.data as BassinRow | null
+      error = res.error
+    } else {
+      // INSERT
+      const res = await supabaseBrowser
+        .from('bassins')
+        .insert(payload)
+        .select(
+          'id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
+        )
+        .single()
+
+      data = res.data as BassinRow | null
+      error = res.error
+    }
 
     setSaving(false)
 
     if (error) {
-      alert('Erreur lors de la création du bassin : ' + error.message)
+      alert(
+        'Erreur lors de la sauvegarde du bassin : ' +
+          (error.message ?? 'Erreur inconnue')
+      )
       return
     }
 
     if (data) {
-      setBassins(prev => [...prev, data])
+      if (editingBassin) {
+        setBassins(prev => prev.map(b => (b.id === data!.id ? data! : b)))
+      } else {
+        setBassins(prev => [...prev, data])
+      }
       closeModal()
     }
   }
+
+  // --------- RENDU ---------
 
   if (loading) {
     return <p>Chargement…</p>
@@ -211,6 +299,11 @@ export default function AdminBatimentDetailPage() {
     return <p>Bâtiment introuvable.</p>
   }
 
+  const center =
+    batiment.latitude != null && batiment.longitude != null
+      ? { lat: batiment.latitude, lng: batiment.longitude }
+      : null
+
   return (
     <section>
       {/* Fiche bâtiment */}
@@ -220,6 +313,27 @@ export default function AdminBatimentDetailPage() {
       <p style={{ marginBottom: 16, color: '#555' }}>
         {batiment.address} {batiment.city} {batiment.postal_code}
       </p>
+
+      {/* Carte d’ensemble des bassins */}
+      {center && (
+        <div style={{ marginBottom: 24 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>
+            Vue d&apos;ensemble des bassins
+          </h3>
+          <p style={{ fontSize: 13, color: '#555', marginBottom: 8 }}>
+            Chaque bassin est affiché avec la couleur correspondant à son état.
+            Survole un bassin sur la carte pour surligner la ligne du tableau.
+            Clique sur un bassin pour ouvrir sa fiche détaillée.
+          </p>
+          <BatimentBasinsMap
+            center={center}
+            bassins={bassins}
+            etats={etats}
+            hoveredBassinId={hoveredBassinId}
+            onHoverBassin={setHoveredBassinId}
+          />
+        </div>
+      )}
 
       {/* En-tête section bassins */}
       <div
@@ -234,7 +348,7 @@ export default function AdminBatimentDetailPage() {
         <button
           type="button"
           className="btn-primary"
-          onClick={openModal}
+          onClick={openCreateModal}
         >
           Ajouter un bassin
         </button>
@@ -256,7 +370,7 @@ export default function AdminBatimentDetailPage() {
             <tr style={{ backgroundColor: '#f5f5f5' }}>
               <th style={{ border: '1px solid #ccc', padding: 6 }}>Bassin</th>
               <th style={{ border: '1px solid #ccc', padding: 6 }}>Membrane</th>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>Surface (m²)</th>
+              <th style={{ border: '1px solid #ccc', padding: 6 }}>Surface (pi²)</th>
               <th style={{ border: '1px solid #ccc', padding: 6 }}>Année installée</th>
               <th style={{ border: '1px solid #ccc', padding: 6 }}>
                 Dernière réfection
@@ -264,6 +378,7 @@ export default function AdminBatimentDetailPage() {
               <th style={{ border: '1px solid #ccc', padding: 6 }}>État</th>
               <th style={{ border: '1px solid #ccc', padding: 6 }}>Durée de vie</th>
               <th style={{ border: '1px solid #ccc', padding: 6 }}>Réf. interne</th>
+              <th style={{ border: '1px solid #ccc', padding: 6 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -273,19 +388,28 @@ export default function AdminBatimentDetailPage() {
               const membraneLabel = labelFromId('membrane', b.membrane_type_id)
               const dureeLabel =
                 b.duree_vie_text || labelFromId('duree_vie', b.duree_vie_id)
+              const surfaceFt2 = m2ToFt2(b.surface_m2)
+              const isHovered = hoveredBassinId === b.id
 
               return (
-                <tr key={b.id}>
+                <tr
+                  key={b.id}
+                  onMouseEnter={() => setHoveredBassinId(b.id)}
+                  onMouseLeave={() => setHoveredBassinId(null)}
+                  style={{
+                    border: '1px solid #ccc',
+                    backgroundColor: isHovered ? '#e0f2fe' : 'transparent',
+                    transition: 'background-color 0.15s ease-in-out',
+                  }}
+                >
                   <td style={{ border: '1px solid #ccc', padding: 6 }}>
-  <Link href={`/admin/bassins/${b.id}`}>
-    {b.name}
-  </Link>
-</td>
+                    <Link href={`/admin/bassins/${b.id}`}>{b.name}</Link>
+                  </td>
                   <td style={{ border: '1px solid #ccc', padding: 6 }}>
                     {membraneLabel}
                   </td>
                   <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                    {b.surface_m2 ?? ''}
+                    {surfaceFt2 ?? ''}
                   </td>
                   <td style={{ border: '1px solid #ccc', padding: 6 }}>
                     {b.annee_installation ?? ''}
@@ -313,6 +437,15 @@ export default function AdminBatimentDetailPage() {
                   <td style={{ border: '1px solid #ccc', padding: 6 }}>
                     {b.reference_interne}
                   </td>
+                  <td style={{ border: '1px solid #ccc', padding: 6 }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => openEditModal(b)}
+                    >
+                      Modifier
+                    </button>
+                  </td>
                 </tr>
               )
             })}
@@ -320,13 +453,13 @@ export default function AdminBatimentDetailPage() {
         </table>
       )}
 
-      {/* Modal ajout bassin */}
+      {/* Modal ajout / modification bassin */}
       {showModal && (
         <div className="modal-backdrop">
           <div className="modal-panel">
-            <h3 className="modal-title">Nouveau bassin</h3>
+            <h3 className="modal-title">{modalTitle}</h3>
             <p className="modal-subtitle">
-              Ajouter un bassin pour le bâtiment : {batiment.name}
+              Bâtiment : {batiment.name}
             </p>
 
             <form onSubmit={handleSubmitBassin} className="modal-form">
@@ -357,7 +490,7 @@ export default function AdminBatimentDetailPage() {
               </div>
 
               <div className="modal-field">
-                <label>Surface (m²)</label>
+                <label>Surface (pi²)</label>
                 <input
                   type="number"
                   min="0"
@@ -457,5 +590,93 @@ export default function AdminBatimentDetailPage() {
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * Carte de synthèse des bassins d’un bâtiment (interactive)
+ */
+type BatimentBasinsMapProps = {
+  center: { lat: number; lng: number }
+  bassins: BassinRow[]
+  etats: ListeChoix[]
+  hoveredBassinId: string | null
+  onHoverBassin: (id: string | null) => void
+}
+
+function BatimentBasinsMap({
+  center,
+  bassins,
+  etats,
+  hoveredBassinId,
+  onHoverBassin,
+}: BatimentBasinsMapProps) {
+  const router = useRouter()
+
+  const { isLoaded } = useLoadScript({
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
+    libraries: [],
+  })
+
+  if (!isLoaded) {
+    return <div>Chargement de la carte…</div>
+  }
+
+  const polygons = bassins
+    .filter(b => b.polygone_geojson && b.polygone_geojson.coordinates?.[0]?.length)
+    .map(b => {
+      const coords = b.polygone_geojson!.coordinates[0]
+      const path = coords.map(([lng, lat]) => ({ lat, lng }))
+      const etat = etats.find(e => e.id === b.etat_id)
+      const color = etat?.couleur || '#22c55e' // défaut vert
+
+      return {
+        id: b.id,
+        path,
+        color,
+        name: b.name ?? '',
+      }
+    })
+
+  return (
+    <div style={{ width: '100%', height: 400, borderRadius: 8, overflow: 'hidden' }}>
+      <GoogleMap
+        mapContainerStyle={{ width: '100%', height: '100%' }}
+        center={center}
+        zoom={19}
+        options={{
+          mapTypeId: 'satellite',
+          streetViewControl: false,
+          fullscreenControl: true,
+          rotateControl: false,
+          tilt: 0,
+        }}
+        onLoad={map => {
+          map.setTilt(0)
+        }}
+      >
+        {polygons.map(poly => {
+          const isHovered = hoveredBassinId === poly.id
+
+          return (
+            <Polygon
+              key={poly.id}
+              paths={poly.path}
+              options={{
+                fillColor: poly.color,
+                fillOpacity: isHovered ? 0.6 : 0.4,
+                strokeColor: poly.color,
+                strokeOpacity: 0.9,
+                strokeWeight: isHovered ? 3 : 2,
+                clickable: true,
+              }}
+              onMouseOver={() => onHoverBassin(poly.id)}
+              onMouseOut={() => onHoverBassin(null)}
+              onClick={() => router.push(`/admin/bassins/${poly.id}`)}
+            />
+          )
+        })}
+      </GoogleMap>
+    </div>
   )
 }
