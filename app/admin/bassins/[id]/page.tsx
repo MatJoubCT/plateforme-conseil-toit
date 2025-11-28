@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState, FormEvent, ChangeEvent } from 'react'
+import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import BassinMap from '@/components/maps/BassinMap'
 
 type GeoJSONPolygon = {
@@ -38,7 +40,7 @@ type BatimentRow = {
 type ListeChoix = {
   id: string
   categorie: string
-  label: string
+  label: string | null
   couleur: string | null
 }
 
@@ -56,6 +58,19 @@ type GarantieRow = {
   fichier_pdf_url: string | null
 }
 
+/** mappe un libellé d'état en type pour StateBadge */
+function mapEtatToStateBadge(etat: string | null): BassinState {
+  if (!etat) return 'non_evalue'
+  const v = etat.toLowerCase()
+
+  if (v.includes('urgent')) return 'urgent'
+  if (v.includes('bon')) return 'bon'
+  if (v.includes('surveiller')) return 'a_surveille'
+  if (v.includes('planifier') || v.includes('planification')) return 'planifier'
+
+  return 'non_evalue'
+}
+
 export default function AdminBassinDetailPage() {
   const params = useParams()
   const bassinId = params?.id as string
@@ -70,7 +85,9 @@ export default function AdminBassinDetailPage() {
   // Modal ajout/modif garantie
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [editingGarantie, setEditingGarantie] = useState<GarantieRow | null>(null)
+  const [editingGarantie, setEditingGarantie] = useState<GarantieRow | null>(
+    null
+  )
   const [modalTitle, setModalTitle] = useState('Nouvelle garantie')
   const [formTypeGarantieId, setFormTypeGarantieId] = useState('')
   const [formFournisseur, setFormFournisseur] = useState('')
@@ -112,7 +129,7 @@ export default function AdminBassinDetailPage() {
           .select('id, name, address, city, postal_code, latitude, longitude')
           .eq('id', bassinData.batiment_id)
           .single()
-        if (!error) {
+        if (!error && data) {
           batData = data as BatimentRow
         }
       }
@@ -155,13 +172,16 @@ export default function AdminBassinDetailPage() {
   }, [bassinId])
 
   // Listes de choix garanties
-  const typesGarantie = listes.filter(l => l.categorie === 'type_garantie')
-  const statutsGarantie = listes.filter(l => l.categorie === 'statut_garantie')
+  const typesGarantie = listes.filter((l) => l.categorie === 'type_garantie')
+  const statutsGarantie = listes.filter((l) => l.categorie === 'statut_garantie')
 
-  const labelFromId = (category: 'type_garantie' | 'statut_garantie', id: string | null) => {
+  const labelFromId = (
+    category: 'type_garantie' | 'statut_garantie',
+    id: string | null
+  ) => {
     if (!id) return ''
     const arr = category === 'type_garantie' ? typesGarantie : statutsGarantie
-    return arr.find(l => l.id === id)?.label ?? ''
+    return arr.find((l) => l.id === id)?.label ?? ''
   }
 
   // Couleur du polygone selon l'état / durée de vie
@@ -172,13 +192,17 @@ export default function AdminBassinDetailPage() {
     const dureeId = bassin.duree_vie_id
 
     const preferEtatCategories = ['etat_bassin', 'etat_toiture', 'etat']
-    const preferDureeCategories = ['duree_vie_bassin', 'duree_vie_toiture', 'duree_vie']
+    const preferDureeCategories = [
+      'duree_vie_bassin',
+      'duree_vie_toiture',
+      'duree_vie',
+    ]
 
     if (etatId) {
       const match =
         listes.find(
-          l => l.id === etatId && preferEtatCategories.includes(l.categorie)
-        ) || listes.find(l => l.id === etatId)
+          (l) => l.id === etatId && preferEtatCategories.includes(l.categorie)
+        ) || listes.find((l) => l.id === etatId)
 
       if (match?.couleur) return match.couleur
     }
@@ -186,8 +210,8 @@ export default function AdminBassinDetailPage() {
     if (dureeId) {
       const match =
         listes.find(
-          l => l.id === dureeId && preferDureeCategories.includes(l.categorie)
-        ) || listes.find(l => l.id === dureeId)
+          (l) => l.id === dureeId && preferDureeCategories.includes(l.categorie)
+        ) || listes.find((l) => l.id === dureeId)
 
       if (match?.couleur) return match.couleur
     }
@@ -289,9 +313,7 @@ export default function AdminBassinDetailPage() {
         : null
 
     const safeStatutId =
-      formStatutId && formStatutId.trim() !== ''
-        ? formStatutId
-        : null
+      formStatutId && formStatutId.trim() !== '' ? formStatutId : null
 
     // 3) Payload
     const payload = {
@@ -309,7 +331,8 @@ export default function AdminBassinDetailPage() {
 
     const badUuidFields: string[] = []
     if ((payload.bassin_id as any) === 'undefined') badUuidFields.push('bassin_id')
-    if ((payload.type_garantie_id as any) === 'undefined') badUuidFields.push('type_garantie_id')
+    if ((payload.type_garantie_id as any) === 'undefined')
+      badUuidFields.push('type_garantie_id')
     if ((payload.statut_id as any) === 'undefined') badUuidFields.push('statut_id')
 
     if (badUuidFields.length > 0) {
@@ -363,9 +386,9 @@ export default function AdminBassinDetailPage() {
 
     if (data) {
       if (editingGarantie) {
-        setGaranties(prev => prev.map(g => (g.id === data!.id ? data! : g)))
+        setGaranties((prev) => prev.map((g) => (g.id === data!.id ? data! : g)))
       } else {
-        setGaranties(prev => [...prev, data])
+        setGaranties((prev) => [...prev, data])
       }
       closeModal()
     }
@@ -387,191 +410,317 @@ export default function AdminBassinDetailPage() {
       return
     }
 
-    setGaranties(prev => prev.filter(g => g.id !== garantie.id))
+    setGaranties((prev) => prev.filter((g) => g.id !== garantie.id))
   }
 
   if (loading) {
-    return <p>Chargement…</p>
+    return (
+      <section className="space-y-4">
+        <p className="text-sm text-ct-gray">Chargement…</p>
+      </section>
+    )
   }
 
   if (errorMsg) {
-    return <p style={{ color: 'red' }}>Erreur : {errorMsg}</p>
+    return (
+      <section className="space-y-4">
+        <p className="text-sm text-red-600">Erreur : {errorMsg}</p>
+      </section>
+    )
   }
 
   if (!bassin) {
-    return <p>Bassin introuvable.</p>
+    return (
+      <section className="space-y-4">
+        <p className="text-sm text-red-600">Bassin introuvable.</p>
+      </section>
+    )
   }
 
   // Surface affichée en pi² (BD reste en m²)
   const surfaceFt2 =
-    bassin.surface_m2 != null ? Math.round(bassin.surface_m2 * 10.7639) : null
+    bassin.surface_m2 != null
+      ? Math.round(bassin.surface_m2 * 10.7639)
+      : null
+
+  const typeDuree =
+    listes.find((l) => l.id === bassin.duree_vie_id)?.label ||
+    bassin.duree_vie_text ||
+    null
+
+  const etatLabel =
+    listes.find((l) => l.id === bassin.etat_id)?.label || null
 
   return (
-    <section>
-      {/* Contexte bâtiment + bassin */}
-      {batiment && (
-        <p style={{ fontSize: 13, color: '#555', marginBottom: 4 }}>
-          Bâtiment : {batiment.name} – {batiment.address} {batiment.city}{' '}
-          {batiment.postal_code}
-        </p>
-      )}
+    <section className="space-y-6">
+      {/* En-tête + navigation */}
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+          {batiment && (
+            <p className="text-xs uppercase tracking-wide text-ct-gray mb-1">
+              Bâtiment{' '}
+              <Link
+                href={`/admin/batiments/${batiment.id}`}
+                className="font-medium text-ct-primary hover:underline"
+              >
+                {batiment.name || 'Sans nom'}
+              </Link>
+            </p>
+          )}
+          <h1 className="text-2xl font-semibold text-ct-primary">
+            Bassin : {bassin.name || '(Sans nom)'}
+          </h1>
+          <p className="mt-1 text-sm text-ct-gray">
+            Surface :{' '}
+            <span className="font-medium text-ct-grayDark">
+              {surfaceFt2 != null ? `${surfaceFt2} pi²` : 'n/d'}
+            </span>{' '}
+            · Année installation :{' '}
+            <span className="font-medium text-ct-grayDark">
+              {bassin.annee_installation ?? 'n/d'}
+            </span>{' '}
+            · Dernière réfection :{' '}
+            <span className="font-medium text-ct-grayDark">
+              {bassin.date_derniere_refection ?? 'n/d'}
+            </span>
+          </p>
+        </div>
 
-      <h2 style={{ fontSize: 22, fontWeight: 'bold', marginBottom: 4 }}>
-        Bassin : {bassin.name}
-      </h2>
-
-      <p style={{ marginBottom: 16, color: '#555', fontSize: 14 }}>
-        Surface : {surfaceFt2 ?? 'n/d'} pi² · Année installation :{' '}
-        {bassin.annee_installation ?? 'n/d'} · Dernière réfection :{' '}
-        {bassin.date_derniere_refection ?? 'n/d'}
-      </p>
-
-      {/* Carte + polygone */}
-      <div style={{ marginBottom: 24 }}>
-        <h3 style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8 }}>
-          Polygone de toiture
-        </h3>
-        <p style={{ fontSize: 13, color: '#555', marginBottom: 8 }}>
-          Utilise la vue satellite et les outils de dessin pour tracer le bassin.
-          Le polygone sera sauvegardé automatiquement dans la base de données.
-        </p>
-
-        <BassinMap
-          bassinId={bassin.id}
-          center={mapCenter}
-          initialPolygon={bassin.polygone_geojson}
-          couleurPolygon={couleurEtat}
-        />
+        {batiment && (
+          <Link
+            href={`/admin/batiments/${batiment.id}`}
+            className="btn-secondary inline-flex items-center justify-center"
+          >
+            ← Retour au bâtiment
+          </Link>
+        )}
       </div>
 
-      {/* En-tête section garanties */}
-      <div
-        style={{
-          marginBottom: 12,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <h3 style={{ fontSize: 18, fontWeight: 'bold' }}>Garanties</h3>
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={() => openModal()}
-        >
-          Ajouter une garantie
-        </button>
+      {/* Résumé bassin + notes + carte */}
+      <div className="grid gap-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)]">
+        <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm space-y-4">
+          <h2 className="text-sm font-semibold text-ct-grayDark uppercase tracking-wide">
+            Résumé du bassin
+          </h2>
+          <div className="space-y-2 text-sm text-ct-grayDark">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-ct-gray">État global</span>
+              {/* Pastille de couleur à la place du texte */}
+              <StateBadge state={mapEtatToStateBadge(etatLabel)} />
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-ct-gray">Durée de vie résiduelle</span>
+              <span className="font-medium">
+                {typeDuree || 'Non définie'}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-ct-gray">Référence interne</span>
+              <span className="font-medium">
+                {bassin.reference_interne || '—'}
+              </span>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-ct-grayLight space-y-1">
+            <p className="text-xs uppercase tracking-wide text-ct-gray">
+              Notes internes
+            </p>
+            <p className="text-sm text-ct-grayDark whitespace-pre-line">
+              {bassin.notes || 'Aucune note pour ce bassin.'}
+            </p>
+          </div>
+        </div>
+
+        {/* Carte + polygone */}
+        <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-sm font-semibold text-ct-grayDark uppercase tracking-wide">
+                Polygone de toiture
+              </h2>
+              <p className="text-xs text-ct-gray mt-1">
+                Utilisez la vue satellite et les outils de dessin pour ajuster
+                le contour du bassin. Le polygone est sauvegardé dans Supabase.
+              </p>
+            </div>
+          </div>
+
+          <div className="h-80 w-full rounded-xl border border-ct-grayLight overflow-hidden">
+            <BassinMap
+              bassinId={bassin.id}
+              center={mapCenter}
+              initialPolygon={bassin.polygone_geojson}
+              couleurPolygon={couleurEtat}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Tableau garanties */}
-      {garanties.length === 0 ? (
-        <p>Aucune garantie pour ce bassin pour le moment.</p>
-      ) : (
-        <table
-          style={{
-            borderCollapse: 'collapse',
-            border: '1px solid #ccc',
-            width: '100%',
-            fontSize: 14,
-          }}
-        >
-          <thead>
-            <tr style={{ backgroundColor: '#f5f5f5' }}>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>Type</th>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>Fournisseur</th>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>No garantie</th>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>Début</th>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>Fin</th>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>Statut</th>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>Couverture</th>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>PDF</th>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {garanties.map(g => {
-              const typeLabel = labelFromId('type_garantie', g.type_garantie_id)
-              const statutLabel = labelFromId('statut_garantie', g.statut_id)
+      {/* Section garanties */}
+      <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h2 className="text-sm font-semibold text-ct-grayDark uppercase tracking-wide">
+              Garanties du bassin
+            </h2>
+            <p className="text-xs text-ct-gray mt-1">
+              Liste des garanties associées à ce bassin, avec leurs dates,
+              statut et couverture.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => openModal()}
+          >
+            Ajouter une garantie
+          </button>
+        </div>
 
-              return (
-                <tr key={g.id}>
-                  <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                    {typeLabel || '—'}
-                  </td>
-                  <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                    {g.fournisseur || '—'}
-                  </td>
-                  <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                    {g.numero_garantie || '—'}
-                  </td>
-                  <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                    {g.date_debut || '—'}
-                  </td>
-                  <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                    {g.date_fin || '—'}
-                  </td>
-                  <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                    {statutLabel || '—'}
-                  </td>
-                  <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                    {g.couverture || '—'}
-                  </td>
-                  <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                    {g.fichier_pdf_url ? (
-                      <a
-                        href={g.fichier_pdf_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Ouvrir
-                      </a>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      style={{ marginRight: 8 }}
-                      onClick={() => openModal(g)}
-                    >
-                      Modifier
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-danger"
-                      onClick={() => handleDeleteGarantie(g)}
-                    >
-                      Supprimer
-                    </button>
-                  </td>
+        {garanties.length === 0 ? (
+          <p className="text-sm text-ct-gray">
+            Aucune garantie pour ce bassin pour le moment.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse text-sm">
+              <thead>
+                <tr className="bg-ct-grayLight/60 text-left">
+                  <th className="border border-ct-grayLight px-3 py-2">
+                    Type
+                  </th>
+                  <th className="border border-ct-grayLight px-3 py-2">
+                    Fournisseur
+                  </th>
+                  <th className="border border-ct-grayLight px-3 py-2">
+                    No garantie
+                  </th>
+                  <th className="border border-ct-grayLight px-3 py-2">
+                    Début
+                  </th>
+                  <th className="border border-ct-grayLight px-3 py-2">
+                    Fin
+                  </th>
+                  <th className="border border-ct-grayLight px-3 py-2">
+                    Statut
+                  </th>
+                  <th className="border border-ct-grayLight px-3 py-2">
+                    Couverture
+                  </th>
+                  <th className="border border-ct-grayLight px-3 py-2">
+                    PDF
+                  </th>
+                  <th className="border border-ct-grayLight px-3 py-2">
+                    Actions
+                  </th>
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
+              </thead>
+              <tbody>
+                {garanties.map((g) => {
+                  const typeLabel = labelFromId(
+                    'type_garantie',
+                    g.type_garantie_id
+                  )
+                  const statutLabel = labelFromId(
+                    'statut_garantie',
+                    g.statut_id
+                  )
+
+                  return (
+                    <tr
+                      key={g.id}
+                      className="hover:bg-ct-primaryLight/10 transition-colors"
+                    >
+                      <td className="border border-ct-grayLight px-3 py-2">
+                        {typeLabel || '—'}
+                      </td>
+                      <td className="border border-ct-grayLight px-3 py-2">
+                        {g.fournisseur || '—'}
+                      </td>
+                      <td className="border border-ct-grayLight px-3 py-2">
+                        {g.numero_garantie || '—'}
+                      </td>
+                      <td className="border border-ct-grayLight px-3 py-2">
+                        {g.date_debut || '—'}
+                      </td>
+                      <td className="border border-ct-grayLight px-3 py-2">
+                        {g.date_fin || '—'}
+                      </td>
+                      <td className="border border-ct-grayLight px-3 py-2">
+                        {statutLabel || '—'}
+                      </td>
+                      <td className="border border-ct-grayLight px-3 py-2">
+                        {g.couverture || '—'}
+                      </td>
+                      <td className="border border-ct-grayLight px-3 py-2">
+                        {g.fichier_pdf_url ? (
+                          <a
+                            href={g.fichier_pdf_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-ct-primary hover:underline"
+                          >
+                            Ouvrir
+                          </a>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td className="border border-ct-grayLight px-3 py-2">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={() => openModal(g)}
+                          >
+                            Modifier
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-danger"
+                            onClick={() => handleDeleteGarantie(g)}
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Modal ajout / modification garantie */}
       {showModal && (
-        <div className="modal-backdrop">
-          <div className="modal-panel">
-            <h3 className="modal-title">{modalTitle}</h3>
-            <p className="modal-subtitle">
-              Bassin : {bassin.name}
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-ct-grayDark">
+              {modalTitle}
+            </h3>
+            <p className="mt-1 text-sm text-ct-gray">
+              Bassin : {bassin.name || '(Sans nom)'}
             </p>
 
-            <form onSubmit={handleSubmitGarantie} className="modal-form">
-              <div className="modal-field">
-                <label>Type de garantie</label>
+            <form
+              onSubmit={handleSubmitGarantie}
+              className="mt-4 space-y-4 text-sm"
+            >
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Type de garantie
+                </label>
                 <select
                   value={formTypeGarantieId}
-                  onChange={e => setFormTypeGarantieId(e.target.value)}
+                  onChange={(e) => setFormTypeGarantieId(e.target.value)}
                   required
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
                 >
                   <option value="">Sélectionner…</option>
-                  {typesGarantie.map(t => (
+                  {typesGarantie.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.label}
                     </option>
@@ -579,50 +728,67 @@ export default function AdminBassinDetailPage() {
                 </select>
               </div>
 
-              <div className="modal-field">
-                <label>Fournisseur</label>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Fournisseur
+                </label>
                 <input
                   type="text"
                   value={formFournisseur}
-                  onChange={e => setFormFournisseur(e.target.value)}
+                  onChange={(e) => setFormFournisseur(e.target.value)}
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
                 />
               </div>
 
-              <div className="modal-field">
-                <label>Numéro de garantie</label>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Numéro de garantie
+                </label>
                 <input
                   type="text"
                   value={formNumero}
-                  onChange={e => setFormNumero(e.target.value)}
+                  onChange={(e) => setFormNumero(e.target.value)}
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
                 />
               </div>
 
-              <div className="modal-field">
-                <label>Date de début</label>
-                <input
-                  type="date"
-                  value={formDateDebut}
-                  onChange={e => setFormDateDebut(e.target.value)}
-                />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-ct-grayDark">
+                    Date de début
+                  </label>
+                  <input
+                    type="date"
+                    value={formDateDebut}
+                    onChange={(e) => setFormDateDebut(e.target.value)}
+                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-ct-grayDark">
+                    Date de fin
+                  </label>
+                  <input
+                    type="date"
+                    value={formDateFin}
+                    onChange={(e) => setFormDateFin(e.target.value)}
+                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  />
+                </div>
               </div>
 
-              <div className="modal-field">
-                <label>Date de fin</label>
-                <input
-                  type="date"
-                  value={formDateFin}
-                  onChange={e => setFormDateFin(e.target.value)}
-                />
-              </div>
-
-              <div className="modal-field">
-                <label>Statut</label>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Statut
+                </label>
                 <select
                   value={formStatutId}
-                  onChange={e => setFormStatutId(e.target.value)}
+                  onChange={(e) => setFormStatutId(e.target.value)}
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
                 >
                   <option value="">Sélectionner…</option>
-                  {statutsGarantie.map(s => (
+                  {statutsGarantie.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.label}
                     </option>
@@ -630,34 +796,43 @@ export default function AdminBassinDetailPage() {
                 </select>
               </div>
 
-              <div className="modal-field">
-                <label>Couverture (résumé)</label>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Couverture (résumé)
+                </label>
                 <input
                   type="text"
                   value={formCouverture}
-                  onChange={e => setFormCouverture(e.target.value)}
+                  onChange={(e) => setFormCouverture(e.target.value)}
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
                 />
               </div>
 
-              <div className="modal-field">
-                <label>Commentaire</label>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Commentaire
+                </label>
                 <textarea
                   rows={3}
                   value={formCommentaire}
-                  onChange={e => setFormCommentaire(e.target.value)}
+                  onChange={(e) => setFormCommentaire(e.target.value)}
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
                 />
               </div>
 
-              <div className="modal-field">
-                <label>Fichier PDF de la garantie</label>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Fichier PDF de la garantie
+                </label>
                 <input
                   type="file"
                   accept="application/pdf"
                   onChange={handleFileChange}
+                  className="block w-full text-xs text-ct-gray file:mr-3 file:rounded-md file:border-0 file:bg-ct-primary/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ct-primary hover:file:bg-ct-primary/20"
                 />
               </div>
 
-              <div className="modal-actions">
+              <div className="mt-4 flex justify-end gap-3">
                 <button
                   type="button"
                   className="btn-secondary"
