@@ -2,10 +2,10 @@
 
 import {
   useCallback,
-  useMemo,
-  useState,
-  useRef,
   useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from 'react'
 import {
   GoogleMap,
@@ -15,26 +15,18 @@ import {
 } from '@react-google-maps/api'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 
-type LatLngLiteral = {
-  lat: number
-  lng: number
-}
+type LatLngLiteral = google.maps.LatLngLiteral
 
 type GeoJSONPolygon = {
   type: 'Polygon'
   coordinates: number[][][]
 }
 
-interface BassinMapProps {
+type BassinMapProps = {
   bassinId: string
   center: LatLngLiteral
-  initialPolygon?: GeoJSONPolygon | null
+  initialPolygon: GeoJSONPolygon | null
   couleurPolygon?: string
-}
-
-const mapContainerStyle = {
-  width: '100%',
-  height: '400px',
 }
 
 const libraries: ('drawing' | 'geometry')[] = ['drawing', 'geometry']
@@ -45,36 +37,46 @@ export default function BassinMap({
   initialPolygon,
   couleurPolygon,
 }: BassinMapProps) {
-  const [polygonPath, setPolygonPath] = useState<LatLngLiteral[] | null>(() => {
-    if (!initialPolygon) return null
-    const coords = initialPolygon.coordinates?.[0] ?? []
-    return coords.map(([lng, lat]) => ({ lat, lng }))
-  })
-
-  const [areaM2, setAreaM2] = useState<number | null>(null)
-  const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null)
-  const [polygonInstance, setPolygonInstance] =
-    useState<google.maps.Polygon | null>(null)
-  const [drawingManager, setDrawingManager] =
-    useState<google.maps.drawing.DrawingManager | null>(null)
-  const [editMode, setEditMode] = useState(false)
-  const [isLocked, setIsLocked] = useState(false)
-  const listenersRef = useRef<google.maps.MapsEventListener[]>([])
-
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
     libraries,
   })
 
-  const mapCenter = useMemo(() => center, [center])
-  const finalColor = couleurPolygon || '#00aaff'
+  const [map, setMap] = useState<google.maps.Map | null>(null)
+  const [path, setPath] = useState<LatLngLiteral[]>([])
+  const [areaM2, setAreaM2] = useState<number | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [isLocked, setIsLocked] = useState(false)
+  const [drawingManager, setDrawingManager] =
+    useState<google.maps.drawing.DrawingManager | null>(null)
 
-  const handleMapLoad = useCallback((map: google.maps.Map) => {
-    map.setTilt(0)
-    map.setHeading(0)
-    setMapInstance(map)
-  }, [])
+  const polygonRef = useRef<google.maps.Polygon | null>(null)
 
+  // ---------------------------------------------------------------------------
+  // Initialisation du polygone à partir du GeoJSON
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (
+      initialPolygon &&
+      Array.isArray(initialPolygon.coordinates) &&
+      initialPolygon.coordinates[0] &&
+      initialPolygon.coordinates[0].length > 0
+    ) {
+      const ring = initialPolygon.coordinates[0]
+      const pts: LatLngLiteral[] = ring.map(([lng, lat]) => ({
+        lat,
+        lng,
+      }))
+      setPath(pts)
+    } else {
+      setPath([])
+      setAreaM2(null)
+    }
+  }, [initialPolygon])
+
+  // ---------------------------------------------------------------------------
+  // Calcul de la surface
+  // ---------------------------------------------------------------------------
   const computeArea = useCallback(
     (points: LatLngLiteral[]): number | null => {
       if (!isLoaded) return null
@@ -82,313 +84,329 @@ export default function BassinMap({
       if (!google.maps?.geometry?.spherical) return null
       if (!points || points.length < 3) return null
 
-      const path = points.map(
+      const gPath = points.map(
         (p) => new google.maps.LatLng(p.lat, p.lng)
       )
-      const area = google.maps.geometry.spherical.computeArea(path)
+      const area = google.maps.geometry.spherical.computeArea(gPath)
       return area
     },
     [isLoaded]
   )
 
+  useEffect(() => {
+    if (!path.length) {
+      setAreaM2(null)
+      return
+    }
+    const a = computeArea(path)
+    if (a !== null) setAreaM2(a)
+  }, [path, computeArea])
+
+  const surfaceFt2 = useMemo(() => {
+    if (areaM2 === null) return null
+    return Math.round(areaM2 * 10.7639)
+  }, [areaM2])
+
+  // ---------------------------------------------------------------------------
+  // Sauvegarde du polygone dans Supabase
+  // ---------------------------------------------------------------------------
   const savePolygon = useCallback(
     async (points: LatLngLiteral[]) => {
-      if (!points || points.length < 3) {
-        console.warn('savePolygon appelé avec moins de 3 points')
+      if (!bassinId) return
+
+      // Aucun point : on efface le polygone
+      if (!points.length) {
+        const { error } = await supabaseBrowser
+          .from('bassins')
+          .update({
+            polygone_geojson: null,
+            surface_m2: null,
+          })
+          .eq('id', bassinId)
+
+        if (error) {
+          console.error(
+            'Erreur Supabase en réinitialisant le polygone :',
+            error
+          )
+          alert(
+            "Erreur lors de la réinitialisation du polygone (voir console)."
+          )
+        } else {
+          setAreaM2(null)
+        }
         return
       }
 
-      const closedPoints = [...points]
-      const first = closedPoints[0]
-      const last = closedPoints[closedPoints.length - 1]
+      const area = computeArea(points)
+
+      // On ferme le polygone si ce n'est pas déjà le cas
+      const closed = [...points]
+      const first = closed[0]
+      const last = closed[closed.length - 1]
       if (first.lat !== last.lat || first.lng !== last.lng) {
-        closedPoints.push(first)
+        closed.push(first)
       }
 
       const geojson: GeoJSONPolygon = {
         type: 'Polygon',
         coordinates: [
-          closedPoints.map((p) => [p.lng, p.lat]),
+          closed.map((p) => [p.lng, p.lat]), // GeoJSON = [lng, lat]
         ],
       }
 
-      const area = computeArea(closedPoints)
-      const updateData: any = { polygone_geojson: geojson }
-
-      if (area !== null) {
-        updateData.surface_m2 = Math.round(area)
-      }
-
-      const { data, error } = await supabaseBrowser
+      const { error } = await supabaseBrowser
         .from('bassins')
-        .update(updateData)
+        .update({
+          polygone_geojson: geojson,
+          surface_m2: area ?? null,
+        })
         .eq('id', bassinId)
-        .select('id, polygone_geojson, surface_m2')
-        .single()
 
       if (error) {
-        console.error('Erreur Supabase en sauvegardant le polygone :', error)
-        alert("Erreur lors de l'enregistrement du polygone (voir console).")
-      } else {
-        console.log('Polygone sauvegardé avec succès :', data)
-        if (area !== null) setAreaM2(area)
+        console.error(
+          'Erreur Supabase en sauvegardant le polygone :',
+          error
+        )
+        alert(
+          "Erreur lors de l'enregistrement du polygone (voir console)."
+        )
+      } else if (area !== null) {
+        setAreaM2(area)
       }
     },
     [bassinId, computeArea]
   )
 
+  // ---------------------------------------------------------------------------
+  // Centrage automatique sur le polygone (fitBounds)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!map || !isLoaded) return
+
+    if (path.length > 0) {
+      const bounds = new google.maps.LatLngBounds()
+      path.forEach((p) => bounds.extend(p))
+      map.fitBounds(bounds)
+    } else {
+      // Pas de polygone, on centre sur le centre fourni en props
+      map.setCenter(center)
+      map.setZoom(19)
+    }
+  }, [map, path, center, isLoaded])
+
+  // ---------------------------------------------------------------------------
+  // Gestion de la carte
+  // ---------------------------------------------------------------------------
+  const handleMapLoad = useCallback((m: google.maps.Map) => {
+    setMap(m)
+    m.setTilt(0)
+    m.setHeading(0)
+    m.setOptions({
+      mapTypeId: google.maps.MapTypeId.SATELLITE,
+      streetViewControl: false,
+      rotateControl: false,
+      fullscreenControl: true,
+      gestureHandling: 'greedy', // plus besoin de CTRL pour zoomer
+      scrollwheel: true,
+    })
+  }, [])
+
+  const handleMapUnmount = useCallback(() => {
+    setMap(null)
+  }, [])
+
+  const finalCenter = useMemo(() => center, [center])
+  const finalColor = couleurPolygon || '#ffb020'
+
+  // ---------------------------------------------------------------------------
+  // Gestion de l’édition
+  // ---------------------------------------------------------------------------
+  const handleToggleEdit = () => {
+    if (isLocked) return
+    setIsEditing((prev) => !prev)
+  }
+
+  const handleResetPolygon = async () => {
+    const ok = window.confirm(
+      'Voulez-vous vraiment réinitialiser le polygone de ce bassin ?'
+    )
+    if (!ok) return
+
+    setPath([])
+    await savePolygon([])
+  }
+
+  const handleToggleLock = () => {
+    setIsLocked((prev) => !prev)
+    // Si on verrouille, on sort du mode édition
+    setIsEditing(false)
+  }
+
+  // Quand l’utilisateur termine un dessin avec le DrawingManager
   const handlePolygonComplete = useCallback(
     async (poly: google.maps.Polygon | any) => {
       if (isLocked) {
         poly.setMap(null)
-        if (drawingManager) drawingManager.setDrawingMode(null)
         return
       }
 
-      const path = poly.getPath()
-      const points: LatLngLiteral[] = []
+      const newPoints: LatLngLiteral[] = poly
+        .getPath()
+        .getArray()
+        .map((latLng: google.maps.LatLng) => ({
+          lat: latLng.lat(),
+          lng: latLng.lng(),
+        }))
 
-      for (let i = 0; i < path.getLength(); i++) {
-        const p = path.getAt(i)
-        points.push({ lat: p.lat(), lng: p.lng() })
-      }
+      poly.setMap(null) // on laisse le Polygon contrôlé par React faire l’affichage
 
-      setPolygonPath(points)
-      await savePolygon(points)
-
-      poly.setMap(null)
-      if (drawingManager) drawingManager.setDrawingMode(null)
+      setPath(newPoints)
+      await savePolygon(newPoints)
+      setIsEditing(false)
     },
-    [isLocked, drawingManager, savePolygon]
+    [isLocked, savePolygon]
   )
 
+  // Mise à jour lors du déplacement des sommets d’un polygone existant
   useEffect(() => {
-    if (!polygonPath) {
-      setAreaM2(null)
-      return
+    if (!polygonRef.current || !isLoaded) return
+
+    const poly = polygonRef.current
+    const gPath = poly.getPath()
+
+    const updateFromPath = () => {
+      if (!isEditing || isLocked) return
+
+      const pts: LatLngLiteral[] = gPath.getArray().map((latLng) => ({
+        lat: latLng.lat(),
+        lng: latLng.lng(),
+      }))
+
+      setPath(pts)
+      void savePolygon(pts)
     }
 
-    const area = computeArea(polygonPath)
-    if (area !== null) setAreaM2(area)
-  }, [polygonPath, computeArea])
-
-  useEffect(() => {
-    if (!polygonInstance) return
-
-    polygonInstance.setEditable(editMode)
-    polygonInstance.setDraggable(editMode)
-
-    listenersRef.current.forEach((l) => l.remove())
-    listenersRef.current = []
-
-    if (editMode) {
-      const path = polygonInstance.getPath()
-
-      const handler = () => {
-        const newPoints: LatLngLiteral[] = []
-        for (let i = 0; i < path.getLength(); i++) {
-          const p = path.getAt(i)
-          newPoints.push({ lat: p.lat(), lng: p.lng() })
-        }
-        setPolygonPath(newPoints)
-      }
-
-      listenersRef.current.push(
-        google.maps.event.addListener(path, 'set_at', handler),
-        google.maps.event.addListener(path, 'insert_at', handler),
-        google.maps.event.addListener(path, 'remove_at', handler)
-      )
-    }
+    const listeners = [
+      gPath.addListener('insert_at', updateFromPath),
+      gPath.addListener('set_at', updateFromPath),
+      gPath.addListener('remove_at', updateFromPath),
+    ]
 
     return () => {
-      listenersRef.current.forEach((l) => l.remove())
-      listenersRef.current = []
+      listeners.forEach((l) => l.remove())
     }
-  }, [editMode, polygonInstance])
+  }, [isEditing, isLocked, savePolygon, isLoaded])
 
-  const handleResetPolygon = useCallback(async () => {
-    if (!polygonPath) return
+  const drawingOptions = useMemo(() => {
+    if (!isLoaded || typeof google === 'undefined') {
+      return {
+        drawingControl: false,
+      } as google.maps.drawing.DrawingManagerOptions
+    }
 
-    const ok = window.confirm(
-      'Voulez-vous vraiment supprimer le polygone de ce bassin ?'
+    return {
+      drawingControl: false,
+      drawingMode:
+        isEditing && !isLocked && path.length === 0
+          ? google.maps.drawing.OverlayType.POLYGON
+          : null,
+    } as google.maps.drawing.DrawingManagerOptions
+  }, [isLoaded, isEditing, isLocked, path.length])
+
+  // ---------------------------------------------------------------------------
+  // Rendu
+  // ---------------------------------------------------------------------------
+  if (loadError) {
+    return (
+      <div className="flex h-80 items-center justify-center rounded-xl border border-ct-grayLight bg-ct-grayLight text-sm text-red-600">
+        Erreur de chargement de la carte Google Maps.
+      </div>
     )
-    if (!ok) return
+  }
 
-    setPolygonPath(null)
-    setAreaM2(null)
-    setEditMode(false)
-    if (polygonInstance) {
-      polygonInstance.setMap(null)
-    }
-
-    const { error } = await supabaseBrowser
-      .from('bassins')
-      .update({ polygone_geojson: null, surface_m2: null })
-      .eq('id', bassinId)
-
-    if (error) {
-      console.error('Erreur Supabase lors de la réinitialisation :', error)
-      alert(
-        "Erreur lors de la réinitialisation du polygone (voir console)."
-      )
-    } else {
-      console.log('Polygone réinitialisé avec succès')
-    }
-  }, [polygonPath, polygonInstance, bassinId])
-
-  const handleToggleEdit = useCallback(async () => {
-    if (!polygonPath) {
-      alert('Aucun polygone à modifier.')
-      return
-    }
-    if (isLocked) {
-      alert('Le polygone est verrouillé. Déverrouille-le avant de modifier.')
-      return
-    }
-
-    if (editMode) {
-      // on quitte le mode édition → on lit directement le path actuel du polygon
-      if (polygonInstance) {
-        const path = polygonInstance.getPath()
-        const pts: LatLngLiteral[] = []
-        for (let i = 0; i < path.getLength(); i++) {
-          const p = path.getAt(i)
-          pts.push({ lat: p.lat(), lng: p.lng() })
-        }
-        setPolygonPath(pts)
-        await savePolygon(pts)
-      } else {
-        await savePolygon(polygonPath)
-      }
-    }
-
-    setEditMode(prev => !prev)
-  }, [polygonPath, editMode, isLocked, polygonInstance, savePolygon])
-
-  const handleToggleLock = useCallback(() => {
-    const newLocked = !isLocked
-
-    if (newLocked) {
-      if (editMode) {
-        setEditMode(false)
-      }
-      if (drawingManager) {
-        drawingManager.setDrawingMode(null)
-      }
-    }
-
-    setIsLocked(newLocked)
-  }, [isLocked, editMode, drawingManager])
-
-  const handleStartDrawing = useCallback(() => {
-    if (isLocked) return
-    if (!drawingManager) return
-    drawingManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON)
-  }, [isLocked, drawingManager])
-
-  if (loadError) return <div>Erreur de chargement de Google Maps.</div>
-  if (!isLoaded) return <div>Chargement de la carte…</div>
-
-  const areaFt2 = areaM2 !== null ? areaM2 * 10.7639 : null
+  if (!isLoaded) {
+    return (
+      <div className="flex h-80 items-center justify-center rounded-xl border border-ct-grayLight bg-ct-grayLight text-sm text-ct-gray">
+        Chargement de la carte…
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-2">
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 8,
-          alignItems: 'center',
-          marginBottom: 4,
-          fontSize: 13,
-        }}
-      >
-        <span style={{ color: '#555' }}>
+    <div className="space-y-3">
+      {/* Barre d’actions au-dessus de la carte */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ct-grayLight bg-ct-grayLight/40 px-4 py-2">
+        <p className="text-sm text-ct-grayDark">
           Superficie du polygone :{' '}
-          {areaFt2 !== null ? `${areaFt2.toFixed(0)} pi²` : '—'}
-        </span>
-
-        {!polygonPath && (
+          <span className="font-semibold">
+            {surfaceFt2 !== null ? `${surfaceFt2} pi²` : '—'}
+          </span>
+        </p>
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="btn-primary"
-            onClick={handleStartDrawing}
-            disabled={isLocked || !drawingManager}
+            className={`btn-secondary ${
+              isLocked ? 'cursor-not-allowed opacity-60' : ''
+            }`}
+            onClick={handleToggleEdit}
+            disabled={isLocked}
           >
-            Dessiner un polygone
+            {isEditing ? 'Terminer l’édition' : 'Modifier le polygone'}
           </button>
-        )}
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={handleResetPolygon}
+          >
+            Réinitialiser le polygone
+          </button>
+          <button
+            type="button"
+            className={`btn-secondary ${
+              isLocked ? 'bg-ct-grayLight text-ct-grayDark' : ''
+            }`}
+            onClick={handleToggleLock}
+          >
+            {isLocked ? 'Déverrouiller' : 'Verrouiller'}
+          </button>
+        </div>
+      </div>
 
-        {polygonPath && (
-          <>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={handleToggleEdit}
-              disabled={isLocked}
-            >
-              {editMode ? 'Terminer la modification' : 'Modifier le polygone'}
-            </button>
-
-            <button
-              type="button"
-              className="btn-secondary btn-danger"
-              onClick={handleResetPolygon}
-            >
-              Réinitialiser le polygone
-            </button>
-          </>
-        )}
-
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={handleToggleLock}
+      <div className="h-80 w-full rounded-xl border border-ct-grayLight overflow-hidden">
+        <GoogleMap
+          mapContainerStyle={{ width: '100%', height: '100%' }}
+          center={finalCenter}
+          zoom={19}
+          onLoad={handleMapLoad}
+          onUnmount={handleMapUnmount}
         >
-          {isLocked ? 'Déverrouiller' : 'Verrouiller'}
-        </button>
-      </div>
+          {path.length > 0 && (
+            <Polygon
+              path={path}
+              onLoad={(poly) => {
+                polygonRef.current = poly
+              }}
+              options={{
+                fillColor: finalColor,
+                fillOpacity: 0.5,
+                strokeColor: finalColor,
+                strokeOpacity: 0.9,
+                strokeWeight: 2,
+                clickable: true,
+                editable: isEditing && !isLocked,
+              }}
+            />
+          )}
 
-      <div className="text-sm text-gray-600">
-        Dessine le bassin directement sur la carte. Le polygone sera sauvegardé
-        automatiquement.
-      </div>
-
-      <GoogleMap
-        mapContainerStyle={mapContainerStyle}
-        center={mapCenter}
-        zoom={18}
-        onLoad={handleMapLoad}
-        options={{
-          mapTypeId: 'satellite',
-          tilt: 0,
-          heading: 0,
-          rotateControl: false,
-        }}
-      >
-        {polygonPath && (
-          <Polygon
-            path={polygonPath}
-            onLoad={setPolygonInstance}
-            options={{
-              fillColor: finalColor,
-              strokeColor: finalColor,
-              fillOpacity: 0.35,
-              strokeWeight: 2,
-            }}
+          {/* DrawingManager pour dessiner un nouveau polygone */}
+          <DrawingManager
+            onLoad={(dm) => setDrawingManager(dm)}
+            options={drawingOptions as any}
+            onPolygonComplete={handlePolygonComplete}
           />
-        )}
-
-        <DrawingManager
-          onLoad={setDrawingManager}
-          options={
-            {
-              drawingControl: false, // plus de toolbar Google, on contrôle via le bouton
-            } as any
-          }
-          onPolygonComplete={handlePolygonComplete}
-        />
-      </GoogleMap>
+        </GoogleMap>
+      </div>
     </div>
   )
 }

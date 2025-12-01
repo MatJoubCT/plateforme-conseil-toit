@@ -2,7 +2,7 @@
 
 import { useEffect, useState, FormEvent, ChangeEvent } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import BassinMap from '@/components/maps/BassinMap'
@@ -73,6 +73,7 @@ function mapEtatToStateBadge(etat: string | null): BassinState {
 
 export default function AdminBassinDetailPage() {
   const params = useParams()
+  const router = useRouter()
   const bassinId = params?.id as string
 
   const [bassin, setBassin] = useState<BassinRow | null>(null)
@@ -98,6 +99,17 @@ export default function AdminBassinDetailPage() {
   const [formCouverture, setFormCouverture] = useState('')
   const [formCommentaire, setFormCommentaire] = useState('')
   const [pdfFile, setPdfFile] = useState<File | null>(null)
+
+  // Modal édition bassin
+  const [showEditBassinModal, setShowEditBassinModal] = useState(false)
+  const [savingBassin, setSavingBassin] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editAnnee, setEditAnnee] = useState('')
+  const [editDateDerniere, setEditDateDerniere] = useState('')
+  const [editEtatId, setEditEtatId] = useState('')
+  const [editDureeId, setEditDureeId] = useState('')
+  const [editReference, setEditReference] = useState('')
+  const [editNotes, setEditNotes] = useState('')
 
   useEffect(() => {
     if (!bassinId) return
@@ -184,6 +196,16 @@ export default function AdminBassinDetailPage() {
     return arr.find((l) => l.id === id)?.label ?? ''
   }
 
+  // Listes de choix pour état / durée de vie du bassin
+  const etatsBassin = listes.filter((l) =>
+    ['etat_bassin', 'etat_toiture', 'etat'].includes(l.categorie)
+  )
+  const dureesBassin = listes.filter((l) =>
+    ['duree_vie_bassin', 'duree_vie_toiture', 'duree_vie'].includes(
+      l.categorie
+    )
+  )
+
   // Couleur du polygone selon l'état / durée de vie
   const couleurEtat: string | undefined = (() => {
     if (!bassin) return undefined
@@ -219,11 +241,33 @@ export default function AdminBassinDetailPage() {
     return undefined
   })()
 
-  // Centre de la carte (coords du bâtiment si dispo)
-  const mapCenter =
-    batiment?.latitude != null && batiment?.longitude != null
-      ? { lat: batiment.latitude, lng: batiment.longitude }
-      : { lat: 46.35, lng: -72.55 }
+  // Centre de la carte : priorité au centre du polygone, puis coords du bâtiment, puis fallback
+  const mapCenter = (() => {
+    if (
+      bassin?.polygone_geojson &&
+      Array.isArray(bassin.polygone_geojson.coordinates) &&
+      bassin.polygone_geojson.coordinates[0] &&
+      bassin.polygone_geojson.coordinates[0].length > 0
+    ) {
+      const ring = bassin.polygone_geojson.coordinates[0]
+      let sumLat = 0
+      let sumLng = 0
+
+      ring.forEach(([lng, lat]) => {
+        sumLat += lat
+        sumLng += lng
+      })
+
+      const count = ring.length || 1
+      return { lat: sumLat / count, lng: sumLng / count }
+    }
+
+    if (batiment?.latitude != null && batiment?.longitude != null) {
+      return { lat: batiment.latitude, lng: batiment.longitude }
+    }
+
+    return { lat: 46.35, lng: -72.55 }
+  })()
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null
@@ -413,6 +457,122 @@ export default function AdminBassinDetailPage() {
     setGaranties((prev) => prev.filter((g) => g.id !== garantie.id))
   }
 
+  // Ouverture du modal d’édition de bassin
+  const openEditBassinModal = () => {
+    if (!bassin) return
+    setEditName(bassin.name || '')
+    setEditAnnee(
+      bassin.annee_installation != null
+        ? String(bassin.annee_installation)
+        : ''
+    )
+    setEditDateDerniere(bassin.date_derniere_refection || '')
+    setEditEtatId(bassin.etat_id || '')
+    setEditDureeId(bassin.duree_vie_id || '')
+    setEditReference(bassin.reference_interne || '')
+    setEditNotes(bassin.notes || '')
+    setShowEditBassinModal(true)
+  }
+
+  const closeEditBassinModal = () => {
+    if (savingBassin) return
+    setShowEditBassinModal(false)
+  }
+
+  const handleSubmitBassin = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!bassin) return
+
+    setSavingBassin(true)
+
+    const safeEtatId =
+      editEtatId && editEtatId.trim() !== '' ? editEtatId : null
+    const safeDureeId =
+      editDureeId && editDureeId.trim() !== '' ? editDureeId : null
+
+    const annee =
+      editAnnee && editAnnee.trim() !== ''
+        ? Number(editAnnee.trim())
+        : null
+
+    const selectedDuree =
+      safeDureeId != null
+        ? dureesBassin.find((d) => d.id === safeDureeId)
+        : undefined
+    const dureeText = selectedDuree?.label ?? null
+
+    const payload = {
+      name: editName || null,
+      annee_installation: annee,
+      date_derniere_refection:
+        editDateDerniere && editDateDerniere.trim() !== ''
+          ? editDateDerniere
+          : null,
+      etat_id: safeEtatId,
+      duree_vie_id: safeDureeId,
+      duree_vie_text: dureeText,
+      reference_interne:
+        editReference && editReference.trim() !== ''
+          ? editReference
+          : null,
+      notes: editNotes && editNotes.trim() !== '' ? editNotes : null,
+    }
+
+    const { data, error } = await supabaseBrowser
+      .from('bassins')
+      .update(payload)
+      .eq('id', bassin.id)
+      .select(
+        'id, batiment_id, name, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
+      )
+      .single()
+
+    setSavingBassin(false)
+
+    if (error) {
+      console.error('Erreur Supabase update bassin', error)
+      alert(
+        'Erreur lors de la mise à jour du bassin : ' +
+          (error.message ?? 'Erreur inconnue')
+      )
+      return
+    }
+
+    if (data) {
+      setBassin(data as BassinRow)
+      setShowEditBassinModal(false)
+    }
+  }
+
+  const handleDeleteBassin = async () => {
+    if (!bassin) return
+
+    const ok = window.confirm(
+      'Voulez-vous vraiment supprimer ce bassin? Toutes les garanties associées devront être gérées manuellement.'
+    )
+    if (!ok) return
+
+    const { error } = await supabaseBrowser
+      .from('bassins')
+      .delete()
+      .eq('id', bassin.id)
+
+    if (error) {
+      console.error('Erreur Supabase delete bassin', error)
+      alert(
+        'Erreur lors de la suppression du bassin : ' +
+          (error.message ?? 'Erreur inconnue')
+      )
+      return
+    }
+
+    if (batiment?.id) {
+      router.push(`/admin/batiments/${batiment.id}`)
+    } else {
+      router.push('/admin/bassins')
+    }
+  }
+
   if (loading) {
     return (
       <section className="space-y-4">
@@ -444,12 +604,12 @@ export default function AdminBassinDetailPage() {
       : null
 
   const typeDuree =
-    listes.find((l) => l.id === bassin.duree_vie_id)?.label ||
+    dureesBassin.find((l) => l.id === bassin.duree_vie_id)?.label ||
     bassin.duree_vie_text ||
     null
 
   const etatLabel =
-    listes.find((l) => l.id === bassin.etat_id)?.label || null
+    etatsBassin.find((l) => l.id === bassin.etat_id)?.label || null
 
   return (
     <section className="space-y-6">
@@ -480,20 +640,37 @@ export default function AdminBassinDetailPage() {
               {bassin.annee_installation ?? 'n/d'}
             </span>{' '}
             · Dernière réfection :{' '}
+
             <span className="font-medium text-ct-grayDark">
               {bassin.date_derniere_refection ?? 'n/d'}
             </span>
           </p>
         </div>
 
-        {batiment && (
-          <Link
-            href={`/admin/batiments/${batiment.id}`}
-            className="btn-secondary inline-flex items-center justify-center"
+        <div className="flex flex-wrap items-center gap-2">
+          {batiment && (
+            <Link
+              href={`/admin/batiments/${batiment.id}`}
+              className="btn-secondary inline-flex items-center justify-center"
+            >
+              ← Retour au bâtiment
+            </Link>
+          )}
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={openEditBassinModal}
           >
-            ← Retour au bâtiment
-          </Link>
-        )}
+            Modifier
+          </button>
+          <button
+            type="button"
+            className="btn-danger"
+            onClick={handleDeleteBassin}
+          >
+            Supprimer
+          </button>
+        </div>
       </div>
 
       {/* Résumé bassin + notes + carte */}
@@ -505,7 +682,6 @@ export default function AdminBassinDetailPage() {
           <div className="space-y-2 text-sm text-ct-grayDark">
             <div className="flex items-center justify-between gap-4">
               <span className="text-ct-gray">État global</span>
-              {/* Pastille de couleur à la place du texte */}
               <StateBadge state={mapEtatToStateBadge(etatLabel)} />
             </div>
             <div className="flex justify-between gap-4">
@@ -693,6 +869,143 @@ export default function AdminBassinDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Modal édition bassin */}
+      {showEditBassinModal && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-ct-grayDark">
+              Modifier le bassin
+            </h3>
+            <p className="mt-1 text-sm text-ct-gray">
+              Ajustez les informations administratives de ce bassin. La
+              superficie reste calculée automatiquement à partir du polygone.
+            </p>
+
+            <form
+              onSubmit={handleSubmitBassin}
+              className="mt-4 space-y-4 text-sm"
+            >
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Nom du bassin
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-ct-grayDark">
+                    Année d&apos;installation
+                  </label>
+                  <input
+                    type="number"
+                    value={editAnnee}
+                    onChange={(e) => setEditAnnee(e.target.value)}
+                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-ct-grayDark">
+                    Date de la dernière réfection
+                  </label>
+                  <input
+                    type="date"
+                    value={editDateDerniere}
+                    onChange={(e) => setEditDateDerniere(e.target.value)}
+                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-ct-grayDark">
+                    État du bassin
+                  </label>
+                  <select
+                    value={editEtatId}
+                    onChange={(e) => setEditEtatId(e.target.value)}
+                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  >
+                    <option value="">Non défini</option>
+                    {etatsBassin.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-ct-grayDark">
+                    Durée de vie
+                  </label>
+                  <select
+                    value={editDureeId}
+                    onChange={(e) => setEditDureeId(e.target.value)}
+                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  >
+                    <option value="">Non définie</option>
+                    {dureesBassin.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Référence interne
+                </label>
+                <input
+                  type="text"
+                  value={editReference}
+                  onChange={(e) => setEditReference(e.target.value)}
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Notes internes
+                </label>
+                <textarea
+                  rows={3}
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                />
+              </div>
+
+              <div className="mt-4 flex justify-end gap-3">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={closeEditBassinModal}
+                  disabled={savingBassin}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={savingBassin}
+                >
+                  {savingBassin ? 'Enregistrement…' : 'Enregistrer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal ajout / modification garantie */}
       {showModal && (
