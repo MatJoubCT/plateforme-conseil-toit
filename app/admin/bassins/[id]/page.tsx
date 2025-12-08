@@ -640,7 +640,6 @@ export default function AdminBassinDetailPage() {
               {bassin.annee_installation ?? 'n/d'}
             </span>{' '}
             · Dernière réfection :{' '}
-
             <span className="font-medium text-ct-grayDark">
               {bassin.date_derniere_refection ?? 'n/d'}
             </span>
@@ -1010,7 +1009,7 @@ export default function AdminBassinDetailPage() {
       {/* Modal ajout / modification garantie */}
       {showModal && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-xl mx-4 max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold text-ct-grayDark">
               {modalTitle}
             </h3>
