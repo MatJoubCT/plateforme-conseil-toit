@@ -58,6 +58,17 @@ type GarantieRow = {
   fichier_pdf_url: string | null
 }
 
+type RapportRow = {
+  id: string
+  bassin_id: string | null
+  type_id: string | null
+  date_rapport: string | null
+  numero_ct: string | null
+  titre: string | null
+  description: string | null
+  file_url: string | null
+}
+
 /** mappe un libellé d'état en type pour StateBadge */
 function mapEtatToStateBadge(etat: string | null): BassinState {
   if (!etat) return 'non_evalue'
@@ -80,8 +91,14 @@ export default function AdminBassinDetailPage() {
   const [batiment, setBatiment] = useState<BatimentRow | null>(null)
   const [listes, setListes] = useState<ListeChoix[]>([])
   const [garanties, setGaranties] = useState<GarantieRow[]>([])
+  const [rapports, setRapports] = useState<RapportRow[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  // Onglets documents
+  const [activeDocTab, setActiveDocTab] = useState<'garanties' | 'rapports'>(
+    'garanties'
+  )
 
   // Modal ajout/modif garantie
   const [showModal, setShowModal] = useState(false)
@@ -99,6 +116,18 @@ export default function AdminBassinDetailPage() {
   const [formCouverture, setFormCouverture] = useState('')
   const [formCommentaire, setFormCommentaire] = useState('')
   const [pdfFile, setPdfFile] = useState<File | null>(null)
+
+  // Modal rapports
+  const [showRapportModal, setShowRapportModal] = useState(false)
+  const [savingRapport, setSavingRapport] = useState(false)
+  const [editingRapport, setEditingRapport] = useState<RapportRow | null>(null)
+  const [rapportModalTitle, setRapportModalTitle] =
+    useState('Nouveau rapport')
+  const [formTypeRapportId, setFormTypeRapportId] = useState('')
+  const [formDateRapport, setFormDateRapport] = useState('')
+  const [formNumeroRapport, setFormNumeroRapport] = useState('')
+  const [formCommentaireRapport, setFormCommentaireRapport] = useState('')
+  const [rapportPdfFile, setRapportPdfFile] = useState<File | null>(null)
 
   // Modal édition bassin
   const [showEditBassinModal, setShowEditBassinModal] = useState(false)
@@ -173,26 +202,47 @@ export default function AdminBassinDetailPage() {
         return
       }
 
+      // 5) Rapports du bassin
+      const { data: rapportsData, error: rapportsError } =
+        await supabaseBrowser
+          .from('rapports')
+          .select(
+            'id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url'
+          )
+          .eq('bassin_id', bassinId)
+          .order('date_rapport', { ascending: false })
+
+      if (rapportsError) {
+        setErrorMsg(rapportsError.message)
+        setLoading(false)
+        return
+      }
+
       setBassin(bassinData as BassinRow)
       setBatiment(batData)
       setListes(listesData || [])
       setGaranties(garantiesData || [])
+      setRapports(rapportsData || [])
       setLoading(false)
     }
 
     void fetchData()
   }, [bassinId])
 
-  // Listes de choix garanties
+  // Listes de choix garanties / rapports
   const typesGarantie = listes.filter((l) => l.categorie === 'type_garantie')
   const statutsGarantie = listes.filter((l) => l.categorie === 'statut_garantie')
+  const typesRapport = listes.filter((l) => l.categorie === 'type_rapport')
 
   const labelFromId = (
-    category: 'type_garantie' | 'statut_garantie',
+    category: 'type_garantie' | 'statut_garantie' | 'type_rapport',
     id: string | null
   ) => {
     if (!id) return ''
-    const arr = category === 'type_garantie' ? typesGarantie : statutsGarantie
+    let arr: ListeChoix[]
+    if (category === 'type_garantie') arr = typesGarantie
+    else if (category === 'statut_garantie') arr = statutsGarantie
+    else arr = typesRapport
     return arr.find((l) => l.id === id)?.label ?? ''
   }
 
@@ -274,6 +324,11 @@ export default function AdminBassinDetailPage() {
     setPdfFile(file)
   }
 
+  const handleRapportFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null
+    setRapportPdfFile(file)
+  }
+
   const openModal = (garantie?: GarantieRow) => {
     if (garantie) {
       // MODE ÉDITION
@@ -312,6 +367,36 @@ export default function AdminBassinDetailPage() {
     if (saving) return
     setShowModal(false)
     setEditingGarantie(null)
+  }
+
+  const openRapportModal = (rapport?: RapportRow) => {
+    if (rapport) {
+      setEditingRapport(rapport)
+      setRapportModalTitle('Modifier le rapport')
+
+      setFormTypeRapportId(rapport.type_id || '')
+      setFormDateRapport(rapport.date_rapport || '')
+      setFormNumeroRapport(rapport.numero_ct || '')
+      setFormCommentaireRapport(rapport.description || '')
+      setRapportPdfFile(null)
+    } else {
+      setEditingRapport(null)
+      setRapportModalTitle('Nouveau rapport')
+
+      setFormTypeRapportId('')
+      setFormDateRapport('')
+      setFormNumeroRapport('')
+      setFormCommentaireRapport('')
+      setRapportPdfFile(null)
+    }
+
+    setShowRapportModal(true)
+  }
+
+  const closeRapportModal = () => {
+    if (savingRapport) return
+    setShowRapportModal(false)
+    setEditingRapport(null)
   }
 
   const handleSubmitGarantie = async (e: FormEvent) => {
@@ -457,6 +542,142 @@ export default function AdminBassinDetailPage() {
     setGaranties((prev) => prev.filter((g) => g.id !== garantie.id))
   }
 
+  const handleSubmitRapport = async (e: FormEvent) => {
+    e.preventDefault()
+
+    if (!bassin || !bassin.id) {
+      alert('Bassin introuvable (id manquant).')
+      return
+    }
+
+    setSavingRapport(true)
+
+    // 1) Gestion du PDF
+    let fichierUrl: string | null = editingRapport?.file_url ?? null
+
+    if (rapportPdfFile) {
+      const ext = rapportPdfFile.name.split('.').pop() || 'pdf'
+      const baseNumero =
+        formNumeroRapport && formNumeroRapport.trim() !== ''
+          ? formNumeroRapport.trim()
+          : 'rapport'
+      const path = `${bassin.id}/${baseNumero}-${crypto.randomUUID()}.${ext}`
+
+      const { error: uploadError } = await supabaseBrowser.storage
+        .from('rapports')
+        .upload(path, rapportPdfFile, {
+          upsert: false,
+        })
+
+      if (uploadError) {
+        setSavingRapport(false)
+        alert('Erreur lors du téléversement du PDF : ' + uploadError.message)
+        return
+      }
+
+      const { data: publicData } = supabaseBrowser.storage
+        .from('rapports')
+        .getPublicUrl(path)
+
+      fichierUrl = publicData?.publicUrl ?? null
+    }
+
+    const safeTypeRapportId =
+      formTypeRapportId && formTypeRapportId.trim() !== ''
+        ? formTypeRapportId
+        : null
+
+    const payload = {
+      bassin_id: bassin.id,
+      type_id: safeTypeRapportId,
+      date_rapport: formDateRapport || null,
+      numero_ct: formNumeroRapport || null,
+      description: formCommentaireRapport || null,
+      file_url: fichierUrl,
+    }
+
+    const badUuidFields: string[] = []
+    if ((payload.bassin_id as any) === 'undefined') badUuidFields.push('bassin_id')
+    if ((payload.type_id as any) === 'undefined') badUuidFields.push('type_id')
+
+    if (badUuidFields.length > 0) {
+      console.error('BUG: champs uuid = "undefined" dans payload rapport', {
+        payload,
+        badUuidFields,
+      })
+      alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
+      setSavingRapport(false)
+      return
+    }
+
+    let data: RapportRow | null = null
+    let error: any = null
+
+    if (editingRapport && editingRapport.id) {
+      const res = await supabaseBrowser
+        .from('rapports')
+        .update(payload)
+        .eq('id', editingRapport.id)
+        .select(
+          'id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url'
+        )
+        .single()
+
+      data = res.data as RapportRow | null
+      error = res.error
+    } else {
+      const res = await supabaseBrowser
+        .from('rapports')
+        .insert(payload)
+        .select(
+          'id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url'
+        )
+        .single()
+
+      data = res.data as RapportRow | null
+      error = res.error
+    }
+
+    setSavingRapport(false)
+
+    if (error) {
+      console.error('Erreur Supabase insert/update rapport', error)
+      alert(
+        'Erreur lors de l’enregistrement du rapport : ' +
+          ((error as any)?.message ?? 'Erreur inconnue')
+      )
+      return
+    }
+
+    if (data) {
+      if (editingRapport) {
+        setRapports((prev) => prev.map((r) => (r.id === data!.id ? data! : r)))
+      } else {
+        setRapports((prev) => [data, ...prev])
+      }
+      closeRapportModal()
+    }
+  }
+
+  const handleDeleteRapport = async (rapport: RapportRow) => {
+    const ok = window.confirm(
+      'Voulez-vous vraiment supprimer ce rapport ?'
+    )
+    if (!ok) return
+
+    const { error } = await supabaseBrowser
+      .from('rapports')
+      .delete()
+      .eq('id', rapport.id)
+
+    if (error) {
+      alert('Erreur lors de la suppression : ' + error.message)
+      return
+    }
+
+    setRapports((prev) => prev.filter((r) => r.id !== rapport.id))
+  }
+
   // Ouverture du modal d’édition de bassin
   const openEditBassinModal = () => {
     if (!bassin) return
@@ -548,7 +769,7 @@ export default function AdminBassinDetailPage() {
     if (!bassin) return
 
     const ok = window.confirm(
-      'Voulez-vous vraiment supprimer ce bassin? Toutes les garanties associées devront être gérées manuellement.'
+      'Voulez-vous vraiment supprimer ce bassin? Toutes les garanties et rapports associés devront être gérés manuellement dans les fichiers.'
     )
     if (!ok) return
 
@@ -721,7 +942,7 @@ export default function AdminBassinDetailPage() {
             </div>
           </div>
 
-          <div className="h-80 w-full rounded-xl border border-ct-grayLight overflow-hidden">
+          <div className="h-[480px] w-full rounded-xl border border-ct-grayLight overflow-hidden">
             <BassinMap
               bassinId={bassin.id}
               center={mapCenter}
@@ -732,140 +953,280 @@ export default function AdminBassinDetailPage() {
         </div>
       </div>
 
-      {/* Section garanties */}
+      {/* Section documents : Garanties / Rapports */}
       <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-3">
           <div>
             <h2 className="text-sm font-semibold text-ct-grayDark uppercase tracking-wide">
-              Garanties du bassin
+              Documents du bassin
             </h2>
             <p className="text-xs text-ct-gray mt-1">
-              Liste des garanties associées à ce bassin, avec leurs dates,
-              statut et couverture.
+              Gérez les garanties et les rapports PDF associés à ce bassin.
             </p>
           </div>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => openModal()}
-          >
-            Ajouter une garantie
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
+                activeDocTab === 'garanties'
+                  ? 'border-ct-primary bg-ct-primary text-white'
+                  : 'border-ct-grayLight bg-white text-ct-gray hover:bg-ct-grayLight/40'
+              }`}
+              onClick={() => setActiveDocTab('garanties')}
+            >
+              Garanties
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
+                activeDocTab === 'rapports'
+                  ? 'border-ct-primary bg-ct-primary text-white'
+                  : 'border-ct-grayLight bg-white text-ct-gray hover:bg-ct-grayLight/40'
+              }`}
+              onClick={() => setActiveDocTab('rapports')}
+            >
+              Rapports
+            </button>
+          </div>
         </div>
 
-        {garanties.length === 0 ? (
-          <p className="text-sm text-ct-gray">
-            Aucune garantie pour ce bassin pour le moment.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-ct-grayLight/60 text-left">
-                  <th className="border border-ct-grayLight px-3 py-2">
-                    Type
-                  </th>
-                  <th className="border border-ct-grayLight px-3 py-2">
-                    Fournisseur
-                  </th>
-                  <th className="border border-ct-grayLight px-3 py-2">
-                    No garantie
-                  </th>
-                  <th className="border border-ct-grayLight px-3 py-2">
-                    Début
-                  </th>
-                  <th className="border border-ct-grayLight px-3 py-2">
-                    Fin
-                  </th>
-                  <th className="border border-ct-grayLight px-3 py-2">
-                    Statut
-                  </th>
-                  <th className="border border-ct-grayLight px-3 py-2">
-                    Couverture
-                  </th>
-                  <th className="border border-ct-grayLight px-3 py-2">
-                    PDF
-                  </th>
-                  <th className="border border-ct-grayLight px-3 py-2">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {garanties.map((g) => {
-                  const typeLabel = labelFromId(
-                    'type_garantie',
-                    g.type_garantie_id
-                  )
-                  const statutLabel = labelFromId(
-                    'statut_garantie',
-                    g.statut_id
-                  )
+        {/* Contenu onglet Garanties */}
+        {activeDocTab === 'garanties' && (
+          <>
+            <div className="flex justify-end mb-3">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => openModal()}
+              >
+                Ajouter une garantie
+              </button>
+            </div>
 
-                  return (
-                    <tr
-                      key={g.id}
-                      className="hover:bg-ct-primaryLight/10 transition-colors"
-                    >
-                      <td className="border border-ct-grayLight px-3 py-2">
-                        {typeLabel || '—'}
-                      </td>
-                      <td className="border border-ct-grayLight px-3 py-2">
-                        {g.fournisseur || '—'}
-                      </td>
-                      <td className="border border-ct-grayLight px-3 py-2">
-                        {g.numero_garantie || '—'}
-                      </td>
-                      <td className="border border-ct-grayLight px-3 py-2">
-                        {g.date_debut || '—'}
-                      </td>
-                      <td className="border border-ct-grayLight px-3 py-2">
-                        {g.date_fin || '—'}
-                      </td>
-                      <td className="border border-ct-grayLight px-3 py-2">
-                        {statutLabel || '—'}
-                      </td>
-                      <td className="border border-ct-grayLight px-3 py-2">
-                        {g.couverture || '—'}
-                      </td>
-                      <td className="border border-ct-grayLight px-3 py-2">
-                        {g.fichier_pdf_url ? (
-                          <a
-                            href={g.fichier_pdf_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-ct-primary hover:underline"
-                          >
-                            Ouvrir
-                          </a>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="border border-ct-grayLight px-3 py-2">
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            onClick={() => openModal(g)}
-                          >
-                            Modifier
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-danger"
-                            onClick={() => handleDeleteGarantie(g)}
-                          >
-                            Supprimer
-                          </button>
-                        </div>
-                      </td>
+            {garanties.length === 0 ? (
+              <p className="text-sm text-ct-gray">
+                Aucune garantie pour ce bassin pour le moment.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-ct-grayLight/60 text-left">
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Type
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Fournisseur
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        No garantie
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Début
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Fin
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Statut
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Couverture
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        PDF
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Actions
+                      </th>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {garanties.map((g) => {
+                      const typeLabel = labelFromId(
+                        'type_garantie',
+                        g.type_garantie_id
+                      )
+                      const statutLabel = labelFromId(
+                        'statut_garantie',
+                        g.statut_id
+                      )
+
+                      return (
+                        <tr
+                          key={g.id}
+                          className="hover:bg-ct-primaryLight/10 transition-colors"
+                        >
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {typeLabel || '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {g.fournisseur || '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {g.numero_garantie || '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {g.date_debut || '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {g.date_fin || '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {statutLabel || '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {g.couverture || '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {g.fichier_pdf_url ? (
+                              <a
+                                href={g.fichier_pdf_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-ct-primary hover:underline"
+                              >
+                                Ouvrir
+                              </a>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => openModal(g)}
+                              >
+                                Modifier
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-danger"
+                                onClick={() => handleDeleteGarantie(g)}
+                              >
+                                Supprimer
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Contenu onglet Rapports */}
+        {activeDocTab === 'rapports' && (
+          <>
+            <div className="flex justify-end mb-3">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => openRapportModal()}
+              >
+                Ajouter un rapport
+              </button>
+            </div>
+
+            {rapports.length === 0 ? (
+              <p className="text-sm text-ct-gray">
+                Aucun rapport n’est enregistré pour ce bassin pour le moment.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-ct-grayLight/60 text-left">
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Date
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Type
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        No rapport (CT)
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Commentaire
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        PDF
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rapports.map((r) => {
+                      const typeLabel = labelFromId(
+                        'type_rapport',
+                        r.type_id
+                      )
+
+                      return (
+                        <tr
+                          key={r.id}
+                          className="hover:bg-ct-primaryLight/10 transition-colors"
+                        >
+                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                            {r.date_rapport || '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {typeLabel || '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                            {r.numero_ct || '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {r.description || '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {r.file_url ? (
+                              <a
+                                href={r.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-ct-primary hover:underline"
+                              >
+                                Ouvrir
+                              </a>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => openRapportModal(r)}
+                              >
+                                Modifier
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-danger"
+                                onClick={() => handleDeleteRapport(r)}
+                              >
+                                Supprimer
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -1159,6 +1520,112 @@ export default function AdminBassinDetailPage() {
                   disabled={saving}
                 >
                   {saving ? 'Enregistrement…' : 'Enregistrer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal ajout / modification rapport */}
+      {showRapportModal && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-xl mx-4 max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-ct-grayDark">
+              {rapportModalTitle}
+            </h3>
+            <p className="mt-1 text-sm text-ct-gray">
+              Bassin : {bassin.name || '(Sans nom)'}
+            </p>
+
+            <form
+              onSubmit={handleSubmitRapport}
+              className="mt-4 space-y-4 text-sm"
+            >
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Type de rapport
+                </label>
+                <select
+                  value={formTypeRapportId}
+                  onChange={(e) => setFormTypeRapportId(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                >
+                  <option value="">Sélectionner…</option>
+                  {typesRapport.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-ct-grayDark">
+                    Date du rapport
+                  </label>
+                  <input
+                    type="date"
+                    value={formDateRapport}
+                    onChange={(e) => setFormDateRapport(e.target.value)}
+                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-ct-grayDark">
+                    Numéro de rapport (CT)
+                  </label>
+                  <input
+                    type="text"
+                    value={formNumeroRapport}
+                    onChange={(e) => setFormNumeroRapport(e.target.value)}
+                    placeholder="Ex.: CT-25-0001"
+                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Commentaire
+                </label>
+                <textarea
+                  rows={3}
+                  value={formCommentaireRapport}
+                  onChange={(e) => setFormCommentaireRapport(e.target.value)}
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Fichier PDF du rapport
+                </label>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handleRapportFileChange}
+                  className="block w-full text-xs text-ct-gray file:mr-3 file:rounded-md file:border-0 file:bg-ct-primary/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ct-primary hover:file:bg-ct-primary/20"
+                />
+              </div>
+
+              <div className="mt-4 flex justify-end gap-3">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={closeRapportModal}
+                  disabled={savingRapport}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={savingRapport}
+                >
+                  {savingRapport ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
               </div>
             </form>

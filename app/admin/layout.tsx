@@ -38,6 +38,11 @@ const primaryNav: NavItem[] = [
 
 const secondaryNav: NavItem[] = [
   {
+    label: 'Utilisateurs',
+    description: 'Accès et rôles',
+    href: '/admin/utilisateurs',
+  },
+  {
     label: 'Listes de choix',
     description: 'Types, états, durées de vie',
     href: '/admin/listes',

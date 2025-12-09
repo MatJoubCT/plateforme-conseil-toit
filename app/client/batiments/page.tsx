@@ -1,32 +1,44 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+
+type ClientRow = {
+  id: string
+  name: string | null
+}
 
 type BatimentRow = {
   id: string
+  client_id: string | null
   name: string | null
   address: string | null
   city: string | null
   postal_code: string | null
 }
 
-type UserProfile = {
+type UserProfileRow = {
   id: string
   user_id: string
-  role: string
+  role: string | null
   client_id: string | null
+  full_name: string | null
 }
 
 export default function ClientBatimentsPage() {
-  const [batiments, setBatiments] = useState<BatimentRow[]>([])
+  const router = useRouter()
+
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [clientName, setClientName] = useState<string | null>(null)
+
+  const [profile, setProfile] = useState<UserProfileRow | null>(null)
+  const [clients, setClients] = useState<ClientRow[]>([])
+  const [batiments, setBatiments] = useState<BatimentRow[]>([])
 
   useEffect(() => {
-    const fetchData = async () => {
+    const load = async () => {
       setLoading(true)
       setErrorMsg(null)
 
@@ -36,153 +48,214 @@ export default function ClientBatimentsPage() {
         error: userError,
       } = await supabaseBrowser.auth.getUser()
 
-      if (userError) {
-        setErrorMsg(userError.message)
+      if (userError || !user) {
+        setErrorMsg("Impossible de récupérer l'utilisateur connecté.")
+        setLoading(false)
+        router.push('/login')
+        return
+      }
+
+      // 2) Profil
+      const { data: profileData, error: profileError } =
+        await supabaseBrowser
+          .from('user_profiles')
+          .select('id, user_id, role, client_id, full_name')
+          .eq('user_id', user.id)
+          .maybeSingle()
+
+      if (profileError || !profileData) {
+        setErrorMsg('Profil utilisateur introuvable.')
         setLoading(false)
         return
       }
 
-      if (!user) {
-        setErrorMsg('Utilisateur non authentifié.')
+      setProfile(profileData as UserProfileRow)
+
+      // 3) Bâtiments accessibles (RLS fait le filtrage)
+      const { data: batsData, error: batsError } =
+        await supabaseBrowser
+          .from('batiments')
+          .select(
+            'id, client_id, name, address, city, postal_code'
+          )
+          .order('name', { ascending: true })
+
+      if (batsError) {
+        setErrorMsg(batsError.message)
         setLoading(false)
         return
       }
 
-      // 2) Profil utilisateur (filtre sur user_id)
-      const { data: profile, error: profileError } = await supabaseBrowser
-        .from('user_profiles')
-        .select('id, user_id, role, client_id')
-        .eq('user_id', user.id) // <<< ICI : user_id, pas id
-        .maybeSingle<UserProfile>()
+      const batList = (batsData || []) as BatimentRow[]
+      setBatiments(batList)
 
-      if (profileError) {
-        setErrorMsg(
-          "Impossible de récupérer le profil de l'utilisateur : " +
-            profileError.message
+      // 4) Charger les clients correspondant aux bâtiments visibles
+      const clientIds = Array.from(
+        new Set(
+          batList
+            .map((b) => b.client_id)
+            .filter((id): id is string => !!id)
         )
-        setLoading(false)
-        return
+      )
+
+      if (clientIds.length > 0) {
+        const { data: clientsData, error: clientsError } =
+          await supabaseBrowser
+            .from('clients')
+            .select('id, name')
+            .in('id', clientIds)
+
+        if (clientsError) {
+          setErrorMsg(clientsError.message)
+          setLoading(false)
+          return
+        }
+
+        setClients((clientsData || []) as ClientRow[])
       }
 
-      if (!profile) {
-        setErrorMsg(
-          "Aucun profil n'est associé à ce compte utilisateur dans user_profiles."
-        )
-        setLoading(false)
-        return
-      }
-
-      if (!profile.client_id) {
-        setErrorMsg(
-          "Aucun client n'est associé à ce profil utilisateur."
-        )
-        setLoading(false)
-        return
-      }
-
-      const clientId = profile.client_id
-
-      // 3) Nom du client (optionnel)
-      const { data: clientData, error: clientError } = await supabaseBrowser
-        .from('clients')
-        .select('name')
-        .eq('id', clientId)
-        .maybeSingle()
-
-      if (!clientError) {
-        setClientName(clientData?.name ?? null)
-      }
-
-      // 4) Bâtiments du client
-      const { data: batData, error: batError } = await supabaseBrowser
-        .from('batiments')
-        .select('id, name, address, city, postal_code')
-        .eq('client_id', clientId)
-        .order('name', { ascending: true })
-
-      if (batError) {
-        setErrorMsg(
-          'Erreur lors du chargement des bâtiments : ' + batError.message
-        )
-        setLoading(false)
-        return
-      }
-
-      setBatiments(batData || [])
       setLoading(false)
     }
 
-    void fetchData()
-  }, [])
+    void load()
+  }, [router])
+
+  const clientsById = useMemo(() => {
+    const m = new Map<string, ClientRow>()
+    clients.forEach((c) => m.set(c.id, c))
+    return m
+  }, [clients])
+
+  const batimentsGroupes = useMemo(() => {
+    const map = new Map<string, BatimentRow[]>()
+    batiments.forEach((b) => {
+      const key = b.client_id || 'sans_client'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(b)
+    })
+    return map
+  }, [batiments])
 
   if (loading) {
-    return <p>Chargement…</p>
+    return (
+      <main className="mx-auto max-w-6xl px-4 py-8">
+        <p className="text-sm text-ct-gray">Chargement des bâtiments…</p>
+      </main>
+    )
   }
 
   if (errorMsg) {
-    return <p style={{ color: 'red' }}>Erreur : {errorMsg}</p>
+    return (
+      <main className="mx-auto max-w-6xl px-4 py-8">
+        <p className="text-sm text-red-600">Erreur : {errorMsg}</p>
+      </main>
+    )
+  }
+
+  // Titre principal
+  let titre = 'Bâtiments accessibles'
+  const clientIds = Array.from(batimentsGroupes.keys()).filter(
+    (id) => id !== 'sans_client'
+  )
+  if (clientIds.length === 1) {
+    const c = clientsById.get(clientIds[0])
+    if (c?.name) {
+      titre = `Bâtiments – ${c.name}`
+    }
   }
 
   return (
-    <section>
-      <h2 style={{ fontSize: 22, fontWeight: 'bold', marginBottom: 8 }}>
-        {clientName ? `Bâtiments – ${clientName}` : 'Bâtiments'}
-      </h2>
-      <p style={{ marginBottom: 16, color: '#555', fontSize: 14 }}>
-        Voici la liste des bâtiments associés à votre compte. Cliquez sur un
-        bâtiment pour consulter les détails des bassins et des garanties.
-      </p>
+    <main className="mx-auto max-w-6xl px-4 py-8 space-y-6">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-semibold text-ct-primary">
+          {titre}
+        </h1>
+        <p className="text-sm text-ct-gray">
+          Voici la liste des bâtiments associés à votre compte. Cliquez sur
+          un bâtiment pour consulter les détails des bassins et des
+          garanties.
+        </p>
+      </header>
 
       {batiments.length === 0 ? (
-        <p>Aucun bâtiment n’est associé à votre compte.</p>
+        <p className="text-sm text-ct-gray">
+          Aucun bâtiment n&apos;est associé à votre compte pour le
+          moment.
+        </p>
       ) : (
-        <table
-          style={{
-            borderCollapse: 'collapse',
-            border: '1px solid #ccc',
-            width: '100%',
-            fontSize: 14,
-          }}
-        >
-          <thead>
-            <tr style={{ backgroundColor: '#f5f5f5' }}>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>Bâtiment</th>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>Adresse</th>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>Ville</th>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>
-                Code postal
-              </th>
-              <th style={{ border: '1px solid #ccc', padding: 6 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {batiments.map(b => (
-              <tr key={b.id}>
-                <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                  <Link href={`/client/batiments/${b.id}`}>{b.name}</Link>
-                </td>
-                <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                  {b.address}
-                </td>
-                <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                  {b.city}
-                </td>
-                <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                  {b.postal_code}
-                </td>
-                <td style={{ border: '1px solid #ccc', padding: 6 }}>
-                  <Link
-                    href={`/client/batiments/${b.id}`}
-                    className="btn-secondary"
-                  >
-                    Voir
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        Array.from(batimentsGroupes.entries()).map(
+          ([clientId, bats]) => {
+            const client = clientsById.get(clientId)
+            const showClientHeader =
+              batimentsGroupes.size > 1 || clientId === 'sans_client'
+
+            return (
+              <section key={clientId} className="space-y-3">
+                {showClientHeader && (
+                  <h2 className="text-sm font-semibold text-ct-grayDark uppercase tracking-wide">
+                    {client
+                      ? client.name || 'Client'
+                      : 'Bâtiments sans client'}
+                  </h2>
+                )}
+
+                <div className="overflow-x-auto rounded-2xl border border-ct-grayLight bg-white shadow-sm">
+                  <table className="min-w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-ct-grayLight/60 text-left">
+                        <th className="border border-ct-grayLight px-3 py-2">
+                          Bâtiment
+                        </th>
+                        <th className="border border-ct-grayLight px-3 py-2">
+                          Adresse
+                        </th>
+                        <th className="border border-ct-grayLight px-3 py-2">
+                          Ville
+                        </th>
+                        <th className="border border-ct-grayLight px-3 py-2">
+                          Code postal
+                        </th>
+                        <th className="border border-ct-grayLight px-3 py-2">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bats.map((b) => (
+                        <tr
+                          key={b.id}
+                          className="hover:bg-ct-primaryLight/10 transition-colors"
+                        >
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {b.name || '(Sans nom)'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {b.address || '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {b.city || '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {b.postal_code || '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            <Link
+                              href={`/client/batiments/${b.id}`}
+                              className="btn-secondary"
+                            >
+                              Voir
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )
+          }
+        )
       )}
-    </section>
+    </main>
   )
 }

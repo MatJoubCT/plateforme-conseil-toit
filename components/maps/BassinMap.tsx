@@ -53,7 +53,7 @@ export default function BassinMap({
   const polygonRef = useRef<google.maps.Polygon | null>(null)
 
   // ---------------------------------------------------------------------------
-  // Initialisation du polygone à partir du GeoJSON
+  // Initialisation du polygone à partir du GeoJSON initial
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (
@@ -75,7 +75,7 @@ export default function BassinMap({
   }, [initialPolygon])
 
   // ---------------------------------------------------------------------------
-  // Calcul de la surface
+  // Calcul de la surface (m²) puis conversion en pi² pour l'affichage
   // ---------------------------------------------------------------------------
   const computeArea = useCallback(
     (points: LatLngLiteral[]): number | null => {
@@ -88,22 +88,24 @@ export default function BassinMap({
         (p) => new google.maps.LatLng(p.lat, p.lng)
       )
       const area = google.maps.geometry.spherical.computeArea(gPath)
-      return area
+      return area // en m²
     },
     [isLoaded]
   )
 
   useEffect(() => {
-    if (!path.length) {
+    if (!isLoaded) return
+    if (!path || path.length < 3) {
       setAreaM2(null)
       return
     }
     const a = computeArea(path)
     if (a !== null) setAreaM2(a)
-  }, [path, computeArea])
+  }, [path, computeArea, isLoaded])
 
   const surfaceFt2 = useMemo(() => {
     if (areaM2 === null) return null
+    // m² -> pi²
     return Math.round(areaM2 * 10.7639)
   }, [areaM2])
 
@@ -159,7 +161,7 @@ export default function BassinMap({
         .from('bassins')
         .update({
           polygone_geojson: geojson,
-          surface_m2: area ?? null,
+          surface_m2: area ?? null, // BD en m²
         })
         .eq('id', bassinId)
 
@@ -207,7 +209,7 @@ export default function BassinMap({
       streetViewControl: false,
       rotateControl: false,
       fullscreenControl: true,
-      gestureHandling: 'greedy', // plus besoin de CTRL pour zoomer
+      gestureHandling: 'greedy', // zoom à la molette sans CTRL
       scrollwheel: true,
     })
   }, [])
@@ -319,15 +321,16 @@ export default function BassinMap({
   // ---------------------------------------------------------------------------
   if (loadError) {
     return (
-      <div className="flex h-80 items-center justify-center rounded-xl border border-ct-grayLight bg-ct-grayLight text-sm text-red-600">
-        Erreur de chargement de la carte Google Maps.
+      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        Erreur de chargement de Google Maps. Vérifiez votre connexion ou la clé
+        d&apos;API.
       </div>
     )
   }
 
   if (!isLoaded) {
     return (
-      <div className="flex h-80 items-center justify-center rounded-xl border border-ct-grayLight bg-ct-grayLight text-sm text-ct-gray">
+      <div className="rounded-xl border border-ct-grayLight bg-white px-4 py-3 text-sm text-ct-grayDark">
         Chargement de la carte…
       </div>
     )
@@ -346,13 +349,11 @@ export default function BassinMap({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className={`btn-secondary ${
-              isLocked ? 'cursor-not-allowed opacity-60' : ''
-            }`}
+            className="btn-secondary"
             onClick={handleToggleEdit}
             disabled={isLocked}
           >
-            {isEditing ? 'Terminer l’édition' : 'Modifier le polygone'}
+            {isEditing ? 'Terminer la modification' : 'Modifier le polygone'}
           </button>
           <button
             type="button"
@@ -373,7 +374,8 @@ export default function BassinMap({
         </div>
       </div>
 
-      <div className="h-80 w-full rounded-xl border border-ct-grayLight overflow-hidden">
+      {/* Carte Google Maps – hauteur augmentée et responsive */}
+      <div className="h-[320px] md:h-[380px] lg:h-[420px] w-full rounded-xl border border-ct-grayLight overflow-hidden">
         <GoogleMap
           mapContainerStyle={{ width: '100%', height: '100%' }}
           center={finalCenter}
@@ -381,20 +383,22 @@ export default function BassinMap({
           onLoad={handleMapLoad}
           onUnmount={handleMapUnmount}
         >
+          {/* Polygone existant */}
           {path.length > 0 && (
             <Polygon
               path={path}
-              onLoad={(poly) => {
-                polygonRef.current = poly
-              }}
               options={{
                 fillColor: finalColor,
-                fillOpacity: 0.5,
+                fillOpacity: 0.45,
                 strokeColor: finalColor,
                 strokeOpacity: 0.9,
                 strokeWeight: 2,
-                clickable: true,
                 editable: isEditing && !isLocked,
+                draggable: false,
+                zIndex: 2,
+              }}
+              onLoad={(poly) => {
+                polygonRef.current = poly
               }}
             />
           )}

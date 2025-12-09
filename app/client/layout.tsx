@@ -16,44 +16,61 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
     router.push('/login')
   }
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      setChecking(true)
-      setErrorMsg(null)
+useEffect(() => {
+  const checkAuth = async () => {
+    setChecking(true)
+    setErrorMsg(null)
 
-      const { data: sessionData, error: sessionError } =
-        await supabaseBrowser.auth.getSession()
+    // 1) Vérifier la session
+    const { data: sessionData, error: sessionError } =
+      await supabaseBrowser.auth.getSession()
 
-      if (sessionError || !sessionData.session) {
-        router.replace('/login')
-        return
-      }
-
-      const user = sessionData.session.user
-
-      const { data: profile, error: profileError } = await supabaseBrowser
-        .from('user_profiles')
-        .select('role, client_id')
-        .eq('user_id', user.id)
-        .single()
-
-      if (profileError || !profile) {
-        setErrorMsg("Profil introuvable pour cet utilisateur.")
-        router.replace('/login')
-        return
-      }
-
-      if (profile.role !== 'client') {
-        setErrorMsg('Accès client uniquement.')
-        router.replace('/login')
-        return
-      }
-
-      setChecking(false)
+    if (sessionError || !sessionData.session) {
+      router.replace('/login')
+      return
     }
 
-    void checkAuth()
-  }, [router])
+    const user = sessionData.session.user
+
+    // 2) Charger le profil incluant is_active
+    const { data: profile, error: profileError } = await supabaseBrowser
+      .from('user_profiles')
+      .select('role, client_id, is_active')
+      .eq('user_id', user.id)
+      .single()
+
+    if (profileError || !profile) {
+      setErrorMsg("Profil introuvable pour cet utilisateur.")
+      router.replace('/login')
+      return
+    }
+
+    // 3) Vérifier rôle
+    if (profile.role !== 'client') {
+      setErrorMsg('Accès client uniquement.')
+      router.replace('/login')
+      return
+    }
+
+    // 4) Vérifier si l’utilisateur est suspendu
+    if (profile.is_active === false) {
+      setErrorMsg(
+        "Votre accès au portail client a été suspendu. Veuillez contacter Conseil-Toit."
+      )
+
+      // Déconnexion propre
+      await supabaseBrowser.auth.signOut()
+
+      router.replace('/login')
+      return
+    }
+
+    // 5) OK
+    setChecking(false)
+  }
+
+  void checkAuth()
+}, [router])
 
   if (checking) {
     return (

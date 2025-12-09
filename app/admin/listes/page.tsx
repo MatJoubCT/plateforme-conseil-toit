@@ -1,6 +1,12 @@
 'use client'
 
-import { useEffect, useState, ChangeEvent, FormEvent } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useState,
+  ChangeEvent,
+  FormEvent,
+} from 'react'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import {
   Card,
@@ -9,11 +15,6 @@ import {
   CardDescription,
   CardContent,
 } from '@/components/ui/Card'
-import {
-  DataTable,
-  DataTableHeader,
-  DataTableBody,
-} from '@/components/ui/DataTable'
 
 type ListeChoixRow = {
   id: string
@@ -22,370 +23,473 @@ type ListeChoixRow = {
   label: string | null
   couleur: string | null
   ordre: number | null
+  actif: boolean | null
 }
 
-type IconProps = {
-  className?: string
-}
+type BassinRef = { id: string }
+type GarantieRef = { id: string }
+type RapportRef = { id: string }
 
-function PlusIcon({ className }: IconProps) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path
-        d="M12 5v14M5 12h14"
-        stroke="currentColor"
-        strokeWidth={1.8}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+type ModalMode = 'create' | 'edit'
+
+const COLOR_REQUIRED_PREFIXES = ['etat', 'duree_vie']
+
+function isColorRequired(categorie: string): boolean {
+  return COLOR_REQUIRED_PREFIXES.some((prefix) =>
+    categorie.startsWith(prefix)
   )
 }
 
-function PencilIcon({ className }: IconProps) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path
-        d="M15.232 5.232a2.5 2.5 0 0 1 3.536 3.536L9.75 17.786 6 18.75l.964-3.75 8.268-9.768Z"
-        stroke="currentColor"
-        strokeWidth={1.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
-  )
-}
-
-function TrashIcon({ className }: IconProps) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path
-        d="M5 7h14M10 11v6M14 11v6M9 7l1-2h4l1 2M8 7h8l-1 12H9L8 7Z"
-        stroke="currentColor"
-        strokeWidth={1.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
-  )
-}
-
-export default function AdminListesPage() {
-  const [listes, setListes] = useState<ListeChoixRow[]>([])
+export default function AdminListesChoixPage() {
+  const [allItems, setAllItems] = useState<ListeChoixRow[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  const [selectedCategorie, setSelectedCategorie] = useState<string>('')
-  const [search, setSearch] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
+  const [orderDirty, setOrderDirty] = useState(false)
 
-  // Création
-  const [createOpen, setCreateOpen] = useState(false)
-  const [createLabel, setCreateLabel] = useState('')
-  const [createCode, setCreateCode] = useState('')
-  const [createCouleur, setCreateCouleur] = useState('')
-  const [createOrdre, setCreateOrdre] = useState('')
-  const [createSaving, setCreateSaving] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
+  // Modal état
+  const [showModal, setShowModal] = useState(false)
+  const [modalMode, setModalMode] = useState<ModalMode>('create')
+  const [editingItem, setEditingItem] = useState<ListeChoixRow | null>(null)
+  const [formLabel, setFormLabel] = useState('')
+  const [formCode, setFormCode] = useState('')
+  const [formCouleur, setFormCouleur] = useState('')
+  const [formActif, setFormActif] = useState(true)
+  const [savingModal, setSavingModal] = useState(false)
 
-  // Édition
-  const [editOpen, setEditOpen] = useState(false)
-  const [editItem, setEditItem] = useState<ListeChoixRow | null>(null)
-  const [editLabel, setEditLabel] = useState('')
-  const [editCode, setEditCode] = useState('')
-  const [editCouleur, setEditCouleur] = useState('')
-  const [editOrdre, setEditOrdre] = useState('')
-  const [editSaving, setEditSaving] = useState(false)
-  const [editError, setEditError] = useState<string | null>(null)
+  const [savingOrder, setSavingOrder] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  // Suppression
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleteItem, setDeleteItem] = useState<ListeChoixRow | null>(null)
-  const [deleteSaving, setDeleteSaving] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-
-  const fetchListes = async () => {
-    setLoading(true)
-    setErrorMsg(null)
-
-    const { data, error } = await supabaseBrowser
-      .from('listes_choix')
-      .select('id, categorie, code, label, couleur, ordre')
-      .order('categorie', { ascending: true })
-      .order('ordre', { ascending: true, nullsFirst: true })
-
-    if (error) {
-      console.error('Erreur Supabase listes_choix:', error)
-      setErrorMsg(error.message ?? 'Erreur lors du chargement des listes.')
-      setLoading(false)
-      return
-    }
-
-    setListes((data || []) as ListeChoixRow[])
-    setLoading(false)
-  }
-
+  // Chargement initial
   useEffect(() => {
-    void fetchListes()
-  }, [])
+    const fetchData = async () => {
+      setLoading(true)
+      setErrorMsg(null)
 
-  // Si aucune catégorie sélectionnée, prendre la première disponible
-  useEffect(() => {
-    if (!loading && listes.length > 0 && !selectedCategorie) {
-      setSelectedCategorie(listes[0].categorie)
-    }
-  }, [loading, listes, selectedCategorie])
-
-  const handleCategorieChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    setSelectedCategorie(e.target.value)
-  }
-
-  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setSearch(e.target.value)
-  }
-
-  const categories = Array.from(new Set(listes.map((l) => l.categorie))).sort(
-    (a, b) => a.localeCompare(b),
-  )
-
-  const filteredListes = listes.filter((item) => {
-    if (selectedCategorie && item.categorie !== selectedCategorie) {
-      return false
-    }
-
-    if (!search.trim()) {
-      return true
-    }
-
-    const term = search.toLowerCase()
-    return (
-      (item.label ?? '').toLowerCase().includes(term) ||
-      (item.code ?? '').toLowerCase().includes(term)
-    )
-  })
-
-  const openCreateModal = () => {
-    if (!selectedCategorie) {
-      setErrorMsg(
-        "Veuillez d'abord choisir une catégorie dans la liste déroulante avant d'ajouter une entrée.",
-      )
-      return
-    }
-    setCreateLabel('')
-    setCreateCode('')
-    setCreateCouleur('')
-    setCreateOrdre('')
-    setCreateError(null)
-    setCreateOpen(true)
-  }
-
-  const closeCreateModal = () => {
-    if (createSaving) return
-    setCreateOpen(false)
-  }
-
-  const handleCreateSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!selectedCategorie) {
-      setCreateError('Une catégorie doit être sélectionnée.')
-      return
-    }
-
-    const label = createLabel.trim()
-    const code = createCode.trim()
-    const couleur = createCouleur.trim()
-    const ordreRaw = createOrdre.trim()
-
-    if (!label) {
-      setCreateError('Le libellé est obligatoire.')
-      return
-    }
-
-    let ordre: number | null = null
-    if (ordreRaw) {
-      const parsed = Number(ordreRaw)
-      if (Number.isNaN(parsed)) {
-        setCreateError("L'ordre doit être un nombre.")
-        return
-      }
-      ordre = parsed
-    }
-
-    try {
-      setCreateSaving(true)
-      setCreateError(null)
-
-      const { error } = await supabaseBrowser.from('listes_choix').insert([
-        {
-          categorie: selectedCategorie,
-          label,
-          code: code || null,
-          couleur: couleur || null,
-          ordre,
-          actif: true, // Étape 5 : on force la valeur à actif=true à la création
-        },
-      ])
+      const { data, error } = await supabaseBrowser
+        .from('listes_choix')
+        .select('id, categorie, code, label, couleur, ordre, actif')
+        .order('categorie', { ascending: true })
+        .order('ordre', { ascending: true })
+        .order('label', { ascending: true })
 
       if (error) {
-        console.error('Erreur création liste_choix:', error)
-        setCreateError(error.message ?? 'Erreur lors de la création de la valeur.')
-        setCreateSaving(false)
+        setErrorMsg(error.message)
+        setLoading(false)
         return
       }
 
-      await fetchListes()
-      setCreateSaving(false)
-      setCreateOpen(false)
-    } catch (err: any) {
-      console.error('Erreur inattendue création liste_choix:', err)
-      setCreateError(
-        err?.message ?? 'Erreur inattendue lors de la création de la valeur.',
-      )
-      setCreateSaving(false)
+      const rows = (data || []) as ListeChoixRow[]
+
+      // Normalise un ordre en mémoire (ne pas enregistrer tout de suite)
+      const byCat: Record<string, ListeChoixRow[]> = {}
+      rows.forEach((item) => {
+        if (!byCat[item.categorie]) byCat[item.categorie] = []
+        byCat[item.categorie].push(item)
+      })
+
+      const normalized: ListeChoixRow[] = []
+      Object.values(byCat).forEach((items) => {
+        items
+          .sort((a, b) => {
+            const oa = a.ordre ?? 9999
+            const ob = b.ordre ?? 9999
+            if (oa !== ob) return oa - ob
+            return (a.label ?? '').localeCompare(b.label ?? '')
+          })
+          .forEach((item, index) => {
+            normalized.push({
+              ...item,
+              ordre: index + 1,
+            })
+          })
+      })
+
+      setAllItems(normalized)
+      setLoading(false)
     }
+
+    void fetchData()
+  }, [])
+
+  const categories = useMemo(() => {
+    const set = new Set<string>()
+    allItems.forEach((i) => set.add(i.categorie))
+    return Array.from(set).sort()
+  }, [allItems])
+
+  const itemsForCategory = useMemo(() => {
+    if (!selectedCategory) return []
+    return allItems
+      .filter((i) => i.categorie === selectedCategory)
+      .sort((a, b) => {
+        const oa = a.ordre ?? 9999
+        const ob = b.ordre ?? 9999
+        if (oa !== ob) return oa - ob
+        return (a.label ?? '').localeCompare(b.label ?? '')
+      })
+  }, [allItems, selectedCategory])
+
+  const handleCategoryChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    setSelectedCategory(e.target.value)
+    setOrderDirty(false)
+  }
+
+  const openCreateModal = () => {
+    if (!selectedCategory) {
+      alert('Veuillez d’abord choisir une catégorie.')
+      return
+    }
+    setModalMode('create')
+    setEditingItem(null)
+    setFormLabel('')
+    setFormCode('')
+    setFormCouleur('')
+    setFormActif(true)
+    setShowModal(true)
   }
 
   const openEditModal = (item: ListeChoixRow) => {
-    setEditItem(item)
-    setEditLabel(item.label ?? '')
-    setEditCode(item.code ?? '')
-    setEditCouleur(item.couleur ?? '')
-    setEditOrdre(
-      item.ordre !== null && item.ordre !== undefined ? String(item.ordre) : '',
-    )
-    setEditError(null)
-    setEditOpen(true)
+    setModalMode('edit')
+    setEditingItem(item)
+    setFormLabel(item.label ?? '')
+    setFormCode(item.code ?? '')
+    setFormCouleur(item.couleur ?? '')
+    setFormActif(item.actif ?? true)
+    setShowModal(true)
   }
 
-  const closeEditModal = () => {
-    if (editSaving) return
-    setEditOpen(false)
+  const closeModal = () => {
+    if (savingModal) return
+    setShowModal(false)
+    setEditingItem(null)
   }
 
-  const handleEditSubmit = async (e: FormEvent) => {
+  const handleModalSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!editItem) return
-
-    const label = editLabel.trim()
-    const code = editCode.trim()
-    const couleur = editCouleur.trim()
-    const ordreRaw = editOrdre.trim()
-
-    if (!label) {
-      setEditError('Le libellé est obligatoire.')
+    if (!selectedCategory) {
+      alert('Aucune catégorie sélectionnée.')
       return
     }
 
-    let ordre: number | null = null
-    if (ordreRaw) {
-      const parsed = Number(ordreRaw)
-      if (Number.isNaN(parsed)) {
-        setEditError("L'ordre doit être un nombre.")
-        return
-      }
-      ordre = parsed
+    const trimmedLabel = formLabel.trim()
+    if (!trimmedLabel) {
+      alert('Le libellé est obligatoire.')
+      return
     }
 
-    try {
-      setEditSaving(true)
-      setEditError(null)
-
-      const { error } = await supabaseBrowser
-        .from('listes_choix')
-        .update({
-          label,
-          code: code || null,
-          couleur: couleur || null,
-          ordre,
-        })
-        .eq('id', editItem.id)
-
-      if (error) {
-        console.error('Erreur mise à jour liste_choix:', error)
-        setEditError(error.message ?? 'Erreur lors de la mise à jour de la valeur.')
-        setEditSaving(false)
-        return
-      }
-
-      await fetchListes()
-      setEditSaving(false)
-      setEditOpen(false)
-    } catch (err: any) {
-      console.error('Erreur inattendue mise à jour liste_choix:', err)
-      setEditError(
-        err?.message ?? 'Erreur inattendue lors de la mise à jour de la valeur.',
+    const needColor = isColorRequired(selectedCategory)
+    const trimmedColor = formCouleur.trim()
+    if (needColor && !trimmedColor) {
+      alert(
+        'Une couleur est obligatoire pour cette catégorie (ex. #00A3FF).'
       )
-      setEditSaving(false)
+      return
+    }
+
+    if (trimmedColor && !/^#([0-9a-fA-F]{6})$/.test(trimmedColor)) {
+      alert('La couleur doit être au format hexadécimal, ex. #00A3FF.')
+      return
+    }
+
+    setSavingModal(true)
+
+    try {
+      if (modalMode === 'create') {
+        // prochain ordre dans cette catégorie
+        const maxOrdre =
+          itemsForCategory.reduce(
+            (max, item) => Math.max(max, item.ordre ?? 0),
+            0
+          ) || 0
+        const newOrdre = maxOrdre + 1
+
+        const payload = {
+          categorie: selectedCategory,
+          code: formCode.trim() || null,
+          label: trimmedLabel,
+          couleur: trimmedColor || null,
+          actif: formActif,
+          ordre: newOrdre,
+        }
+
+        const { data, error } = await supabaseBrowser
+          .from('listes_choix')
+          .insert(payload)
+          .select('id, categorie, code, label, couleur, ordre, actif')
+          .single()
+
+        if (error) {
+          console.error('Erreur insert listes_choix', error)
+          alert(
+            'Erreur lors de la création de l’élément : ' +
+              (error.message ?? 'Erreur inconnue')
+          )
+          return
+        }
+
+        const newItem = data as ListeChoixRow
+        setAllItems((prev) => [...prev, newItem])
+      } else if (modalMode === 'edit' && editingItem) {
+        const payload = {
+          code: formCode.trim() || null,
+          label: trimmedLabel,
+          couleur: trimmedColor || null,
+          actif: formActif,
+        }
+
+        const { data, error } = await supabaseBrowser
+          .from('listes_choix')
+          .update(payload)
+          .eq('id', editingItem.id)
+          .select('id, categorie, code, label, couleur, ordre, actif')
+          .single()
+
+        if (error) {
+          console.error('Erreur update listes_choix', error)
+          alert(
+            'Erreur lors de la mise à jour de l’élément : ' +
+              (error.message ?? 'Erreur inconnue')
+          )
+          return
+        }
+
+        const updated = data as ListeChoixRow
+        setAllItems((prev) =>
+          prev.map((i) => (i.id === updated.id ? updated : i))
+        )
+      }
+
+      setShowModal(false)
+      setEditingItem(null)
+    } finally {
+      setSavingModal(false)
     }
   }
 
-  const openDeleteModal = (item: ListeChoixRow) => {
-    setDeleteItem(item)
-    setDeleteError(null)
-    setDeleteOpen(true)
+  // Réordonnancement par flèches
+  const moveItem = (id: string, direction: 'up' | 'down') => {
+    if (!selectedCategory) return
+
+    setAllItems((prev) => {
+      const catItems = prev
+        .filter((i) => i.categorie === selectedCategory)
+        .sort((a, b) => {
+          const oa = a.ordre ?? 9999
+          const ob = b.ordre ?? 9999
+          if (oa !== ob) return oa - ob
+          return (a.label ?? '').localeCompare(b.label ?? '')
+        })
+
+      const index = catItems.findIndex((i) => i.id === id)
+      if (index === -1) return prev
+
+      if (direction === 'up' && index === 0) return prev
+      if (direction === 'down' && index === catItems.length - 1) return prev
+
+      const swapIndex = direction === 'up' ? index - 1 : index + 1
+      const tmp = catItems[index]
+      catItems[index] = catItems[swapIndex]
+      catItems[swapIndex] = tmp
+
+      // recalc ordre
+      const updatedCat = catItems.map((item, idx) => ({
+        ...item,
+        ordre: idx + 1,
+      }))
+
+      const updatedMap = new Map(updatedCat.map((i) => [i.id, i]))
+      const newAll = prev.map((item) =>
+        item.categorie === selectedCategory && updatedMap.has(item.id)
+          ? (updatedMap.get(item.id) as ListeChoixRow)
+          : item
+      )
+
+      setOrderDirty(true)
+      return newAll
+    })
   }
 
-  const closeDeleteModal = () => {
-    if (deleteSaving) return
-    setDeleteOpen(false)
+  const handleSaveOrder = async () => {
+    if (!selectedCategory) return
+    if (!orderDirty) return
+
+    setSavingOrder(true)
+    try {
+      const catItems = allItems.filter(
+        (i) => i.categorie === selectedCategory
+      )
+
+      await Promise.all(
+        catItems.map((item) =>
+          supabaseBrowser
+            .from('listes_choix')
+            .update({ ordre: item.ordre })
+            .eq('id', item.id)
+        )
+      )
+
+      setOrderDirty(false)
+    } catch (error) {
+      console.error('Erreur sauvegarde ordre listes_choix', error)
+      alert(
+        "Erreur lors de l'enregistrement de l'ordre. Vérifiez la console."
+      )
+    } finally {
+      setSavingOrder(false)
+    }
   }
 
-  const handleDeleteSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!deleteItem) return
+  // Vérification d'utilisation avant suppression
+  const checkItemUsed = async (
+    item: ListeChoixRow
+  ): Promise<{ used: boolean; message?: string }> => {
+    const cat = item.categorie
 
     try {
-      setDeleteSaving(true)
-      setDeleteError(null)
+      // Etats -> bassins.etat_id
+      if (cat.startsWith('etat')) {
+        const { data, error } = await supabaseBrowser
+          .from('bassins')
+          .select<'id', BassinRef>('id')
+          .eq('etat_id', item.id)
+          .limit(1)
+
+        if (error) throw error
+        if (data && data.length > 0) {
+          return {
+            used: true,
+            message:
+              'Cet état est actuellement utilisé par au moins un bassin. Vous devez d’abord modifier ces bassins.',
+          }
+        }
+      }
+
+      // Durées de vie -> bassins.duree_vie_id
+      if (cat.startsWith('duree_vie')) {
+        const { data, error } = await supabaseBrowser
+          .from('bassins')
+          .select<'id', BassinRef>('id')
+          .eq('duree_vie_id', item.id)
+          .limit(1)
+
+        if (error) throw error
+        if (data && data.length > 0) {
+          return {
+            used: true,
+            message:
+              'Cette durée de vie est utilisée par au moins un bassin. Vous devez d’abord ajuster ces bassins.',
+          }
+        }
+      }
+
+      // Types de garantie -> garanties.type_garantie_id
+      if (cat === 'type_garantie') {
+        const { data, error } = await supabaseBrowser
+          .from('garanties')
+          .select<'id', GarantieRef>('id')
+          .eq('type_garantie_id', item.id)
+          .limit(1)
+
+        if (error) throw error
+        if (data && data.length > 0) {
+          return {
+            used: true,
+            message:
+              'Ce type de garantie est utilisé par au moins une garantie. Vous devez d’abord modifier ces garanties.',
+          }
+        }
+      }
+
+      // Statut de garantie -> garanties.statut_id
+      if (cat === 'statut_garantie') {
+        const { data, error } = await supabaseBrowser
+          .from('garanties')
+          .select<'id', GarantieRef>('id')
+          .eq('statut_id', item.id)
+          .limit(1)
+
+        if (error) throw error
+        if (data && data.length > 0) {
+          return {
+            used: true,
+            message:
+              'Ce statut de garantie est utilisé par au moins une garantie. Vous devez d’abord modifier ces garanties.',
+          }
+        }
+      }
+
+      // Types de rapport -> rapports.type_id
+      if (cat === 'type_rapport') {
+        const { data, error } = await supabaseBrowser
+          .from('rapports')
+          .select<'id', RapportRef>('id')
+          .eq('type_id', item.id)
+          .limit(1)
+
+        if (error) throw error
+        if (data && data.length > 0) {
+          return {
+            used: true,
+            message:
+              'Ce type de rapport est utilisé par au moins un rapport. Vous devez d’abord modifier ces rapports.',
+          }
+        }
+      }
+
+      return { used: false }
+    } catch (err) {
+      console.error('Erreur checkItemUsed', err)
+      return {
+        used: true,
+        message:
+          'Erreur lors de la vérification des références. Suppression bloquée par sécurité.',
+      }
+    }
+  }
+
+  const handleDelete = async (item: ListeChoixRow) => {
+    const confirm = window.confirm(
+      `Voulez-vous vraiment supprimer « ${item.label ?? ''} » ?`
+    )
+    if (!confirm) return
+
+    setDeletingId(item.id)
+
+    try {
+      const { used, message } = await checkItemUsed(item)
+      if (used) {
+        alert(message || 'Cet élément est utilisé et ne peut pas être supprimé.')
+        return
+      }
 
       const { error } = await supabaseBrowser
         .from('listes_choix')
         .delete()
-        .eq('id', deleteItem.id)
+        .eq('id', item.id)
 
       if (error) {
-        console.error('Erreur suppression liste_choix:', error)
-        setDeleteError(
-          error.message ??
-            'Erreur lors de la suppression de la valeur. Vérifiez si elle est référencée ailleurs.',
+        console.error('Erreur delete listes_choix', error)
+        alert(
+          'Erreur lors de la suppression de l’élément : ' +
+            (error.message ?? 'Erreur inconnue')
         )
-        setDeleteSaving(false)
         return
       }
 
-      await fetchListes()
-      setDeleteSaving(false)
-      setDeleteOpen(false)
-    } catch (err: any) {
-      console.error('Erreur inattendue suppression liste_choix:', err)
-      setDeleteError(
-        err?.message ?? 'Erreur inattendue lors de la suppression de la valeur.',
-      )
-      setDeleteSaving(false)
+      setAllItems((prev) => prev.filter((i) => i.id !== item.id))
+    } finally {
+      setDeletingId(null)
     }
   }
 
   if (loading) {
     return (
       <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-ct-primary">Listes de choix</h1>
-        <p className="text-sm text-ct-gray">Chargement des listes…</p>
+        <p className="text-sm text-ct-gray">
+          Chargement des listes de choix…
+        </p>
       </section>
     )
   }
@@ -393,414 +497,327 @@ export default function AdminListesPage() {
   if (errorMsg) {
     return (
       <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-ct-primary">Listes de choix</h1>
-        <p className="text-sm text-red-600">
-          Erreur lors du chargement des données : {errorMsg}
-        </p>
+        <p className="text-sm text-red-600">Erreur : {errorMsg}</p>
       </section>
     )
   }
 
-  const selectedCategoryLabel =
-    selectedCategorie || (categories.length > 0 ? categories[0] : '')
+  const needColor = selectedCategory && isColorRequired(selectedCategory)
 
   return (
-    <>
-      <section className="space-y-6">
-        {/* En-tête */}
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold text-ct-primary">Listes de choix</h1>
-            <p className="text-sm text-ct-gray">
-              Gestion des types de membranes, états, durées de vie, types de rapports,
-              garanties, etc.
-            </p>
+    <section className="space-y-6">
+      {/* En-tête */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-ct-primary">
+            Listes de choix
+          </h1>
+          <p className="mt-1 text-sm text-ct-gray">
+            Gestion centralisée des états, durées de vie, types de garantie,
+            statuts, types de rapport, etc.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-stretch gap-2 md:flex-row md:items-end">
+          <div className="w-full md:w-64">
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-ct-grayDark">
+              Catégorie
+            </label>
+            <select
+              value={selectedCategory}
+              onChange={handleCategoryChange}
+              className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+            >
+              <option value="">Sélectionner une catégorie…</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
           </div>
 
           <button
             type="button"
-            className="btn-primary inline-flex items-center gap-2"
+            className="btn-primary md:ml-4"
             onClick={openCreateModal}
+            disabled={!selectedCategory}
           >
-            <PlusIcon className="h-4 w-4" />
-            <span>Nouvelle entrée</span>
+            Ajouter un élément
           </button>
         </div>
+      </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Gestion des listes</CardTitle>
-            <CardDescription>
-              Sélectionnez une catégorie puis ajoutez, modifiez ou supprimez les valeurs
-              disponibles.
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent>
-            <div className="mb-4 grid gap-4 md:grid-cols-3">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-ct-grayDark">
-                  Catégorie
-                </label>
-                <select
-                  value={selectedCategorie}
-                  onChange={handleCategorieChange}
-                  className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+      {/* Tableau */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Éléments de la catégorie</CardTitle>
+          <CardDescription>
+            {selectedCategory
+              ? `Catégorie : ${selectedCategory}${
+                  needColor
+                    ? ' — une couleur est requise pour chaque élément.'
+                    : ''
+                }`
+              : 'Veuillez choisir une catégorie pour afficher et modifier ses éléments.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!selectedCategory ? (
+            <p className="text-sm text-ct-gray">
+              Aucune catégorie sélectionnée.
+            </p>
+          ) : itemsForCategory.length === 0 ? (
+            <p className="text-sm text-ct-gray">
+              Aucun élément pour cette catégorie. Ajoutez un premier élément.
+            </p>
+          ) : (
+            <>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-xs text-ct-gray">
+                  Utilisez les flèches pour réordonner les éléments, puis
+                  cliquez sur « Enregistrer l&apos;ordre ».
+                </p>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleSaveOrder}
+                  disabled={!orderDirty || savingOrder}
                 >
-                  <option value="">Choisir une catégorie…</option>
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
+                  {savingOrder
+                    ? "Enregistrement de l'ordre…"
+                    : "Enregistrer l'ordre"}
+                </button>
               </div>
 
-              <div className="space-y-1 md:col-span-2">
-                <label className="text-xs font-medium text-ct-grayDark">
-                  Recherche (libellé ou code)
-                </label>
-                <input
-                  type="text"
-                  value={search}
-                  onChange={handleSearchChange}
-                  placeholder="Ex.: Élastomère, Bon, Garantie 20 ans…"
-                  className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                />
-              </div>
-            </div>
-
-            {selectedCategoryLabel === '' ? (
-              <p className="text-sm text-ct-gray">
-                Aucune catégorie définie dans la table <code>listes_choix</code>.
-              </p>
-            ) : filteredListes.length === 0 ? (
-              <p className="text-sm text-ct-gray">
-                Aucune valeur trouvée pour cette catégorie.
-              </p>
-            ) : (
-              <DataTable maxHeight={540}>
-                <table>
-                  <DataTableHeader>
-                    <tr>
-                      <th className="w-1/3">Libellé</th>
-                      <th className="w-1/6">Code</th>
-                      <th className="w-1/4">Couleur</th>
-                      <th className="w-16 text-center">Ordre</th>
-                      <th className="w-1/4">Actions</th>
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-ct-grayLight/60 text-left">
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Ordre
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Libellé
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Code
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Couleur
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Actif
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
+                        Actions
+                      </th>
                     </tr>
-                  </DataTableHeader>
-
-                  <DataTableBody>
-                    {filteredListes.map((item) => (
+                  </thead>
+                  <tbody>
+                    {itemsForCategory.map((item) => (
                       <tr
                         key={item.id}
-                        className="transition-colors hover:bg-ct-grayLight/70"
+                        className="hover:bg-ct-primaryLight/10 transition-colors"
                       >
-                        <td className="text-sm text-ct-grayDark">
-                          {item.label || '(Sans libellé)'}
+                        <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span>{item.ordre ?? '—'}</span>
+                            <div className="flex flex-col gap-1">
+                              <button
+                                type="button"
+                                className="rounded border border-ct-grayLight px-1 text-[10px] leading-none"
+                                onClick={() => moveItem(item.id, 'up')}
+                              >
+                                ▲
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded border border-ct-grayLight px-1 text-[10px] leading-none"
+                                onClick={() => moveItem(item.id, 'down')}
+                              >
+                                ▼
+                              </button>
+                            </div>
+                          </div>
                         </td>
-                        <td className="text-sm text-ct-grayDark">
+                        <td className="border border-ct-grayLight px-3 py-2">
+                          {item.label || '—'}
+                        </td>
+                        <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
                           <span className="font-mono text-xs">
                             {item.code || '—'}
                           </span>
                         </td>
-                        <td className="text-sm text-ct-grayDark">
-                          <div className="flex items-center gap-2">
-                            {item.couleur && (
+                        <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                          {item.couleur ? (
+                            <div className="flex items-center gap-2">
                               <span
-                                className="inline-flex h-4 w-4 rounded-full border border-ct-grayLight"
+                                className="inline-block h-4 w-4 rounded-full border border-ct-grayLight"
                                 style={{ backgroundColor: item.couleur }}
                               />
-                            )}
-                            <span className="font-mono text-xs">
-                              {item.couleur || '—'}
+                              <span className="font-mono text-xs">
+                                {item.couleur}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-ct-gray">—</span>
+                          )}
+                        </td>
+                        <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                          {item.actif ? (
+                            <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                              Actif
                             </span>
-                          </div>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-ct-grayLight px-2 py-0.5 text-xs font-medium text-ct-grayDark">
+                              Inactif
+                            </span>
+                          )}
                         </td>
-                        <td className="text-center text-sm text-ct-grayDark">
-                          {item.ordre ?? '—'}
-                        </td>
-                        <td className="text-sm">
-                          <div className="flex flex-wrap gap-2">
+                        <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                          <div className="flex gap-2">
                             <button
                               type="button"
-                              className="btn-secondary inline-flex items-center gap-1 px-2 py-1 text-xs"
+                              className="btn-secondary"
                               onClick={() => openEditModal(item)}
                             >
-                              <PencilIcon className="h-4 w-4" />
-                              <span>Modifier</span>
+                              Modifier
                             </button>
-
                             <button
                               type="button"
-                              className="btn-danger inline-flex items-center gap-1 px-2 py-1 text-xs"
-                              onClick={() => openDeleteModal(item)}
+                              className="btn-danger"
+                              onClick={() => handleDelete(item)}
+                              disabled={deletingId === item.id}
                             >
-                              <TrashIcon className="h-4 w-4" />
-                              <span>Supprimer</span>
+                              {deletingId === item.id
+                                ? 'Suppression…'
+                                : 'Supprimer'}
                             </button>
                           </div>
                         </td>
                       </tr>
                     ))}
-                  </DataTableBody>
+                  </tbody>
                 </table>
-              </DataTable>
-            )}
-          </CardContent>
-        </Card>
-      </section>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
-      {/* Modal création */}
-      {createOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm"
-          onClick={closeCreateModal}
-        >
-          <div
-            className="w-full max-w-md rounded-2xl bg-ct-white p-5 shadow-ct-card"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 space-y-1">
-              <h2 className="text-lg font-semibold text-ct-primary">
-                Nouvelle valeur – {selectedCategorie}
-              </h2>
-              <p className="text-xs text-ct-gray">
-                Ajoutez une nouvelle entrée dans la catégorie sélectionnée.
-              </p>
-            </div>
-
-            <form onSubmit={handleCreateSubmit} className="space-y-4">
-              {createError && (
-                <p className="text-xs text-red-600">{createError}</p>
+      {/* Modal ajout / modification */}
+      {showModal && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-xl mx-4 max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-ct-grayDark">
+              {modalMode === 'create'
+                ? 'Ajouter un élément'
+                : 'Modifier un élément'}
+            </h3>
+            <p className="mt-1 text-sm text-ct-gray">
+              Catégorie :{' '}
+              <span className="font-medium">{selectedCategory}</span>
+              {needColor && (
+                <>
+                  {' — '}
+                  <span className="text-ct-primary">
+                    Une couleur est requise pour cette catégorie.
+                  </span>
+                </>
               )}
+            </p>
 
+            <form
+              onSubmit={handleModalSubmit}
+              className="mt-4 space-y-4 text-sm"
+            >
               <div className="space-y-1">
-                <label className="text-xs font-medium text-ct-grayDark">
+                <label className="block text-xs font-medium text-ct-grayDark">
                   Libellé
                 </label>
                 <input
                   type="text"
-                  value={createLabel}
-                  onChange={(e) => setCreateLabel(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                  placeholder="Ex.: Membrane élastomère, Bon, Urgent…"
+                  value={formLabel}
+                  onChange={(e) => setFormLabel(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
                 />
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
-                    Code interne (optionnel)
-                  </label>
-                  <input
-                    type="text"
-                    value={createCode}
-                    onChange={(e) => setCreateCode(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                    placeholder="Ex.: MEM_ELASTO, ETAT_BON…"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
-                    Couleur (hex, optionnel)
-                  </label>
-                  <input
-                    type="text"
-                    value={createCouleur}
-                    onChange={(e) => setCreateCouleur(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                    placeholder="#28A745"
-                  />
-                </div>
-              </div>
-
               <div className="space-y-1">
-                <label className="text-xs font-medium text-ct-grayDark">
-                  Ordre d&apos;affichage (optionnel)
-                </label>
-                <input
-                  type="number"
-                  value={createOrdre}
-                  onChange={(e) => setCreateOrdre(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                  placeholder="Ex.: 1, 2, 10…"
-                />
-              </div>
-
-              <div className="mt-4 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={closeCreateModal}
-                  className="btn-secondary px-3 py-1.5 text-xs"
-                  disabled={createSaving}
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary px-3 py-1.5 text-xs"
-                  disabled={createSaving}
-                >
-                  {createSaving ? 'Enregistrement…' : 'Créer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal édition */}
-      {editOpen && editItem && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm"
-          onClick={closeEditModal}
-        >
-          <div
-            className="w-full max-w-md rounded-2xl bg-ct-white p-5 shadow-ct-card"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 space-y-1">
-              <h2 className="text-lg font-semibold text-ct-primary">
-                Modifier la valeur
-              </h2>
-              <p className="text-xs text-ct-gray">
-                Ajustez le libellé, le code, la couleur ou l&apos;ordre d&apos;affichage.
-              </p>
-            </div>
-
-            <form onSubmit={handleEditSubmit} className="space-y-4">
-              {editError && <p className="text-xs text-red-600">{editError}</p>}
-
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-ct-grayDark">
-                  Libellé
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Code interne (optionnel)
                 </label>
                 <input
                   type="text"
-                  value={editLabel}
-                  onChange={(e) => setEditLabel(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  value={formCode}
+                  onChange={(e) => setFormCode(e.target.value)}
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
                 />
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
-                    Code interne (optionnel)
-                  </label>
-                  <input
-                    type="text"
-                    value={editCode}
-                    onChange={(e) => setEditCode(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
-                    Couleur (hex, optionnel)
-                  </label>
-                  <input
-                    type="text"
-                    value={editCouleur}
-                    onChange={(e) => setEditCouleur(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                  />
-                </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-ct-grayDark">
-                  Ordre d&apos;affichage (optionnel)
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Couleur {needColor ? '(obligatoire)' : '(optionnelle)'}
                 </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="text"
+                    value={formCouleur}
+                    onChange={(e) => setFormCouleur(e.target.value)}
+                    placeholder="#00A3FF"
+                    className="flex-1 rounded-lg border border-ct-grayLight px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  />
+                  <div
+                    className="h-8 w-8 rounded-full border border-ct-grayLight"
+                    style={{
+                      backgroundColor:
+                        formCouleur && /^#([0-9a-fA-F]{6})$/.test(formCouleur)
+                          ? formCouleur
+                          : '#ffffff',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
                 <input
-                  type="number"
-                  value={editOrdre}
-                  onChange={(e) => setEditOrdre(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  id="actif-checkbox"
+                  type="checkbox"
+                  checked={formActif}
+                  onChange={(e) => setFormActif(e.target.checked)}
+                  className="h-4 w-4 rounded border-ct-grayLight text-ct-primary focus:ring-ct-primary/60"
                 />
+                <label
+                  htmlFor="actif-checkbox"
+                  className="text-xs font-medium text-ct-grayDark"
+                >
+                  Élément actif (disponible dans les listes de sélection)
+                </label>
               </div>
 
-              <div className="mt-4 flex justify-end gap-2">
+              <div className="mt-4 flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={closeEditModal}
-                  className="btn-secondary px-3 py-1.5 text-xs"
-                  disabled={editSaving}
+                  className="btn-secondary"
+                  onClick={closeModal}
+                  disabled={savingModal}
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary px-3 py-1.5 text-xs"
-                  disabled={editSaving}
+                  className="btn-primary"
+                  disabled={savingModal}
                 >
-                  {editSaving ? 'Enregistrement…' : 'Enregistrer'}
+                  {savingModal ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
-      {/* Modal suppression */}
-      {deleteOpen && deleteItem && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm"
-          onClick={closeDeleteModal}
-        >
-          <div
-            className="w-full max-w-md rounded-2xl bg-ct-white p-5 shadow-ct-card"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 space-y-2">
-              <h2 className="text-lg font-semibold text-red-600">
-                Supprimer cette valeur?
-              </h2>
-              <p className="text-xs text-ct-gray">
-                Cette action est permanente. La suppression peut échouer si cette valeur
-                est utilisée dans des bassins, garanties ou autres enregistrements.
-              </p>
-            </div>
-
-            <form onSubmit={handleDeleteSubmit} className="space-y-4">
-              {deleteError && (
-                <p className="text-xs text-red-600">{deleteError}</p>
-              )}
-
-              <p className="text-sm text-ct-grayDark">
-                Voulez-vous vraiment supprimer la valeur{' '}
-                <span className="font-semibold">
-                  {deleteItem.label || '(Sans libellé)'}
-                </span>{' '}
-                de la catégorie{' '}
-                <span className="font-semibold">{deleteItem.categorie}</span> ?
-              </p>
-
-              <div className="mt-4 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={closeDeleteModal}
-                  className="btn-secondary px-3 py-1.5 text-xs"
-                  disabled={deleteSaving}
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="btn-danger px-3 py-1.5 text-xs hover:bg-red-600/90 hover:text-white transition-colors"
-                  disabled={deleteSaving}
-                >
-                  {deleteSaving ? 'Suppression…' : 'Supprimer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </>
+    </section>
   )
 }
