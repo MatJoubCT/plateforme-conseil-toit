@@ -36,7 +36,6 @@ type UserBatimentAccessRow = {
 }
 
 type EditableUser = UserProfileRow & {
-  // pour l'affichage
   clientsLabels: string[]
   batimentsLabels: string[]
 }
@@ -49,7 +48,7 @@ export default function AdminUtilisateursPage() {
   const [clients, setClients] = useState<ClientRow[]>([])
   const [batiments, setBatiments] = useState<BatimentRow[]>([])
 
-  // état du modal
+  // État du modal d’édition
   const [showModal, setShowModal] = useState(false)
   const [editingUser, setEditingUser] = useState<UserProfileRow | null>(null)
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
@@ -57,6 +56,13 @@ export default function AdminUtilisateursPage() {
   const [editFullName, setEditFullName] = useState('')
   const [editRole, setEditRole] = useState('client')
   const [saving, setSaving] = useState(false)
+
+  // État du modal de création
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createEmail, setCreateEmail] = useState('')
+  const [createFullName, setCreateFullName] = useState('')
+  const [createRole, setCreateRole] = useState('client')
+  const [createSaving, setCreateSaving] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -188,13 +194,14 @@ export default function AdminUtilisateursPage() {
     return m
   }, [batiments])
 
+  // --- MODAL ÉDITION ---
+
   const openEditModal = async (user: EditableUser) => {
     setErrorMsg(null)
     setEditingUser(user)
     setEditFullName(user.full_name || '')
     setEditRole(user.role || 'client')
 
-    // Charger les liens spécifiques à cet utilisateur
     const [ucRes, ubaRes] = await Promise.all([
       supabaseBrowser
         .from('user_clients')
@@ -268,7 +275,7 @@ export default function AdminUtilisateursPage() {
       return
     }
 
-    // 2) synchroniser user_clients : delete + insert
+    // 2) synchroniser user_clients
     const { error: delUcError } = await supabaseBrowser
       .from('user_clients')
       .delete()
@@ -296,7 +303,7 @@ export default function AdminUtilisateursPage() {
       }
     }
 
-    // 3) synchroniser user_batiments_access : delete + insert
+    // 3) synchroniser user_batiments_access
     const { error: delUbaError } = await supabaseBrowser
       .from('user_batiments_access')
       .delete()
@@ -320,7 +327,9 @@ export default function AdminUtilisateursPage() {
         .insert(insertUbaRows)
 
       if (insUbaError) {
-        setErrorMsg(`Erreur ajout bâtiments autorisés : ${insUbaError.message}`)
+        setErrorMsg(
+          `Erreur ajout bâtiments autorisés : ${insUbaError.message}`,
+        )
         setSaving(false)
         return
       }
@@ -359,31 +368,113 @@ export default function AdminUtilisateursPage() {
     closeModal()
   }
 
-  // Suspension / réactivation d'un utilisateur
+  // --- SUSPENSION / RÉACTIVATION ---
+
   const toggleUserActive = async (
     profileId: string,
+    userId: string,
     currentActive: boolean | null,
   ) => {
     const nextActive = currentActive === false ? true : false
 
-    const { error } = await supabaseBrowser
-      .from('user_profiles')
-      .update({ is_active: nextActive })
-      .eq('id', profileId)
+    try {
+      const res = await fetch('/api/admin/users/toggle-active', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          profileId,
+          isActive: nextActive,
+        }),
+      })
 
-    if (error) {
+      const json = await res.json()
+
+      if (!res.ok) {
+        throw new Error(json?.error || 'Erreur API toggle-active')
+      }
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === profileId ? { ...u, is_active: nextActive } : u,
+        ),
+      )
+    } catch (err: any) {
       alert(
         "Erreur lors de la mise à jour du statut de l'utilisateur : " +
-          (error.message ?? 'Erreur inconnue'),
+          (err?.message ?? 'Erreur inconnue'),
       )
+    }
+  }
+
+  // --- CRÉATION D’UN NOUVEL UTILISATEUR ---
+
+  const openCreateModal = () => {
+    setErrorMsg(null)
+    setCreateEmail('')
+    setCreateFullName('')
+    setCreateRole('client')
+    setShowCreateModal(true)
+  }
+
+  const closeCreateModal = () => {
+    if (createSaving) return
+    setShowCreateModal(false)
+  }
+
+  const handleCreateUser = async () => {
+    const email = createEmail.trim()
+    const fullName = createFullName.trim()
+
+    if (!email) {
+      alert('Le courriel est obligatoire pour créer un utilisateur.')
       return
     }
 
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === profileId ? { ...u, is_active: nextActive } : u,
-      ),
-    )
+    setCreateSaving(true)
+
+    try {
+      const res = await fetch('/api/admin/users/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          fullName: fullName || null,
+          role: createRole,
+        }),
+      })
+
+      const json = await res.json()
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Erreur lors de la création de l'utilisateur.")
+      }
+
+      const profile = json.profile as UserProfileRow
+
+      const newUser: EditableUser = {
+        ...profile,
+        clientsLabels: [],
+        batimentsLabels: [],
+      }
+
+      setUsers((prev) => [...prev, newUser])
+
+      setShowCreateModal(false)
+      setCreateEmail('')
+      setCreateFullName('')
+      setCreateRole('client')
+    } catch (err: any) {
+      alert(
+        "Erreur lors de la création de l'utilisateur : " +
+          (err?.message ?? 'Erreur inconnue'),
+      )
+    } finally {
+      setCreateSaving(false)
+    }
   }
 
   if (loading) {
@@ -410,14 +501,23 @@ export default function AdminUtilisateursPage() {
 
   return (
     <section className="space-y-6">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-ct-primary">
-          Utilisateurs
-        </h1>
-        <p className="text-sm text-ct-gray">
-          Gestion des comptes, rôles et accès aux clients / bâtiments pour le
-          portail client.
-        </p>
+      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold text-ct-primary">
+            Utilisateurs
+          </h1>
+          <p className="text-sm text-ct-gray">
+            Gestion des comptes, rôles, statut actif/suspendu et accès aux
+            clients / bâtiments pour le portail client.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={openCreateModal}
+        >
+          Ajouter un utilisateur
+        </button>
       </header>
 
       {/* Tableau des utilisateurs */}
@@ -441,7 +541,7 @@ export default function AdminUtilisateursPage() {
           </thead>
           <tbody>
             {users.map((u) => {
-              const isActive = u.is_active !== false // null => considéré actif
+              const isActive = u.is_active !== false
 
               return (
                 <tr
@@ -488,7 +588,7 @@ export default function AdminUtilisateursPage() {
                         type="button"
                         className={isActive ? 'btn-danger' : 'btn-secondary'}
                         onClick={() =>
-                          toggleUserActive(u.id, u.is_active)
+                          toggleUserActive(u.id, u.user_id, u.is_active)
                         }
                       >
                         {isActive ? 'Suspendre' : 'Réactiver'}
@@ -501,6 +601,83 @@ export default function AdminUtilisateursPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Modal création utilisateur */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-lg mx-4 max-h-[95vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl space-y-5">
+            <header className="space-y-1">
+              <h2 className="text-lg font-semibold text-ct-grayDark">
+                Ajouter un utilisateur
+              </h2>
+              <p className="text-sm text-ct-gray">
+                Un courriel d&apos;invitation sera envoyé à cette adresse. Le
+                profil sera créé avec le rôle sélectionné.
+              </p>
+            </header>
+
+            <div className="space-y-3 text-sm">
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Courriel (identifiant de connexion)
+                </label>
+                <input
+                  type="email"
+                  value={createEmail}
+                  onChange={(e) => setCreateEmail(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Nom complet (optionnel)
+                </label>
+                <input
+                  type="text"
+                  value={createFullName}
+                  onChange={(e) => setCreateFullName(e.target.value)}
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Rôle
+                </label>
+                <select
+                  value={createRole}
+                  onChange={(e) => setCreateRole(e.target.value)}
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                >
+                  <option value="client">client</option>
+                  <option value="admin">admin</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-end gap-3">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={closeCreateModal}
+                disabled={createSaving}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleCreateUser}
+                disabled={createSaving}
+              >
+                {createSaving ? 'Création…' : 'Créer et inviter'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal édition utilisateur */}
       {showModal && editingUser && (
@@ -667,7 +844,7 @@ export default function AdminUtilisateursPage() {
               </div>
             </div>
 
-            {/* Footer modal */}
+            {/* Footer modal édition */}
             <div className="mt-4 flex justify-end gap-3">
               <button
                 type="button"
