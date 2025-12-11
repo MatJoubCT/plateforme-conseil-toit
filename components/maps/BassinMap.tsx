@@ -52,6 +52,9 @@ export default function BassinMap({
 
   const polygonRef = useRef<google.maps.Polygon | null>(null)
 
+  const hasFittedRef = useRef(false)
+  const lastBassinIdRef = useRef<string | null>(null)
+
   // ---------------------------------------------------------------------------
   // Initialisation du polygone à partir du GeoJSON initial
   // ---------------------------------------------------------------------------
@@ -103,10 +106,9 @@ export default function BassinMap({
     if (a !== null) setAreaM2(a)
   }, [path, computeArea, isLoaded])
 
-  const surfaceFt2 = useMemo(() => {
-    if (areaM2 === null) return null
-    // m² -> pi²
-    return Math.round(areaM2 * 10.7639)
+  const areaFt2 = useMemo(() => {
+    if (areaM2 == null) return null
+    return areaM2 * 10.7639
   }, [areaM2])
 
   // ---------------------------------------------------------------------------
@@ -182,9 +184,19 @@ export default function BassinMap({
 
   // ---------------------------------------------------------------------------
   // Centrage automatique sur le polygone (fitBounds)
+  // -> Optimisé: on ne recentre qu'une fois par bassin
   // ---------------------------------------------------------------------------
   useEffect(() => {
     if (!map || !isLoaded) return
+
+    // Réinitialiser le centrage lorsqu'on change de bassin
+    if (lastBassinIdRef.current !== bassinId) {
+      lastBassinIdRef.current = bassinId
+      hasFittedRef.current = false
+    }
+
+    // On ne centre qu'une seule fois par bassin pour éviter les "sauts" visuels
+    if (hasFittedRef.current) return
 
     if (path.length > 0) {
       const bounds = new google.maps.LatLngBounds()
@@ -195,7 +207,9 @@ export default function BassinMap({
       map.setCenter(center)
       map.setZoom(19)
     }
-  }, [map, path, center, isLoaded])
+
+    hasFittedRef.current = true
+  }, [map, isLoaded, path, center, bassinId])
 
   // ---------------------------------------------------------------------------
   // Gestion de la carte
@@ -242,13 +256,48 @@ export default function BassinMap({
   const handleToggleLock = () => {
     setIsLocked((prev) => !prev)
     // Si on verrouille, on sort du mode édition
-    setIsEditing(false)
+    if (!isLocked) {
+      setIsEditing(false)
+    }
   }
 
-  // Quand l’utilisateur termine un dessin avec le DrawingManager
+  // ---------------------------------------------------------------------------
+  // Sync des modifications du polygone (drag/resize) via l'API Google
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!isLoaded) return
+    if (!polygonRef.current) return
+
+    const poly = polygonRef.current
+    const gPath = poly.getPath()
+
+    const updateFromPath = () => {
+      const newPoints: LatLngLiteral[] = gPath.getArray().map(
+        (latLng: google.maps.LatLng) => ({
+          lat: latLng.lat(),
+          lng: latLng.lng(),
+        })
+      )
+      setPath(newPoints)
+    }
+
+    const listeners = [
+      gPath.addListener('insert_at', updateFromPath),
+      gPath.addListener('set_at', updateFromPath),
+      gPath.addListener('remove_at', updateFromPath),
+    ]
+
+    return () => {
+      listeners.forEach((l) => l.remove())
+    }
+  }, [isLoaded])
+
+  // ---------------------------------------------------------------------------
+  // DrawingManager – création d'un nouveau polygone
+  // ---------------------------------------------------------------------------
   const handlePolygonComplete = useCallback(
-    async (poly: google.maps.Polygon | any) => {
-      if (isLocked) {
+    async (poly: google.maps.Polygon) => {
+      if (!isEditing || isLocked) {
         poly.setMap(null)
         return
       }
@@ -267,38 +316,8 @@ export default function BassinMap({
       await savePolygon(newPoints)
       setIsEditing(false)
     },
-    [isLocked, savePolygon]
+    [isEditing, isLocked, savePolygon]
   )
-
-  // Mise à jour lors du déplacement des sommets d’un polygone existant
-  useEffect(() => {
-    if (!polygonRef.current || !isLoaded) return
-
-    const poly = polygonRef.current
-    const gPath = poly.getPath()
-
-    const updateFromPath = () => {
-      if (!isEditing || isLocked) return
-
-      const pts: LatLngLiteral[] = gPath.getArray().map((latLng) => ({
-        lat: latLng.lat(),
-        lng: latLng.lng(),
-      }))
-
-      setPath(pts)
-      void savePolygon(pts)
-    }
-
-    const listeners = [
-      gPath.addListener('insert_at', updateFromPath),
-      gPath.addListener('set_at', updateFromPath),
-      gPath.addListener('remove_at', updateFromPath),
-    ]
-
-    return () => {
-      listeners.forEach((l) => l.remove())
-    }
-  }, [isEditing, isLocked, savePolygon, isLoaded])
 
   const drawingOptions = useMemo(() => {
     if (!isLoaded || typeof google === 'undefined') {
@@ -321,31 +340,38 @@ export default function BassinMap({
   // ---------------------------------------------------------------------------
   if (loadError) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-        Erreur de chargement de Google Maps. Vérifiez votre connexion ou la clé
-        d&apos;API.
+      <div className="flex h-full items-center justify-center rounded-xl bg-ct-grayLight/40 text-sm text-red-600">
+        Erreur de chargement de Google Maps.
       </div>
     )
   }
 
   if (!isLoaded) {
     return (
-      <div className="rounded-xl border border-ct-grayLight bg-white px-4 py-3 text-sm text-ct-grayDark">
+      <div className="flex h-full items-center justify-center rounded-xl bg-ct-grayLight/40 text-sm text-ct-gray">
         Chargement de la carte…
       </div>
     )
   }
 
   return (
-    <div className="space-y-3">
-      {/* Barre d’actions au-dessus de la carte */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ct-grayLight bg-ct-grayLight/40 px-4 py-2">
-        <p className="text-sm text-ct-grayDark">
-          Superficie du polygone :{' '}
-          <span className="font-semibold">
-            {surfaceFt2 !== null ? `${surfaceFt2} pi²` : '—'}
-          </span>
-        </p>
+    <div className="flex h-full flex-col gap-3">
+      {/* Barre d’info au-dessus de la carte */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-ct-primaryLight/10 px-3 py-2">
+        <div className="space-y-0.5 text-xs">
+          <p className="font-medium text-ct-grayDark">
+            Surface approximative
+          </p>
+          <p className="text-ct-gray">
+            {areaM2 != null && areaFt2 != null ? (
+              <>
+                {areaM2.toFixed(0)} m² · {areaFt2.toFixed(0)} pi²
+              </>
+            ) : (
+              'Aucun polygone défini'
+            )}
+          </p>
+        </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -374,31 +400,36 @@ export default function BassinMap({
         </div>
       </div>
 
-      {/* Carte Google Maps – hauteur augmentée et responsive */}
-      <div className="h-[320px] md:h-[380px] lg:h-[420px] w-full rounded-xl border border-ct-grayLight overflow-hidden">
+      {/* Carte */}
+      <div className="h-full min-h-[320px] w-full overflow-hidden rounded-xl border border-ct-grayLight">
         <GoogleMap
-          mapContainerStyle={{ width: '100%', height: '100%' }}
           center={finalCenter}
-          zoom={19}
+          zoom={18}
+          mapContainerClassName="h-full w-full"
           onLoad={handleMapLoad}
           onUnmount={handleMapUnmount}
+          options={{
+            disableDefaultUI: false,
+            zoomControl: true,
+            mapTypeControl: true,
+          }}
         >
-          {/* Polygone existant */}
+          {/* Polygone contrôlé par React */}
           {path.length > 0 && (
             <Polygon
               path={path}
+              onLoad={(poly) => {
+                polygonRef.current = poly
+              }}
               options={{
-                fillColor: finalColor,
-                fillOpacity: 0.45,
                 strokeColor: finalColor,
                 strokeOpacity: 0.9,
                 strokeWeight: 2,
+                fillColor: finalColor,
+                fillOpacity: 0.35,
                 editable: isEditing && !isLocked,
-                draggable: false,
+                draggable: isEditing && !isLocked,
                 zIndex: 2,
-              }}
-              onLoad={(poly) => {
-                polygonRef.current = poly
               }}
             />
           )}

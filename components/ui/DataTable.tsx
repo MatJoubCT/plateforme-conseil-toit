@@ -1,49 +1,51 @@
-// components/ui/DataTable.tsx
-"use client";
+'use client'
 
-import React from "react";
-import { cn } from "@/lib/utils";
+import { ReactNode } from 'react'
 
-export interface DataTableProps extends React.HTMLAttributes<HTMLDivElement> {
-  maxHeight?: number;
+type DataTableProps = {
+  children: ReactNode
+  /** Hauteur max en pixels pour activer un scroll vertical interne (ex.: 420) */
+  maxHeight?: number
 }
 
-export const DataTable: React.FC<DataTableProps> = ({
-  children,
-  className,
-  maxHeight,
-  ...props
-}) => {
+/**
+ * Conteneur de tableau standard Conseil-Toit.
+ * - Bord arrondi + ombre légère
+ * - Scroll VERTICAL optionnel (maxHeight)
+ * - PAS de scroll horizontal (on laisse le tableau s’ajuster dans le cadre)
+ */
+export function DataTable({ children, maxHeight }: DataTableProps) {
+  const innerClassName = maxHeight ? 'w-full overflow-y-auto' : 'w-full'
+  const innerStyle = maxHeight ? { maxHeight } : undefined
+
   return (
-    <div
-      className={cn(
-        "w-full overflow-auto rounded-xl border border-ct-grayLight bg-ct-white shadow-ct-card",
-        className
-      )}
-      style={maxHeight ? { maxHeight } : undefined}
-      {...props}
-    >
-      {children}
+    <div className="relative -mx-4 sm:mx-0">
+      <div className="overflow-hidden rounded-2xl border border-ct-grayLight bg-white shadow-sm">
+        <div className={innerClassName} style={innerStyle}>
+          {/* min-w-full pour que le tableau prenne toute la largeur du cadre */}
+          <div className="min-w-full">{children}</div>
+        </div>
+      </div>
     </div>
-  );
-};
+  )
+}
 
-export const DataTableHeader: React.FC<React.HTMLAttributes<HTMLTableSectionElement>> = ({
-  className,
-  children,
-  ...props
-}) => (
-  <thead className={cn("bg-ct-grayLight sticky top-0 z-10", className)} {...props}>
-    {children}
-  </thead>
-);
+type SectionProps = {
+  children: ReactNode
+}
 
-export const DataTableBody: React.FC<React.HTMLAttributes<HTMLTableSectionElement>> = ({
-  className,
-  children,
-  ...props
-}) => (
-  <tbody className={cn("bg-ct-white", className)} {...props}>
-    {children}
-  </tbody>
-);
+export function DataTableHeader({ children }: SectionProps) {
+  return (
+    <thead className="bg-ct-grayLight/60 text-[11px] uppercase tracking-wide text-ct-grayDark">
+      {children}
+    </thead>
+  )
+}
+
+export function DataTableBody({ children }: SectionProps) {
+  return (
+    <tbody className="divide-y divide-ct-grayLight text-sm text-ct-grayDark">
+      {children}
+    </tbody>
+  )
+}

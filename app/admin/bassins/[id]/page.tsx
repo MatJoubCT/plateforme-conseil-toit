@@ -825,9 +825,7 @@ export default function AdminBassinDetailPage() {
       : null
 
   const typeDuree =
-    dureesBassin.find((l) => l.id === bassin.duree_vie_id)?.label ||
-    bassin.duree_vie_text ||
-    null
+    dureesBassin.find((l) => l.id === bassin.duree_vie_id)?.label ?? null
 
   const etatLabel =
     etatsBassin.find((l) => l.id === bassin.etat_id)?.label || null
@@ -893,42 +891,327 @@ export default function AdminBassinDetailPage() {
         </div>
       </div>
 
-      {/* Résumé bassin + notes + carte */}
-      <div className="grid gap-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)]">
-        <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm space-y-4">
-          <h2 className="text-sm font-semibold text-ct-grayDark uppercase tracking-wide">
-            Résumé du bassin
-          </h2>
-          <div className="space-y-2 text-sm text-ct-grayDark">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-ct-gray">État global</span>
-              <StateBadge state={mapEtatToStateBadge(etatLabel)} />
+      {/* Layout 2 colonnes : gauche = résumé + documents, droite = carte */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] lg:items-start">
+        {/* Colonne gauche : résumé + documents */}
+        <div className="space-y-6">
+          {/* Résumé du bassin */}
+          <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm space-y-4">
+            <h2 className="text-sm font-semibold text-ct-grayDark uppercase tracking-wide">
+              Résumé du bassin
+            </h2>
+            <div className="space-y-2 text-sm text-ct-grayDark">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-ct-gray">État global</span>
+                <StateBadge state={mapEtatToStateBadge(etatLabel)} />
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-ct-gray">Durée de vie résiduelle</span>
+                <span className="font-medium">
+                  {typeDuree || 'Non définie'}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-ct-gray">Référence interne</span>
+                <span className="font-medium">
+                  {bassin.reference_interne || '—'}
+                </span>
+              </div>
             </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-ct-gray">Durée de vie résiduelle</span>
-              <span className="font-medium">
-                {typeDuree || 'Non définie'}
-              </span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-ct-gray">Référence interne</span>
-              <span className="font-medium">
-                {bassin.reference_interne || '—'}
-              </span>
+
+            <div className="pt-3 border-t border-ct-grayLight space-y-1">
+              <p className="text-xs uppercase tracking-wide text-ct-gray">
+                Notes internes
+              </p>
+              <p className="text-sm text-ct-grayDark whitespace-pre-line">
+                {bassin.notes || 'Aucune note pour ce bassin.'}
+              </p>
             </div>
           </div>
 
-          <div className="pt-3 border-t border-ct-grayLight space-y-1">
-            <p className="text-xs uppercase tracking-wide text-ct-gray">
-              Notes internes
-            </p>
-            <p className="text-sm text-ct-grayDark whitespace-pre-line">
-              {bassin.notes || 'Aucune note pour ce bassin.'}
-            </p>
+          {/* Documents du bassin (Garanties / Rapports) */}
+          <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-3">
+              <div>
+                <h2 className="text-sm font-semibold text-ct-grayDark uppercase tracking-wide">
+                  Documents du bassin
+                </h2>
+                <p className="text-xs text-ct-gray mt-1">
+                  Gérez les garanties et les rapports PDF associés à ce bassin.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
+                    activeDocTab === 'garanties'
+                      ? 'border-ct-primary bg-ct-primary text-white'
+                      : 'border-ct-grayLight bg-white text-ct-gray hover:bg-ct-grayLight/40'
+                  }`}
+                  onClick={() => setActiveDocTab('garanties')}
+                >
+                  Garanties
+                </button>
+                <button
+                  type="button"
+                  className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
+                    activeDocTab === 'rapports'
+                      ? 'border-ct-primary bg-ct-primary text-white'
+                      : 'border-ct-grayLight bg-white text-ct-gray hover:bg-ct-grayLight/40'
+                  }`}
+                  onClick={() => setActiveDocTab('rapports')}
+                >
+                  Rapports
+                </button>
+              </div>
+            </div>
+
+            {/* Contenu onglet Garanties */}
+            {activeDocTab === 'garanties' && (
+              <>
+                <div className="flex justify-end mb-3">
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => openModal()}
+                  >
+                    Ajouter une garantie
+                  </button>
+                </div>
+
+                {garanties.length === 0 ? (
+                  <p className="text-sm text-ct-gray">
+                    Aucune garantie pour ce bassin pour le moment.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border-collapse text-sm">
+                      <thead>
+                        <tr className="bg-ct-grayLight/60 text-left">
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            Type
+                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            Fournisseur
+                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            No garantie
+                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            Début
+                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            Fin
+                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            Statut
+                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            Couverture
+                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            PDF
+                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {garanties.map((g) => {
+                          const typeLabel = labelFromId(
+                            'type_garantie',
+                            g.type_garantie_id
+                          )
+                          const statutLabel = labelFromId(
+                            'statut_garantie',
+                            g.statut_id
+                          )
+
+                          return (
+                            <tr
+                              key={g.id}
+                              className="hover:bg-ct-primaryLight/10 transition-colors"
+                            >
+                              <td className="border border-ct-grayLight px-3 py-2">
+                                {typeLabel || '—'}
+                              </td>
+                              <td className="border border-ct-grayLight px-3 py-2">
+                                {g.fournisseur || '—'}
+                              </td>
+                              <td className="border border-ct-grayLight px-3 py-2">
+                                {g.numero_garantie || '—'}
+                              </td>
+                              <td className="border border-ct-grayLight px-3 py-2">
+                                {g.date_debut || '—'}
+                              </td>
+                              <td className="border border-ct-grayLight px-3 py-2">
+                                {g.date_fin || '—'}
+                              </td>
+                              <td className="border border-ct-grayLight px-3 py-2">
+                                {statutLabel || '—'}
+                              </td>
+                              <td className="border border-ct-grayLight px-3 py-2">
+                                {g.couverture || '—'}
+                              </td>
+                              <td className="border border-ct-grayLight px-3 py-2">
+                                {g.fichier_pdf_url ? (
+                                  <a
+                                    href={g.fichier_pdf_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-ct-primary hover:underline"
+                                  >
+                                    Ouvrir
+                                  </a>
+                                ) : (
+                                  '—'
+                                )}
+                              </td>
+                              <td className="border border-ct-grayLight px-3 py-2">
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    onClick={() => openModal(g)}
+                                  >
+                                    Modifier
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-danger"
+                                    onClick={() =>
+                                      handleDeleteGarantie(g)
+                                    }
+                                  >
+                                    Supprimer
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Contenu onglet Rapports */}
+            {activeDocTab === 'rapports' && (
+              <>
+                <div className="flex justify-end mb-3">
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => openRapportModal()}
+                  >
+                    Ajouter un rapport
+                  </button>
+                </div>
+
+                {rapports.length === 0 ? (
+                  <p className="text-sm text-ct-gray">
+                    Aucun rapport n’est enregistré pour ce bassin pour le moment.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full border-collapse text-sm">
+                      <thead>
+                        <tr className="bg-ct-grayLight/60 text-left">
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            Date
+                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            Type
+                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            No rapport (CT)
+                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            Commentaire
+                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            PDF
+                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rapports.map((r) => {
+                          const typeLabel = labelFromId(
+                            'type_rapport',
+                            r.type_id
+                          )
+
+                          return (
+                            <tr
+                              key={r.id}
+                              className="hover:bg-ct-primaryLight/10 transition-colors"
+                            >
+                              <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                                {r.date_rapport || '—'}
+                              </td>
+                              <td className="border border-ct-grayLight px-3 py-2">
+                                {typeLabel || '—'}
+                              </td>
+                              <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                                {r.numero_ct || '—'}
+                              </td>
+                              <td className="border border-ct-grayLight px-3 py-2">
+                                {r.description || '—'}
+                              </td>
+                              <td className="border border-ct-grayLight px-3 py-2">
+                                {r.file_url ? (
+                                  <a
+                                    href={r.file_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-ct-primary hover:underline"
+                                  >
+                                    Ouvrir
+                                  </a>
+                                ) : (
+                                  '—'
+                                )}
+                              </td>
+                              <td className="border border-ct-grayLight px-3 py-2">
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    onClick={() => openRapportModal(r)}
+                                  >
+                                    Modifier
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-danger"
+                                    onClick={() =>
+                                      handleDeleteRapport(r)
+                                    }
+                                  >
+                                    Supprimer
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
-        {/* Carte + polygone */}
+        {/* Colonne droite : carte + polygone */}
         <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -951,283 +1234,6 @@ export default function AdminBassinDetailPage() {
             />
           </div>
         </div>
-      </div>
-
-      {/* Section documents : Garanties / Rapports */}
-      <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-3">
-          <div>
-            <h2 className="text-sm font-semibold text-ct-grayDark uppercase tracking-wide">
-              Documents du bassin
-            </h2>
-            <p className="text-xs text-ct-gray mt-1">
-              Gérez les garanties et les rapports PDF associés à ce bassin.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
-                activeDocTab === 'garanties'
-                  ? 'border-ct-primary bg-ct-primary text-white'
-                  : 'border-ct-grayLight bg-white text-ct-gray hover:bg-ct-grayLight/40'
-              }`}
-              onClick={() => setActiveDocTab('garanties')}
-            >
-              Garanties
-            </button>
-            <button
-              type="button"
-              className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
-                activeDocTab === 'rapports'
-                  ? 'border-ct-primary bg-ct-primary text-white'
-                  : 'border-ct-grayLight bg-white text-ct-gray hover:bg-ct-grayLight/40'
-              }`}
-              onClick={() => setActiveDocTab('rapports')}
-            >
-              Rapports
-            </button>
-          </div>
-        </div>
-
-        {/* Contenu onglet Garanties */}
-        {activeDocTab === 'garanties' && (
-          <>
-            <div className="flex justify-end mb-3">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => openModal()}
-              >
-                Ajouter une garantie
-              </button>
-            </div>
-
-            {garanties.length === 0 ? (
-              <p className="text-sm text-ct-gray">
-                Aucune garantie pour ce bassin pour le moment.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-ct-grayLight/60 text-left">
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Type
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Fournisseur
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        No garantie
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Début
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Fin
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Statut
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Couverture
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        PDF
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {garanties.map((g) => {
-                      const typeLabel = labelFromId(
-                        'type_garantie',
-                        g.type_garantie_id
-                      )
-                      const statutLabel = labelFromId(
-                        'statut_garantie',
-                        g.statut_id
-                      )
-
-                      return (
-                        <tr
-                          key={g.id}
-                          className="hover:bg-ct-primaryLight/10 transition-colors"
-                        >
-                          <td className="border border-ct-grayLight px-3 py-2">
-                            {typeLabel || '—'}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2">
-                            {g.fournisseur || '—'}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2">
-                            {g.numero_garantie || '—'}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2">
-                            {g.date_debut || '—'}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2">
-                            {g.date_fin || '—'}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2">
-                            {statutLabel || '—'}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2">
-                            {g.couverture || '—'}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2">
-                            {g.fichier_pdf_url ? (
-                              <a
-                                href={g.fichier_pdf_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-ct-primary hover:underline"
-                              >
-                                Ouvrir
-                              </a>
-                            ) : (
-                              '—'
-                            )}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2">
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                className="btn-secondary"
-                                onClick={() => openModal(g)}
-                              >
-                                Modifier
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-danger"
-                                onClick={() => handleDeleteGarantie(g)}
-                              >
-                                Supprimer
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Contenu onglet Rapports */}
-        {activeDocTab === 'rapports' && (
-          <>
-            <div className="flex justify-end mb-3">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => openRapportModal()}
-              >
-                Ajouter un rapport
-              </button>
-            </div>
-
-            {rapports.length === 0 ? (
-              <p className="text-sm text-ct-gray">
-                Aucun rapport n’est enregistré pour ce bassin pour le moment.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-ct-grayLight/60 text-left">
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Date
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Type
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        No rapport (CT)
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Commentaire
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        PDF
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rapports.map((r) => {
-                      const typeLabel = labelFromId(
-                        'type_rapport',
-                        r.type_id
-                      )
-
-                      return (
-                        <tr
-                          key={r.id}
-                          className="hover:bg-ct-primaryLight/10 transition-colors"
-                        >
-                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                            {r.date_rapport || '—'}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2">
-                            {typeLabel || '—'}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                            {r.numero_ct || '—'}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2">
-                            {r.description || '—'}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2">
-                            {r.file_url ? (
-                              <a
-                                href={r.file_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-ct-primary hover:underline"
-                              >
-                                Ouvrir
-                              </a>
-                            ) : (
-                              '—'
-                            )}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2">
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                className="btn-secondary"
-                                onClick={() => openRapportModal(r)}
-                              >
-                                Modifier
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-danger"
-                                onClick={() => handleDeleteRapport(r)}
-                              >
-                                Supprimer
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
       </div>
 
       {/* Modal édition bassin */}
@@ -1594,7 +1600,9 @@ export default function AdminBassinDetailPage() {
                 <textarea
                   rows={3}
                   value={formCommentaireRapport}
-                  onChange={(e) => setFormCommentaireRapport(e.target.value)}
+                  onChange={(e) =>
+                    setFormCommentaireRapport(e.target.value)
+                  }
                   className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
                 />
               </div>
