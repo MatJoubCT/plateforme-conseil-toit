@@ -1,126 +1,249 @@
+// app/client/layout.tsx
 'use client'
 
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 
+type NavItem = {
+  label: string
+  description?: string
+  href: string
+}
+
+const primaryNav: NavItem[] = [
+  {
+    label: 'Dashboard',
+    description: 'Vue globale de vos bâtiments',
+    href: '/client',
+  },
+  {
+    label: 'Bâtiments et carte',
+    description: 'Bâtiments et bassins sur la carte',
+    href: '/client/carte',
+  },
+]
+
 export default function ClientLayout({ children }: { children: ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
+
   const [checking, setChecking] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const handleLogout = async () => {
     await supabaseBrowser.auth.signOut()
     router.push('/login')
   }
 
-useEffect(() => {
-  const checkAuth = async () => {
-    setChecking(true)
-    setErrorMsg(null)
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        setChecking(true)
+        setErrorMsg(null)
 
-    // 1) Vérifier la session
-    const { data: sessionData, error: sessionError } =
-      await supabaseBrowser.auth.getSession()
+        const { data: sessionData, error: sessionError } =
+          await supabaseBrowser.auth.getSession()
 
-    if (sessionError || !sessionData.session) {
-      router.replace('/login')
-      return
+        if (sessionError || !sessionData?.session) {
+          router.replace('/login')
+          return
+        }
+
+        const user = sessionData.session.user
+
+        const { data: profile, error: profileError } = await supabaseBrowser
+          .from('user_profiles')
+          .select('role, client_id, is_active')
+          .eq('user_id', user.id)
+          .single()
+
+        if (profileError || !profile) {
+          setErrorMsg('Profil introuvable pour cet utilisateur.')
+          router.replace('/login')
+          return
+        }
+
+        if (profile.role !== 'client') {
+          setErrorMsg('Accès client uniquement.')
+          router.replace('/login')
+          return
+        }
+
+        if (profile.is_active === false) {
+          setErrorMsg(
+            'Votre accès au portail client a été suspendu. Veuillez contacter Conseil-Toit.'
+          )
+          await supabaseBrowser.auth.signOut()
+          router.replace('/login')
+          return
+        }
+
+        setChecking(false)
+      } catch (err) {
+        console.error('Erreur auth client:', err)
+        setErrorMsg("Erreur lors de la vérification de l'accès.")
+        router.replace('/login')
+      }
     }
 
-    const user = sessionData.session.user
-
-    // 2) Charger le profil incluant is_active
-    const { data: profile, error: profileError } = await supabaseBrowser
-      .from('user_profiles')
-      .select('role, client_id, is_active')
-      .eq('user_id', user.id)
-      .single()
-
-    if (profileError || !profile) {
-      setErrorMsg("Profil introuvable pour cet utilisateur.")
-      router.replace('/login')
-      return
-    }
-
-    // 3) Vérifier rôle
-    if (profile.role !== 'client') {
-      setErrorMsg('Accès client uniquement.')
-      router.replace('/login')
-      return
-    }
-
-    // 4) Vérifier si l’utilisateur est suspendu
-    if (profile.is_active === false) {
-      setErrorMsg(
-        "Votre accès au portail client a été suspendu. Veuillez contacter Conseil-Toit."
-      )
-
-      // Déconnexion propre
-      await supabaseBrowser.auth.signOut()
-
-      router.replace('/login')
-      return
-    }
-
-    // 5) OK
-    setChecking(false)
-  }
-
-  void checkAuth()
-}, [router])
+    void checkAuth()
+  }, [router])
 
   if (checking) {
     return (
-      <div
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontFamily: 'system-ui, sans-serif',
-        }}
-      >
-        <p>Vérification des accès…</p>
+      <div className="flex min-h-screen items-center justify-center bg-slate-100">
+        <div className="flex flex-col items-center gap-3 rounded-2xl bg-white px-8 py-6 shadow-xl">
+          <div className="h-10 w-10 rounded-xl bg-[#1F4E79] opacity-90" />
+          <p className="text-sm font-medium text-slate-700">
+            Chargement du portail client…
+          </p>
+        </div>
       </div>
     )
   }
 
+  const isActive = (href: string) => {
+    if (href === '/client') {
+      return pathname === '/client'
+    }
+    return pathname === href || pathname.startsWith(`${href}/`)
+  }
+
+  const renderNavItem = (item: NavItem) => {
+    const active = isActive(item.href)
+
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={[
+          'group flex flex-col gap-1 rounded-xl px-3 py-2.5 transition-all',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70',
+          active
+            ? 'bg-white/12 shadow-[0_0_0_1px_rgba(255,255,255,0.35)]'
+            : 'hover:bg-white/8',
+        ].join(' ')}
+        onClick={() => setSidebarOpen(false)}
+      >
+        <span
+          className={[
+            'text-sm font-medium tracking-wide',
+            active ? 'text-white' : 'text-slate-50',
+          ].join(' ')}
+        >
+          {item.label}
+        </span>
+        {item.description && (
+          <span className="text-[11px] font-normal text-slate-200/80">
+            {item.description}
+          </span>
+        )}
+      </Link>
+    )
+  }
+
   return (
-    <div className="layout-client">
-      <header className="client-header">
-        <div>Portail client – Conseil-Toit</div>
-        <nav style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <Link href="/client" style={{ color: 'white' }}>
-            Dashboard
-          </Link>
-          <Link href="/client/carte" style={{ color: 'white' }}>
-            Carte
-          </Link>
-          <Link href="/client/batiments" style={{ color: 'white' }}>
-            Bâtiments
-          </Link>
+    <div className="flex min-h-screen bg-[#F5F6F7] text-slate-900">
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-slate-900/40 backdrop-blur-sm md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside
+        className={[
+          'fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-[#1F4E79] text-white shadow-2xl',
+          'transition-transform duration-200 ease-out',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+        ].join(' ')}
+      >
+        <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/95 shadow-lg">
+            <span className="text-xs font-bold tracking-tight text-[#1F4E79]">
+              CT
+            </span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-100/80">
+              Conseil-Toit
+            </span>
+            <span className="text-sm font-semibold text-white">
+              Portail client
+            </span>
+          </div>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-4 py-4">
+          <div className="mb-4 flex items-center justify-between gap-2 px-1">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-200/70">
+              Navigation
+            </span>
+            <span className="h-px flex-1 rounded bg-slate-100/10" />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            {primaryNav.map(renderNavItem)}
+          </div>
+        </nav>
+
+        <div className="border-t border-white/10 px-4 py-4">
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-xs font-semibold text-[#1F4E79]">
+              CL
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-medium text-slate-50">
+                Espace client
+              </span>
+              <span className="text-[11px] text-slate-200/75">
+                Accès limité à vos bâtiments
+              </span>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={handleLogout}
-            style={{
-              marginLeft: 16,
-              padding: '4px 8px',
-              borderRadius: 4,
-              border: '1px solid #fff',
-              background: 'transparent',
-              color: 'white',
-              cursor: 'pointer',
-              fontSize: 13,
-            }}
+            className="inline-flex w-full items-center justify-center rounded-lg border border-white/80 px-3 py-2 text-xs font-medium tracking-wide text-white shadow-sm transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
           >
             Déconnexion
           </button>
-        </nav>
-      </header>
-      <main className="client-main">{children}</main>
+
+          {errorMsg && (
+            <p className="mt-3 text-[11px] leading-snug text-red-200">
+              {errorMsg}
+            </p>
+          )}
+        </div>
+      </aside>
+
+      <div className="flex min-h-screen flex-1 flex-col md:ml-72">
+        <header className="flex items-center justify-between gap-3 border-b border-slate-200/70 bg-white/95 px-3 py-2.5 shadow-sm md:hidden">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F4E79]"
+          >
+            <span className="h-0.5 w-3 rounded-full bg-slate-800" />
+            <span className="h-0.5 w-3 rounded-full bg-slate-800" />
+            <span className="h-0.5 w-3 rounded-full bg-slate-800" />
+            <span className="ml-1">Menu</span>
+          </button>
+          <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Client Conseil-Toit
+          </span>
+          <div className="h-7 w-7 rounded-full bg-[#1F4E79]/90" />
+        </header>
+
+        <main className="flex-1 px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
+          {children}
+        </main>
+      </div>
     </div>
   )
 }

@@ -1,15 +1,18 @@
+// app/client/carte/page.tsx
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  GoogleMap,
-  Marker,
-  Polygon,
-  useJsApiLoader,
-} from '@react-google-maps/api'
+import { GoogleMap, Marker, Polygon, useJsApiLoader } from '@react-google-maps/api'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
+
+/**
+ * IMPORTANT
+ * - libraries DOIT être une constante stable (sinon warning + reload du script)
+ * - id DOIT matcher l’id déjà utilisé dans le projet (script-loader)
+ */
+const GOOGLE_MAPS_LIBRARIES = ['drawing', 'geometry'] as const
 
 type ClientRow = {
   id: string
@@ -22,6 +25,7 @@ type UserProfileRow = {
   role: string | null
   client_id: string | null
   full_name: string | null
+  is_active?: boolean | null
 }
 
 type BatimentRow = {
@@ -63,10 +67,6 @@ type CartePolygon = {
   color: string
 }
 
-/* ----------------------------------------------------------
-   Utils
----------------------------------------------------------- */
-
 function geoJsonToLatLngPath(poly: GeoJSONPolygon | null) {
   if (!poly?.coordinates?.[0]) return []
   return poly.coordinates[0].map(([lng, lat]) => ({ lat, lng }))
@@ -75,18 +75,12 @@ function geoJsonToLatLngPath(poly: GeoJSONPolygon | null) {
 function mapEtatToStateBadge(etat: string | null): BassinState {
   if (!etat) return 'non_evalue'
   const v = etat.toLowerCase()
-
   if (v.includes('urgent')) return 'urgent'
   if (v.includes('bon')) return 'bon'
   if (v.includes('surveiller')) return 'a_surveille'
   if (v.includes('planifier')) return 'planifier'
-
   return 'non_evalue'
 }
-
-/* ----------------------------------------------------------
-   Composant carte Google
----------------------------------------------------------- */
 
 function ClientCarteMap({
   center,
@@ -105,11 +99,56 @@ function ClientCarteMap({
 }) {
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
-    id: 'client-carte-map',
-    libraries: ['maps'],
+    id: 'script-loader',
+    libraries: GOOGLE_MAPS_LIBRARIES as unknown as string[],
+    version: 'weekly',
   })
 
   const [map, setMap] = useState<google.maps.Map | null>(null)
+
+  // Verrou anti-boucle (évite Maximum call stack size exceeded)
+  const enforcingRef = useRef(false)
+
+  useEffect(() => {
+    if (!map) return
+
+    // Appliquer une fois les options anti-rotation / anti-tilt
+    map.setOptions({
+      rotateControl: false,
+      tilt: 0,
+      heading: 0,
+    })
+    map.setTilt(0)
+    map.setHeading(0)
+
+    const enforceFlat = () => {
+      if (enforcingRef.current) return
+      enforcingRef.current = true
+
+      // On décale dans le prochain frame pour éviter les cascades sync
+      requestAnimationFrame(() => {
+        try {
+          const t = map.getTilt ? map.getTilt() : 0
+          const h = map.getHeading ? map.getHeading() : 0
+
+          if (t !== 0) map.setTilt(0)
+          if (h !== 0) map.setHeading(0)
+        } finally {
+          enforcingRef.current = false
+        }
+      })
+    }
+
+    const l1 = map.addListener('tilt_changed', enforceFlat)
+    const l2 = map.addListener('heading_changed', enforceFlat)
+    const l3 = map.addListener('maptypeid_changed', enforceFlat)
+
+    return () => {
+      l1.remove()
+      l2.remove()
+      l3.remove()
+    }
+  }, [map])
 
   useEffect(() => {
     if (!isLoaded || !map) return
@@ -132,12 +171,7 @@ function ClientCarteMap({
     })
 
     if (hasPoints) {
-      map.fitBounds(bounds, {
-        top: 60,
-        right: 60,
-        bottom: 60,
-        left: 60,
-      })
+      map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 })
     } else {
       map.setCenter(center)
       map.setZoom(7)
@@ -155,7 +189,13 @@ function ClientCarteMap({
   return (
     <div className="h-[480px] w-full overflow-hidden rounded-2xl border border-ct-grayLight bg-white shadow-card">
       <GoogleMap
-        onLoad={(m) => setMap(m)}
+        onLoad={(m) => {
+          setMap(m)
+          // Double sécurité immédiate
+          m.setOptions({ rotateControl: false, tilt: 0, heading: 0 })
+          m.setTilt(0)
+          m.setHeading(0)
+        }}
         mapContainerStyle={{ width: '100%', height: '100%' }}
         center={center}
         zoom={15}
@@ -163,6 +203,9 @@ function ClientCarteMap({
           mapTypeId: 'satellite',
           streetViewControl: false,
           fullscreenControl: true,
+          rotateControl: false,
+          tilt: 0,
+          heading: 0,
         }}
       >
         {polygons.map((poly) => {
@@ -198,10 +241,6 @@ function ClientCarteMap({
   )
 }
 
-/* ----------------------------------------------------------
-   Page principale
----------------------------------------------------------- */
-
 export default function ClientCartePage() {
   const router = useRouter()
 
@@ -214,30 +253,26 @@ export default function ClientCartePage() {
   const [bassins, setBassins] = useState<BassinRow[]>([])
   const [listes, setListes] = useState<ListeChoix[]>([])
 
-  const [selectedBatimentId, setSelectedBatimentId] = useState<string | null>(
-    null
-  )
+  const [selectedBatimentId, setSelectedBatimentId] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
+      setErrorMsg(null)
 
-      const {
-        data: { user },
-      } = await supabaseBrowser.auth.getUser()
-
-      if (!user) {
+      const { data: userData, error: userErr } = await supabaseBrowser.auth.getUser()
+      if (userErr || !userData?.user) {
         router.push('/login')
         return
       }
 
-      const { data: profileData } = await supabaseBrowser
+      const { data: profileData, error: profileError } = await supabaseBrowser
         .from('user_profiles')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userData.user.id)
         .maybeSingle()
 
-      if (!profileData) {
+      if (profileError || !profileData) {
         setErrorMsg('Profil utilisateur introuvable.')
         setLoading(false)
         return
@@ -260,9 +295,7 @@ export default function ClientCartePage() {
         .order('name')
 
       setBatiments(batsData ?? [])
-      if (batsData?.length) {
-        setSelectedBatimentId(batsData[0].id)
-      }
+      if (batsData?.length) setSelectedBatimentId(batsData[0].id)
 
       const ids = (batsData ?? []).map((b) => b.id)
       if (ids.length) {
@@ -270,12 +303,13 @@ export default function ClientCartePage() {
           .from('bassins')
           .select('*')
           .in('batiment_id', ids)
+
         setBassins(bassinData ?? [])
+      } else {
+        setBassins([])
       }
 
-      const { data: listesData } = await supabaseBrowser
-        .from('listes_choix')
-        .select('*')
+      const { data: listesData } = await supabaseBrowser.from('listes_choix').select('*')
       setListes(listesData ?? [])
 
       setLoading(false)
@@ -308,7 +342,6 @@ export default function ClientCartePage() {
     if (!batiments.length) return { lat: 46.5, lng: -72.5 }
 
     const pts: { lat: number; lng: number }[] = []
-
     batiments.forEach((b) => {
       if (b.latitude && b.longitude) pts.push({ lat: b.latitude, lng: b.longitude })
     })
@@ -317,7 +350,6 @@ export default function ClientCartePage() {
 
     const lat = pts.reduce((sum, p) => sum + p.lat, 0) / pts.length
     const lng = pts.reduce((sum, p) => sum + p.lng, 0) / pts.length
-
     return { lat, lng }
   }, [batiments])
 
@@ -333,73 +365,48 @@ export default function ClientCartePage() {
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-8 space-y-8">
-      {/* En-tête page */}
       <header className="space-y-1">
-        <p className="text-xs tracking-wide uppercase text-ct-gray">
-          Carte des bâtiments
-        </p>
-        <h1 className="text-2xl font-semibold text-ct-primary">
-          {titreClient}
-        </h1>
+        <p className="text-xs tracking-wide uppercase text-ct-gray">Carte des bâtiments</p>
+        <h1 className="text-2xl font-semibold text-ct-primary">{titreClient}</h1>
         <p className="text-sm text-ct-gray">
           Cliquez sur un bâtiment ou un polygone pour consulter les détails.
         </p>
       </header>
 
-      {/* Grille principale : colonne gauche alignée avec admin */}
       <section className="grid gap-8 grid-cols-[560px_minmax(0,1fr)]">
-        {/* Card liste des bâtiments */}
         <div className="rounded-2xl border border-ct-grayLight bg-white shadow-card p-4 flex flex-col">
-          <h2 className="text-sm font-semibold text-ct-grayDark">
-            Bâtiments accessibles
-          </h2>
+          <h2 className="text-sm font-semibold text-ct-grayDark">Bâtiments accessibles</h2>
           <p className="mt-1 text-xs text-ct-gray">
             Cliquez pour afficher sur la carte ou consulter les détails.
           </p>
 
           <div className="mt-4 flex-1 overflow-y-auto overflow-x-hidden rounded-xl border border-ct-grayLight bg-white">
             <table className="w-full table-fixed text-sm">
-              {/* EN-TÊTE alignée admin */}
               <thead className="bg-ct-grayLight/50 border-b border-ct-grayLight">
                 <tr className="text-[11px] font-semibold uppercase tracking-wide text-ct-grayDark">
-                  <th className="px-4 py-3 text-left whitespace-nowrap w-[36%]">
-                    Bâtiment
-                  </th>
-                  <th className="px-4 py-3 text-left whitespace-nowrap w-[28%]">
-                    Ville
-                  </th>
-                  <th className="px-4 py-3 text-center whitespace-nowrap w-[14%]">
-                    Bassins
-                  </th>
-                  <th className="px-4 py-3 whitespace-nowrap w-[22%]">
-                    <div className="w-full flex items-center justify-center">
-                      État
-                    </div>
+                  <th className="px-4 py-3 text-left whitespace-nowrap w-[44%]">Bâtiment</th>
+                  <th className="px-4 py-3 text-left whitespace-nowrap w-[28%]">Ville</th>
+                  <th className="px-4 py-3 text-center whitespace-nowrap w-[12%]">Bassins</th>
+                  <th className="px-4 py-3 whitespace-nowrap w-[16%]">
+                    <div className="w-full flex items-center justify-center">État</div>
                   </th>
                 </tr>
               </thead>
 
               <tbody>
                 {batiments.map((b) => {
-                  const bassinsCount = bassins.filter(
-                    (ba) => ba.batiment_id === b.id
-                  ).length
+                  const bassinsCount = bassins.filter((ba) => ba.batiment_id === b.id).length
 
                   const etat = (() => {
                     const list = bassins.filter((ba) => ba.batiment_id === b.id)
                     if (!list.length) return 'non_evalue' as BassinState
-                    const order: BassinState[] = [
-                      'bon',
-                      'a_surveille',
-                      'planifier',
-                      'urgent',
-                    ]
+                    const order: BassinState[] = ['bon', 'a_surveille', 'planifier', 'urgent']
                     const ranked = list
                       .map((ba) => {
                         const label = listes.find((l) => l.id === ba.etat_id)?.label
                         return mapEtatToStateBadge(label ?? null)
                       })
-                      .sort((a, b) => order.indexOf(b) - order.indexOf(a))
+                      .sort((a, b2) => order.indexOf(b2) - order.indexOf(a))
                     return ranked[0]
                   })()
 
@@ -409,21 +416,15 @@ export default function ClientCartePage() {
                     <tr
                       key={b.id}
                       className={`border-b border-ct-grayLight last:border-0 cursor-pointer transition-colors ${
-                        selected
-                          ? 'bg-ct-primaryLight/10'
-                          : 'hover:bg-ct-grayLight/20'
+                        selected ? 'bg-ct-primaryLight/10' : 'hover:bg-ct-grayLight/20'
                       }`}
                       onClick={() => {
                         setSelectedBatimentId(b.id)
                         router.push(`/client/batiments/${b.id}`)
                       }}
                     >
-                      <td className="px-4 py-2 align-middle">
-                        {b.name}
-                      </td>
-                      <td className="px-4 py-2 align-middle whitespace-nowrap">
-                        {b.city}
-                      </td>
+                      <td className="px-4 py-2 align-middle">{b.name}</td>
+                      <td className="px-4 py-2 align-middle whitespace-nowrap">{b.city}</td>
                       <td className="px-4 py-2 text-center align-middle whitespace-nowrap">
                         {bassinsCount}
                       </td>
@@ -440,11 +441,8 @@ export default function ClientCartePage() {
           </div>
         </div>
 
-        {/* Card carte Google */}
         <div className="flex flex-col rounded-2xl border border-ct-grayLight bg-white shadow-card p-4">
-          <h2 className="text-sm font-semibold text-ct-grayDark">
-            Carte Google Maps
-          </h2>
+          <h2 className="text-sm font-semibold text-ct-grayDark">Carte Google Maps</h2>
           <p className="mt-1 text-xs text-ct-gray mb-3">
             Visualisation des bâtiments et bassins de toiture.
           </p>
@@ -455,9 +453,7 @@ export default function ClientCartePage() {
             batiments={batiments}
             selectedBatimentId={selectedBatimentId}
             onPolygonClick={(p) => {
-              if (p.batimentId) {
-                router.push(`/client/batiments/${p.batimentId}`)
-              }
+              if (p.batimentId) router.push(`/client/batiments/${p.batimentId}`)
             }}
             onMarkerClick={(id) => {
               setSelectedBatimentId(id)
