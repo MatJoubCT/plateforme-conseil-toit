@@ -16,6 +16,7 @@ type BassinRow = {
   id: string
   batiment_id: string | null
   name: string | null
+  membrane_type_id: string | null
   surface_m2: number | null
   annee_installation: number | null
   date_derniere_refection: string | null
@@ -121,8 +122,7 @@ export default function AdminBassinDetailPage() {
   const [showRapportModal, setShowRapportModal] = useState(false)
   const [savingRapport, setSavingRapport] = useState(false)
   const [editingRapport, setEditingRapport] = useState<RapportRow | null>(null)
-  const [rapportModalTitle, setRapportModalTitle] =
-    useState('Nouveau rapport')
+  const [rapportModalTitle, setRapportModalTitle] = useState('Nouveau rapport')
   const [formTypeRapportId, setFormTypeRapportId] = useState('')
   const [formDateRapport, setFormDateRapport] = useState('')
   const [formNumeroRapport, setFormNumeroRapport] = useState('')
@@ -133,12 +133,18 @@ export default function AdminBassinDetailPage() {
   const [showEditBassinModal, setShowEditBassinModal] = useState(false)
   const [savingBassin, setSavingBassin] = useState(false)
   const [editName, setEditName] = useState('')
+  const [editMembraneId, setEditMembraneId] = useState('')
   const [editAnnee, setEditAnnee] = useState('')
   const [editDateDerniere, setEditDateDerniere] = useState('')
   const [editEtatId, setEditEtatId] = useState('')
   const [editDureeId, setEditDureeId] = useState('')
   const [editReference, setEditReference] = useState('')
   const [editNotes, setEditNotes] = useState('')
+
+  // Modal confirmation suppression bassin (modèle identique à Clients)
+  const [showDeleteBassinModal, setShowDeleteBassinModal] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deletingBassin, setDeletingBassin] = useState(false)
 
   useEffect(() => {
     if (!bassinId) return
@@ -151,7 +157,7 @@ export default function AdminBassinDetailPage() {
       const { data: bassinData, error: bassinError } = await supabaseBrowser
         .from('bassins')
         .select(
-          'id, batiment_id, name, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
+          'id, batiment_id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
         )
         .eq('id', bassinId)
         .single()
@@ -187,14 +193,13 @@ export default function AdminBassinDetailPage() {
       }
 
       // 4) Garanties du bassin
-      const { data: garantiesData, error: garantiesError } =
-        await supabaseBrowser
-          .from('garanties')
-          .select(
-            'id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url'
-          )
-          .eq('bassin_id', bassinId)
-          .order('date_debut', { ascending: true })
+      const { data: garantiesData, error: garantiesError } = await supabaseBrowser
+        .from('garanties')
+        .select(
+          'id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url'
+        )
+        .eq('bassin_id', bassinId)
+        .order('date_debut', { ascending: true })
 
       if (garantiesError) {
         setErrorMsg(garantiesError.message)
@@ -203,14 +208,13 @@ export default function AdminBassinDetailPage() {
       }
 
       // 5) Rapports du bassin
-      const { data: rapportsData, error: rapportsError } =
-        await supabaseBrowser
-          .from('rapports')
-          .select(
-            'id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url'
-          )
-          .eq('bassin_id', bassinId)
-          .order('date_rapport', { ascending: false })
+      const { data: rapportsData, error: rapportsError } = await supabaseBrowser
+        .from('rapports')
+        .select(
+          'id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url'
+        )
+        .eq('bassin_id', bassinId)
+        .order('date_rapport', { ascending: false })
 
       if (rapportsError) {
         setErrorMsg(rapportsError.message)
@@ -251,10 +255,9 @@ export default function AdminBassinDetailPage() {
     ['etat_bassin', 'etat_toiture', 'etat'].includes(l.categorie)
   )
   const dureesBassin = listes.filter((l) =>
-    ['duree_vie_bassin', 'duree_vie_toiture', 'duree_vie'].includes(
-      l.categorie
-    )
+    ['duree_vie_bassin', 'duree_vie_toiture', 'duree_vie'].includes(l.categorie)
   )
+  const membranesBassin = listes.filter((l) => l.categorie === 'membrane')
 
   // Couleur du polygone selon l'état / durée de vie
   const couleurEtat: string | undefined = (() => {
@@ -459,10 +462,12 @@ export default function AdminBassinDetailPage() {
     }
 
     const badUuidFields: string[] = []
-    if ((payload.bassin_id as any) === 'undefined') badUuidFields.push('bassin_id')
+    if ((payload.bassin_id as any) === 'undefined')
+      badUuidFields.push('bassin_id')
     if ((payload.type_garantie_id as any) === 'undefined')
       badUuidFields.push('type_garantie_id')
-    if ((payload.statut_id as any) === 'undefined') badUuidFields.push('statut_id')
+    if ((payload.statut_id as any) === 'undefined')
+      badUuidFields.push('statut_id')
 
     if (badUuidFields.length > 0) {
       console.error('BUG: champs uuid = "undefined" dans payload', {
@@ -524,9 +529,7 @@ export default function AdminBassinDetailPage() {
   }
 
   const handleDeleteGarantie = async (garantie: GarantieRow) => {
-    const ok = window.confirm(
-      'Voulez-vous vraiment supprimer cette garantie ?'
-    )
+    const ok = window.confirm('Voulez-vous vraiment supprimer cette garantie ?')
     if (!ok) return
 
     const { error } = await supabaseBrowser
@@ -660,9 +663,7 @@ export default function AdminBassinDetailPage() {
   }
 
   const handleDeleteRapport = async (rapport: RapportRow) => {
-    const ok = window.confirm(
-      'Voulez-vous vraiment supprimer ce rapport ?'
-    )
+    const ok = window.confirm('Voulez-vous vraiment supprimer ce rapport ?')
     if (!ok) return
 
     const { error } = await supabaseBrowser
@@ -682,10 +683,9 @@ export default function AdminBassinDetailPage() {
   const openEditBassinModal = () => {
     if (!bassin) return
     setEditName(bassin.name || '')
+    setEditMembraneId(bassin.membrane_type_id || '')
     setEditAnnee(
-      bassin.annee_installation != null
-        ? String(bassin.annee_installation)
-        : ''
+      bassin.annee_installation != null ? String(bassin.annee_installation) : ''
     )
     setEditDateDerniere(bassin.date_derniere_refection || '')
     setEditEtatId(bassin.etat_id || '')
@@ -700,21 +700,30 @@ export default function AdminBassinDetailPage() {
     setShowEditBassinModal(false)
   }
 
+  const openDeleteBassinModal = () => {
+  setDeleteConfirmText('')
+  setShowDeleteBassinModal(true)
+  }
+
+  const closeDeleteBassinModal = () => {
+    if (deletingBassin) return
+    setShowDeleteBassinModal(false)
+  }
+
   const handleSubmitBassin = async (e: FormEvent) => {
     e.preventDefault()
     if (!bassin) return
 
     setSavingBassin(true)
 
-    const safeEtatId =
-      editEtatId && editEtatId.trim() !== '' ? editEtatId : null
+    const safeEtatId = editEtatId && editEtatId.trim() !== '' ? editEtatId : null
     const safeDureeId =
       editDureeId && editDureeId.trim() !== '' ? editDureeId : null
+    const safeMembraneId =
+      editMembraneId && editMembraneId.trim() !== '' ? editMembraneId : null
 
     const annee =
-      editAnnee && editAnnee.trim() !== ''
-        ? Number(editAnnee.trim())
-        : null
+      editAnnee && editAnnee.trim() !== '' ? Number(editAnnee.trim()) : null
 
     const selectedDuree =
       safeDureeId != null
@@ -724,18 +733,15 @@ export default function AdminBassinDetailPage() {
 
     const payload = {
       name: editName || null,
+      membrane_type_id: safeMembraneId,
       annee_installation: annee,
       date_derniere_refection:
-        editDateDerniere && editDateDerniere.trim() !== ''
-          ? editDateDerniere
-          : null,
+        editDateDerniere && editDateDerniere.trim() !== '' ? editDateDerniere : null,
       etat_id: safeEtatId,
       duree_vie_id: safeDureeId,
       duree_vie_text: dureeText,
       reference_interne:
-        editReference && editReference.trim() !== ''
-          ? editReference
-          : null,
+        editReference && editReference.trim() !== '' ? editReference : null,
       notes: editNotes && editNotes.trim() !== '' ? editNotes : null,
     }
 
@@ -744,7 +750,7 @@ export default function AdminBassinDetailPage() {
       .update(payload)
       .eq('id', bassin.id)
       .select(
-        'id, batiment_id, name, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
+        'id, batiment_id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
       )
       .single()
 
@@ -768,15 +774,11 @@ export default function AdminBassinDetailPage() {
   const handleDeleteBassin = async () => {
     if (!bassin) return
 
-    const ok = window.confirm(
-      'Voulez-vous vraiment supprimer ce bassin? Toutes les garanties et rapports associés devront être gérés manuellement dans les fichiers.'
-    )
-    if (!ok) return
+    setDeletingBassin(true)
 
-    const { error } = await supabaseBrowser
-      .from('bassins')
-      .delete()
-      .eq('id', bassin.id)
+    const { error } = await supabaseBrowser.from('bassins').delete().eq('id', bassin.id)
+
+    setDeletingBassin(false)
 
     if (error) {
       console.error('Erreur Supabase delete bassin', error)
@@ -786,6 +788,8 @@ export default function AdminBassinDetailPage() {
       )
       return
     }
+
+    setShowDeleteBassinModal(false)
 
     if (batiment?.id) {
       router.push(`/admin/batiments/${batiment.id}`)
@@ -820,15 +824,15 @@ export default function AdminBassinDetailPage() {
 
   // Surface affichée en pi² (BD reste en m²)
   const surfaceFt2 =
-    bassin.surface_m2 != null
-      ? Math.round(bassin.surface_m2 * 10.7639)
-      : null
+    bassin.surface_m2 != null ? Math.round(bassin.surface_m2 * 10.7639) : null
 
   const typeDuree =
     dureesBassin.find((l) => l.id === bassin.duree_vie_id)?.label ?? null
 
-  const etatLabel =
-    etatsBassin.find((l) => l.id === bassin.etat_id)?.label || null
+  const etatLabel = etatsBassin.find((l) => l.id === bassin.etat_id)?.label || null
+
+  const membraneLabel =
+  membranesBassin.find((l) => l.id === bassin.membrane_type_id)?.label ?? null
 
   return (
     <section className="space-y-6">
@@ -874,18 +878,10 @@ export default function AdminBassinDetailPage() {
               ← Retour au bâtiment
             </Link>
           )}
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={openEditBassinModal}
-          >
+          <button type="button" className="btn-secondary" onClick={openEditBassinModal}>
             Modifier
           </button>
-          <button
-            type="button"
-            className="btn-danger"
-            onClick={handleDeleteBassin}
-          >
+          <button type="button" className="btn-danger" onClick={openDeleteBassinModal}>
             Supprimer
           </button>
         </div>
@@ -895,39 +891,37 @@ export default function AdminBassinDetailPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] lg:items-start">
         {/* Colonne gauche : résumé + documents */}
         <div className="space-y-6">
-          {/* Résumé du bassin */}
-          <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm space-y-4">
-            <h2 className="text-sm font-semibold text-ct-grayDark uppercase tracking-wide">
-              Résumé du bassin
-            </h2>
-            <div className="space-y-2 text-sm text-ct-grayDark">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-ct-gray">État global</span>
-                <StateBadge state={mapEtatToStateBadge(etatLabel)} />
+            {/* Résumé du bassin */}
+            <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm space-y-4">
+              <h2 className="text-sm font-semibold text-ct-grayDark uppercase tracking-wide">
+                Résumé du bassin
+              </h2>
+              <div className="space-y-2 text-sm text-ct-grayDark">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-ct-gray">État global</span>
+                  <StateBadge state={mapEtatToStateBadge(etatLabel)} />
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-ct-gray">Durée de vie résiduelle</span>
+                  <span className="font-medium">{typeDuree || 'Non définie'}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-ct-gray">Type de membrane</span>
+                  <span className="font-medium">{membraneLabel || 'Non défini'}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-ct-gray">Référence interne</span>
+                  <span className="font-medium">{bassin.reference_interne || '—'}</span>
+                </div>
               </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-ct-gray">Durée de vie résiduelle</span>
-                <span className="font-medium">
-                  {typeDuree || 'Non définie'}
-                </span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-ct-gray">Référence interne</span>
-                <span className="font-medium">
-                  {bassin.reference_interne || '—'}
-                </span>
-              </div>
-            </div>
 
-            <div className="pt-3 border-t border-ct-grayLight space-y-1">
-              <p className="text-xs uppercase tracking-wide text-ct-gray">
-                Notes internes
-              </p>
-              <p className="text-sm text-ct-grayDark whitespace-pre-line">
-                {bassin.notes || 'Aucune note pour ce bassin.'}
-              </p>
+              <div className="pt-3 border-t border-ct-grayLight space-y-1">
+                <p className="text-xs uppercase tracking-wide text-ct-gray">Notes internes</p>
+                <p className="text-sm text-ct-grayDark whitespace-pre-line">
+                  {bassin.notes || 'Aucune note pour ce bassin.'}
+                </p>
+              </div>
             </div>
-          </div>
 
           {/* Documents du bassin (Garanties / Rapports) */}
           <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm">
@@ -971,11 +965,7 @@ export default function AdminBassinDetailPage() {
             {activeDocTab === 'garanties' && (
               <>
                 <div className="flex justify-end mb-3">
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => openModal()}
-                  >
+                  <button type="button" className="btn-primary" onClick={() => openModal()}>
                     Ajouter une garantie
                   </button>
                 </div>
@@ -989,45 +979,21 @@ export default function AdminBassinDetailPage() {
                     <table className="min-w-full border-collapse text-sm">
                       <thead>
                         <tr className="bg-ct-grayLight/60 text-left">
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            Type
-                          </th>
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            Fournisseur
-                          </th>
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            No garantie
-                          </th>
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            Début
-                          </th>
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            Fin
-                          </th>
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            Statut
-                          </th>
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            Couverture
-                          </th>
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            PDF
-                          </th>
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            Actions
-                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">Type</th>
+                          <th className="border border-ct-grayLight px-3 py-2">Fournisseur</th>
+                          <th className="border border-ct-grayLight px-3 py-2">No garantie</th>
+                          <th className="border border-ct-grayLight px-3 py-2">Début</th>
+                          <th className="border border-ct-grayLight px-3 py-2">Fin</th>
+                          <th className="border border-ct-grayLight px-3 py-2">Statut</th>
+                          <th className="border border-ct-grayLight px-3 py-2">Couverture</th>
+                          <th className="border border-ct-grayLight px-3 py-2">PDF</th>
+                          <th className="border border-ct-grayLight px-3 py-2">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {garanties.map((g) => {
-                          const typeLabel = labelFromId(
-                            'type_garantie',
-                            g.type_garantie_id
-                          )
-                          const statutLabel = labelFromId(
-                            'statut_garantie',
-                            g.statut_id
-                          )
+                          const typeLabel = labelFromId('type_garantie', g.type_garantie_id)
+                          const statutLabel = labelFromId('statut_garantie', g.statut_id)
 
                           return (
                             <tr
@@ -1081,9 +1047,7 @@ export default function AdminBassinDetailPage() {
                                   <button
                                     type="button"
                                     className="btn-danger"
-                                    onClick={() =>
-                                      handleDeleteGarantie(g)
-                                    }
+                                    onClick={() => handleDeleteGarantie(g)}
                                   >
                                     Supprimer
                                   </button>
@@ -1121,32 +1085,17 @@ export default function AdminBassinDetailPage() {
                     <table className="min-w-full border-collapse text-sm">
                       <thead>
                         <tr className="bg-ct-grayLight/60 text-left">
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            Date
-                          </th>
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            Type
-                          </th>
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            No rapport (CT)
-                          </th>
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            Commentaire
-                          </th>
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            PDF
-                          </th>
-                          <th className="border border-ct-grayLight px-3 py-2">
-                            Actions
-                          </th>
+                          <th className="border border-ct-grayLight px-3 py-2">Date</th>
+                          <th className="border border-ct-grayLight px-3 py-2">Type</th>
+                          <th className="border border-ct-grayLight px-3 py-2">No rapport (CT)</th>
+                          <th className="border border-ct-grayLight px-3 py-2">Commentaire</th>
+                          <th className="border border-ct-grayLight px-3 py-2">PDF</th>
+                          <th className="border border-ct-grayLight px-3 py-2">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {rapports.map((r) => {
-                          const typeLabel = labelFromId(
-                            'type_rapport',
-                            r.type_id
-                          )
+                          const typeLabel = labelFromId('type_rapport', r.type_id)
 
                           return (
                             <tr
@@ -1191,9 +1140,7 @@ export default function AdminBassinDetailPage() {
                                   <button
                                     type="button"
                                     className="btn-danger"
-                                    onClick={() =>
-                                      handleDeleteRapport(r)
-                                    }
+                                    onClick={() => handleDeleteRapport(r)}
                                   >
                                     Supprimer
                                   </button>
@@ -1248,10 +1195,7 @@ export default function AdminBassinDetailPage() {
               superficie reste calculée automatiquement à partir du polygone.
             </p>
 
-            <form
-              onSubmit={handleSubmitBassin}
-              className="mt-4 space-y-4 text-sm"
-            >
+            <form onSubmit={handleSubmitBassin} className="mt-4 space-y-4 text-sm">
               <div className="space-y-1">
                 <label className="block text-xs font-medium text-ct-grayDark">
                   Nom du bassin
@@ -1263,6 +1207,24 @@ export default function AdminBassinDetailPage() {
                   required
                   className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
                 />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">
+                  Type de membrane
+                </label>
+                <select
+                  value={editMembraneId}
+                  onChange={(e) => setEditMembraneId(e.target.value)}
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                >
+                  <option value="">Non défini</option>
+                  {membranesBassin.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -1360,11 +1322,7 @@ export default function AdminBassinDetailPage() {
                 >
                   Annuler
                 </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={savingBassin}
-                >
+                <button type="submit" className="btn-primary" disabled={savingBassin}>
                   {savingBassin ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
               </div>
@@ -1377,17 +1335,10 @@ export default function AdminBassinDetailPage() {
       {showModal && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-xl mx-4 max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-ct-grayDark">
-              {modalTitle}
-            </h3>
-            <p className="mt-1 text-sm text-ct-gray">
-              Bassin : {bassin.name || '(Sans nom)'}
-            </p>
+            <h3 className="text-lg font-semibold text-ct-grayDark">{modalTitle}</h3>
+            <p className="mt-1 text-sm text-ct-gray">Bassin : {bassin.name || '(Sans nom)'}</p>
 
-            <form
-              onSubmit={handleSubmitGarantie}
-              className="mt-4 space-y-4 text-sm"
-            >
+            <form onSubmit={handleSubmitGarantie} className="mt-4 space-y-4 text-sm">
               <div className="space-y-1">
                 <label className="block text-xs font-medium text-ct-grayDark">
                   Type de garantie
@@ -1520,11 +1471,7 @@ export default function AdminBassinDetailPage() {
                 >
                   Annuler
                 </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={saving}
-                >
+                <button type="submit" className="btn-primary" disabled={saving}>
                   {saving ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
               </div>
@@ -1544,10 +1491,7 @@ export default function AdminBassinDetailPage() {
               Bassin : {bassin.name || '(Sans nom)'}
             </p>
 
-            <form
-              onSubmit={handleSubmitRapport}
-              className="mt-4 space-y-4 text-sm"
-            >
+            <form onSubmit={handleSubmitRapport} className="mt-4 space-y-4 text-sm">
               <div className="space-y-1">
                 <label className="block text-xs font-medium text-ct-grayDark">
                   Type de rapport
@@ -1600,9 +1544,7 @@ export default function AdminBassinDetailPage() {
                 <textarea
                   rows={3}
                   value={formCommentaireRapport}
-                  onChange={(e) =>
-                    setFormCommentaireRapport(e.target.value)
-                  }
+                  onChange={(e) => setFormCommentaireRapport(e.target.value)}
                   className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
                 />
               </div>
@@ -1628,11 +1570,7 @@ export default function AdminBassinDetailPage() {
                 >
                   Annuler
                 </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={savingRapport}
-                >
+                <button type="submit" className="btn-primary" disabled={savingRapport}>
                   {savingRapport ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
               </div>
@@ -1640,6 +1578,54 @@ export default function AdminBassinDetailPage() {
           </div>
         </div>
       )}
+              {/* Modal confirmation suppression bassin (même modèle que Clients) */}
+        {showDeleteBassinModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="w-full max-w-xl mx-4 rounded-2xl bg-white p-6 shadow-xl">
+              <h3 className="text-lg font-semibold text-red-600">Supprimer ce bassin?</h3>
+
+              <p className="mt-2 text-sm text-ct-gray">
+                Cette action est permanente.
+              </p>
+
+              <p className="mt-4 text-sm font-medium text-ct-grayDark">
+                Pour confirmer, écrivez exactement :{' '}
+                <span className="font-semibold">SUPPRIMER</span>
+              </p>
+
+              <input
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="SUPPRIMER"
+                className="mt-2 w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+              />
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={closeDeleteBassinModal}
+                  disabled={deletingBassin}
+                >
+                  Annuler
+                </button>
+
+                <button
+                  type="button"
+                  className={`btn-danger ${
+                    deleteConfirmText !== 'SUPPRIMER' || deletingBassin
+                      ? 'opacity-50 cursor-not-allowed'
+                      : ''
+                  }`}
+                  onClick={handleDeleteBassin}
+                  disabled={deleteConfirmText !== 'SUPPRIMER' || deletingBassin}
+                >
+                  {deletingBassin ? 'Suppression…' : 'Confirmer la suppression'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
     </section>
   )
 }

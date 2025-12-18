@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, ChangeEvent } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 
@@ -24,6 +24,8 @@ type BatimentRow = {
   address: string | null
   city: string | null
   postal_code: string | null
+  client_id: string | null
+  clients?: { id: string; name: string | null } | null
 }
 
 type ListeChoix = {
@@ -46,12 +48,19 @@ function mapEtatToStateBadge(etat: string | null): BassinState {
 }
 
 export default function AdminBassinsPage() {
+  const router = useRouter()
+
   const [bassins, setBassins] = useState<BassinRow[]>([])
   const [batiments, setBatiments] = useState<BatimentRow[]>([])
   const [listes, setListes] = useState<ListeChoix[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+
+  const [sortKey, setSortKey] = useState<'batiment' | 'client' | 'etat' | null>(
+    null
+  )
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => {
     const fetchData = async () => {
@@ -89,7 +98,9 @@ export default function AdminBassinsPage() {
         const { data: batimentsData, error: batimentsError } =
           await supabaseBrowser
             .from('batiments')
-            .select('id, name, address, city, postal_code')
+            .select(
+              'id, name, address, city, postal_code, client_id, clients (id, name)'
+            )
             .in('id', batimentIds)
 
         if (batimentsError) {
@@ -168,10 +179,12 @@ export default function AdminBassinsPage() {
 
     return bassins.filter((b) => {
       const bat = b.batiment_id ? batimentById.get(b.batiment_id) : undefined
+      const clientName = bat?.clients?.name ?? ''
       const fields = [
         b.name ?? '',
         b.reference_interne ?? '',
         bat?.name ?? '',
+        clientName,
         bat?.address ?? '',
         bat?.city ?? '',
         bat?.postal_code ?? '',
@@ -179,6 +192,59 @@ export default function AdminBassinsPage() {
       return fields.some((f) => f.toLowerCase().includes(s))
     })
   }, [bassins, batimentById, search])
+
+  const sortedBassins = useMemo(() => {
+    const arr = [...filteredBassins]
+    if (!sortKey) return arr
+
+    const getBatimentName = (b: BassinRow) => {
+      const bat = b.batiment_id ? batimentById.get(b.batiment_id) : undefined
+      return bat?.name ?? ''
+    }
+
+    const getClientName = (b: BassinRow) => {
+      const bat = b.batiment_id ? batimentById.get(b.batiment_id) : undefined
+      return bat?.clients?.name ?? ''
+    }
+
+    const getEtatLabel = (b: BassinRow) => labelEtat(b.etat_id) ?? 'Non évalué'
+
+    arr.sort((a, b) => {
+      let av = ''
+      let bv = ''
+
+      if (sortKey === 'batiment') {
+        av = getBatimentName(a)
+        bv = getBatimentName(b)
+      } else if (sortKey === 'client') {
+        av = getClientName(a)
+        bv = getClientName(b)
+      } else if (sortKey === 'etat') {
+        av = getEtatLabel(a)
+        bv = getEtatLabel(b)
+      }
+
+      const cmp = av.localeCompare(bv, 'fr', { sensitivity: 'base' })
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+
+    return arr
+  }, [filteredBassins, sortKey, sortDir, batimentById, etatsBassin])
+
+  const toggleSort = (key: 'batiment' | 'client' | 'etat') => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
+  const SortIcon = ({ col }: { col: 'batiment' | 'client' | 'etat' }) => {
+    const active = sortKey === col
+    if (!active) return <span className="ml-2 opacity-60">↕</span>
+    return <span className="ml-2">{sortDir === 'asc' ? '↑' : '↓'}</span>
+  }
 
   if (loading) {
     return (
@@ -226,7 +292,7 @@ export default function AdminBassinsPage() {
 
       {/* Tableau bassins */}
       <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm">
-        {filteredBassins.length === 0 ? (
+        {sortedBassins.length === 0 ? (
           <p className="text-sm text-ct-gray">
             Aucun bassin trouvé pour le moment.
           </p>
@@ -236,33 +302,57 @@ export default function AdminBassinsPage() {
               <thead>
                 <tr className="bg-ct-grayLight/60 text-left">
                   <th className="border border-ct-grayLight px-3 py-2">
-                    Bassin
+                    BASSIN
                   </th>
                   <th className="border border-ct-grayLight px-3 py-2">
-                    Bâtiment
+                    <button
+                      type="button"
+                      onClick={() => toggleSort('batiment')}
+                      className="w-full text-left select-none font-normal"
+                      aria-label="Trier par bâtiment"
+                      title="Trier"
+                    >
+                      BÂTIMENT <SortIcon col="batiment" />
+                    </button>
                   </th>
                   <th className="border border-ct-grayLight px-3 py-2">
-                    Adresse
+                    <button
+                      type="button"
+                      onClick={() => toggleSort('client')}
+                      className="w-full text-left select-none font-normal"
+                      aria-label="Trier par client"
+                      title="Trier"
+                    >
+                      CLIENT <SortIcon col="client" />
+                    </button>
+                  </th>
+                  <th className="border border-ct-grayLight px-3 py-2">
+                    ADRESSE
                   </th>
                   <th className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                    Surface (pi²)
+                    SURFACE (PI²)
                   </th>
                   <th className="border border-ct-grayLight px-3 py-2">
-                    État
+                    <button
+                      type="button"
+                      onClick={() => toggleSort('etat')}
+                      className="w-full text-left select-none font-normal"
+                      aria-label="Trier par état"
+                      title="Trier"
+                    >
+                      ÉTAT <SortIcon col="etat" />
+                    </button>
                   </th>
                   <th className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                    Durée de vie
+                    DURÉE DE VIE
                   </th>
                   <th className="border border-ct-grayLight px-3 py-2">
-                    Référence interne
-                  </th>
-                  <th className="border border-ct-grayLight px-3 py-2">
-                    Fiche
+                    RÉFÉRENCE INTERNE
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {filteredBassins.map((b) => {
+                {sortedBassins.map((b) => {
                   const bat = b.batiment_id
                     ? batimentById.get(b.batiment_id)
                     : undefined
@@ -278,13 +368,17 @@ export default function AdminBassinsPage() {
                   return (
                     <tr
                       key={b.id}
-                      className="hover:bg-ct-primaryLight/10 transition-colors"
+                      className="cursor-pointer hover:bg-ct-primaryLight/10 transition-colors"
+                      onClick={() => router.push(`/admin/bassins/${b.id}`)}
                     >
                       <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap font-medium text-ct-grayDark">
                         {b.name || '(Sans nom)'}
                       </td>
                       <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
                         {bat?.name || '—'}
+                      </td>
+                      <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                        {bat?.clients?.name || '—'}
                       </td>
                       <td className="border border-ct-grayLight px-3 py-2">
                         {bat ? (
@@ -302,11 +396,10 @@ export default function AdminBassinsPage() {
                       </td>
                       <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
                         {etatLibelle ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center">
                             <StateBadge
                               state={mapEtatToStateBadge(etatLibelle)}
                             />
-                            <span>{etatLibelle}</span>
                           </div>
                         ) : (
                           <span className="text-ct-gray">Non évalué</span>
@@ -317,14 +410,6 @@ export default function AdminBassinsPage() {
                       </td>
                       <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
                         {b.reference_interne || '—'}
-                      </td>
-                      <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                        <Link
-                          href={`/admin/bassins/${b.id}`}
-                          className="text-ct-primary hover:underline"
-                        >
-                          Ouvrir
-                        </Link>
                       </td>
                     </tr>
                   )

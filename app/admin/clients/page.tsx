@@ -133,7 +133,9 @@ export default function AdminClientsPage() {
 
       if (insertError) {
         console.error('Erreur insertion client:', insertError)
-        setCreateError(insertError.message ?? 'Erreur lors de la création du client.')
+        setCreateError(
+          insertError.message ?? 'Erreur lors de la création du client.'
+        )
         setCreateSaving(false)
         return
       }
@@ -149,7 +151,9 @@ export default function AdminClientsPage() {
   }
 
   const filteredAndSortedClients = clients
-    .filter((c) => (c.name ?? '').toLowerCase().includes(search.trim().toLowerCase()))
+    .filter((c) =>
+      (c.name ?? '').toLowerCase().includes(search.trim().toLowerCase())
+    )
     .sort((a, b) => {
       if (sortKey === 'name') {
         const aName = (a.name ?? '').toLowerCase()
@@ -166,7 +170,9 @@ export default function AdminClientsPage() {
   const totalClients = clients.length
   const totalBatiments = clients.reduce((sum, c) => sum + c.nb_batiments, 0)
   const moyenneBatiments =
-    totalClients > 0 ? (totalBatiments / totalClients).toFixed(1).replace('.', ',') : '0,0'
+    totalClients > 0
+      ? (totalBatiments / totalClients).toFixed(1).replace('.', ',')
+      : '0,0'
 
   if (loading) {
     return (
@@ -195,11 +201,16 @@ export default function AdminClientsPage() {
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold text-ct-primary">Clients</h1>
             <p className="mt-1 text-sm text-ct-gray">
-              Vue d’ensemble des clients, nombre de bâtiments, recherche et accès rapide à leurs fiches.
+              Vue d’ensemble des clients, nombre de bâtiments, recherche et accès
+              rapide à leurs fiches.
             </p>
           </div>
 
-          <button type="button" className="btn-primary" onClick={openCreateModal}>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={openCreateModal}
+          >
             + Nouveau client
           </button>
         </div>
@@ -210,21 +221,27 @@ export default function AdminClientsPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ct-gray">
               Clients actifs
             </p>
-            <p className="mt-1 text-2xl font-semibold text-ct-primary">{totalClients}</p>
+            <p className="mt-1 text-2xl font-semibold text-ct-primary">
+              {totalClients}
+            </p>
           </div>
 
           <div className="rounded-xl border border-ct-primaryLight bg-ct-primary/5 px-4 py-3 shadow-ct-card">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ct-primary">
               Bâtiments suivis
             </p>
-            <p className="mt-1 text-2xl font-semibold text-ct-primary">{totalBatiments}</p>
+            <p className="mt-1 text-2xl font-semibold text-ct-primary">
+              {totalBatiments}
+            </p>
           </div>
 
           <div className="rounded-xl border border-ct-grayLight bg-ct-white px-4 py-3 shadow-ct-card">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ct-gray">
               Bâtiments / client
             </p>
-            <p className="mt-1 text-2xl font-semibold text-ct-primary">{moyenneBatiments}</p>
+            <p className="mt-1 text-2xl font-semibold text-ct-primary">
+              {moyenneBatiments}
+            </p>
           </div>
         </div>
 
@@ -239,7 +256,9 @@ export default function AdminClientsPage() {
           <CardContent>
             <div className="grid gap-4 md:grid-cols-[minmax(0,2.1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)]">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-ct-grayDark">Recherche</label>
+                <label className="text-xs font-medium text-ct-grayDark">
+                  Recherche
+                </label>
                 <input
                   type="text"
                   value={search}
@@ -250,7 +269,9 @@ export default function AdminClientsPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-ct-grayDark">Trier par</label>
+                <label className="text-xs font-medium text-ct-grayDark">
+                  Trier par
+                </label>
                 <select
                   value={sortKey}
                   onChange={handleSortKeyChange}
@@ -262,7 +283,9 @@ export default function AdminClientsPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-ct-grayDark">Ordre</label>
+                <label className="text-xs font-medium text-ct-grayDark">
+                  Ordre
+                </label>
                 <select
                   value={sortDir}
                   onChange={handleSortDirChange}
@@ -297,36 +320,27 @@ export default function AdminClientsPage() {
                     <tr>
                       <th>Nom du client</th>
                       <th>Nombre de bâtiments</th>
-                      <th>Actions</th>
                     </tr>
                   </DataTableHeader>
 
                   <DataTableBody>
                     {filteredAndSortedClients.map((c) => (
-                      <tr key={c.id} className="transition-colors hover:bg-ct-grayLight/70">
-                        <td className="text-sm text-ct-grayDark">
-                          <Link
-                            href={`/admin/clients/${c.id}`}
-                            className="font-medium text-ct-primary hover:underline"
-                          >
+                      <tr
+                        key={c.id}
+                        className="transition-colors hover:bg-ct-grayLight/70 cursor-pointer"
+                        onClick={() => {
+                          window.location.href = `/admin/clients/${c.id}`
+                        }}
+                      >
+                        {/* ✅ SEULE MODIF : augmenter la hauteur des lignes (py-6) */}
+                        <td className="py-6 text-sm text-ct-grayDark">
+                          <span className="font-medium text-ct-primary hover:underline">
                             {c.name || '(Sans nom)'}
-                          </Link>
+                          </span>
                         </td>
 
-                        <td className="text-sm text-ct-grayDark">
+                        <td className="py-6 text-sm text-ct-grayDark">
                           {c.nb_batiments}
-                        </td>
-
-                        {/* ESPACEMENT CORRIGÉ ICI */}
-                        <td className="text-sm">
-                          <div className="flex flex-wrap gap-3">
-                            <Link
-                              href={`/admin/clients/${c.id}`}
-                              className="btn-secondary px-2 py-1 text-xs"
-                            >
-                              Voir fiche client
-                            </Link>
-                          </div>
                         </td>
                       </tr>
                     ))}
@@ -350,7 +364,9 @@ export default function AdminClientsPage() {
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-ct-primary">Nouveau client</h2>
+                <h2 className="text-lg font-semibold text-ct-primary">
+                  Nouveau client
+                </h2>
                 <p className="mt-1 text-xs text-ct-gray">
                   Entrez un nom. Les détails pourront être complétés ensuite.
                 </p>
@@ -368,7 +384,9 @@ export default function AdminClientsPage() {
 
             <form onSubmit={handleCreateSubmit} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-ct-grayDark">Nom du client</label>
+                <label className="text-xs font-medium text-ct-grayDark">
+                  Nom du client
+                </label>
                 <input
                   type="text"
                   value={createName}
@@ -379,7 +397,9 @@ export default function AdminClientsPage() {
                 />
               </div>
 
-              {createError && <p className="text-xs text-red-600">{createError}</p>}
+              {createError && (
+                <p className="text-xs text-red-600">{createError}</p>
+              )}
 
               <div className="mt-2 flex items-center justify-end gap-2">
                 <button

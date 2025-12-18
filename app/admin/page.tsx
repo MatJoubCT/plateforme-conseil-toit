@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import {
   Card,
@@ -10,10 +11,10 @@ import {
   CardContent,
 } from '@/components/ui/Card'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
-import Link from 'next/link'
 
 type ClientRow = {
   id: string
+  name: string | null
 }
 
 type BatimentRow = {
@@ -60,6 +61,8 @@ function mapEtatToStateBadge(etat: string | null): BassinState {
 }
 
 export default function AdminDashboardPage() {
+  const router = useRouter()
+
   const [clients, setClients] = useState<ClientRow[]>([])
   const [batiments, setBatiments] = useState<BatimentRow[]>([])
   const [bassins, setBassins] = useState<BassinRow[]>([])
@@ -74,10 +77,8 @@ export default function AdminDashboardPage() {
 
       const [clientsRes, batimentsRes, bassinsRes, listesRes] =
         await Promise.all([
-          supabaseBrowser.from('clients').select('id'),
-          supabaseBrowser
-            .from('batiments')
-            .select('id, client_id, name'),
+          supabaseBrowser.from('clients').select('id, name'),
+          supabaseBrowser.from('batiments').select('id, client_id, name'),
           supabaseBrowser
             .from('bassins')
             .select(
@@ -144,6 +145,14 @@ export default function AdminDashboardPage() {
     })
     return map
   }, [batiments])
+
+  const clientById = useMemo(() => {
+    const map = new Map<string, ClientRow>()
+    clients.forEach((c) => {
+      map.set(c.id, c)
+    })
+    return map
+  }, [clients])
 
   const etatLibelleFromId = (id: string | null) => {
     if (!id) return null
@@ -216,10 +225,8 @@ export default function AdminDashboardPage() {
       const oa = order[sa]
       const ob = order[sb]
       if (oa !== ob) return oa - ob
-      const sfa =
-        a.surface_m2 != null ? Number(a.surface_m2) : 0
-      const sfb =
-        b.surface_m2 != null ? Number(b.surface_m2) : 0
+      const sfa = a.surface_m2 != null ? Number(a.surface_m2) : 0
+      const sfb = b.surface_m2 != null ? Number(b.surface_m2) : 0
       return sfb - sfa
     })
 
@@ -237,9 +244,7 @@ export default function AdminDashboardPage() {
   if (loading) {
     return (
       <section className="space-y-4">
-        <p className="text-sm text-ct-gray">
-          Chargement du dashboard…
-        </p>
+        <p className="text-sm text-ct-gray">Chargement du dashboard…</p>
       </section>
     )
   }
@@ -306,9 +311,7 @@ export default function AdminDashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Surface totale</CardTitle>
-            <CardDescription>
-              Somme des surfaces de bassins
-            </CardDescription>
+            <CardDescription>Somme des surfaces de bassins</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-lg font-semibold text-ct-grayDark">
@@ -322,7 +325,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Répartition par état */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,0.55fr)]">
         <Card>
           <CardHeader>
             <CardTitle>Bassins à risque</CardTitle>
@@ -344,19 +347,19 @@ export default function AdminDashboardPage() {
                         Bassin
                       </th>
                       <th className="border border-ct-grayLight px-3 py-2">
+                        État
+                      </th>
+                      <th className="border border-ct-grayLight px-3 py-2">
                         Bâtiment
                       </th>
                       <th className="border border-ct-grayLight px-3 py-2">
-                        État
+                        Client
                       </th>
                       <th className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
                         Durée de vie
                       </th>
                       <th className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
                         Surface (pi²)
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Fiche
                       </th>
                     </tr>
                   </thead>
@@ -365,9 +368,14 @@ export default function AdminDashboardPage() {
                       const bat = b.batiment_id
                         ? batimentById.get(b.batiment_id)
                         : undefined
+
+                      const client =
+                        bat?.client_id ? clientById.get(bat.client_id) : undefined
+
                       const etatLib = etatLibelleFromId(b.etat_id)
                       const state = mapEtatToStateBadge(etatLib)
                       const dureeLib = dureeLibelleFromBassin(b)
+
                       const surfaceFt2 =
                         b.surface_m2 != null
                           ? Math.round(Number(b.surface_m2) * 10.7639)
@@ -376,19 +384,30 @@ export default function AdminDashboardPage() {
                       return (
                         <tr
                           key={b.id}
-                          className="hover:bg-ct-primaryLight/10 transition-colors"
+                          className="hover:bg-ct-primaryLight/10 transition-colors cursor-pointer"
+                          onClick={() => router.push(`/admin/bassins/${b.id}`)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              router.push(`/admin/bassins/${b.id}`)
+                            }
+                          }}
                         >
                           <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap font-medium text-ct-grayDark">
                             {b.name || '(Sans nom)'}
                           </td>
                           <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <StateBadge state={state} />
+                            </div>
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
                             {bat?.name || '—'}
                           </td>
                           <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <StateBadge state={state} />
-                              <span>{etatLib || 'Non évalué'}</span>
-                            </div>
+                            {client?.name || '—'}
                           </td>
                           <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
                             {dureeLib || 'Non définie'}
@@ -397,14 +416,6 @@ export default function AdminDashboardPage() {
                             {surfaceFt2 != null
                               ? `${surfaceFt2.toLocaleString('fr-CA')} pi²`
                               : 'n/d'}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                            <Link
-                              href={`/admin/bassins/${b.id}`}
-                              className="text-ct-primary hover:underline"
-                            >
-                              Ouvrir
-                            </Link>
                           </td>
                         </tr>
                       )
@@ -424,49 +435,38 @@ export default function AdminDashboardPage() {
           <CardContent>
             <div className="flex flex-col gap-2 text-sm">
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center">
                   <StateBadge state="urgent" />
-                  <span>Bassins urgents</span>
                 </div>
-                <span className="font-medium">
-                  {stateCounts.urgent}
-                </span>
+                <span className="font-medium">{stateCounts.urgent}</span>
               </div>
+
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center">
                   <StateBadge state="planifier" />
-                  <span>À planifier</span>
                 </div>
-                <span className="font-medium">
-                  {stateCounts.planifier}
-                </span>
+                <span className="font-medium">{stateCounts.planifier}</span>
               </div>
+
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center">
                   <StateBadge state="a_surveille" />
-                  <span>À surveiller</span>
                 </div>
-                <span className="font-medium">
-                  {stateCounts.a_surveille}
-                </span>
+                <span className="font-medium">{stateCounts.a_surveille}</span>
               </div>
+
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center">
                   <StateBadge state="bon" />
-                  <span>En bon état</span>
                 </div>
-                <span className="font-medium">
-                  {stateCounts.bon}
-                </span>
+                <span className="font-medium">{stateCounts.bon}</span>
               </div>
+
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center">
                   <StateBadge state="non_evalue" />
-                  <span>Non évalués</span>
                 </div>
-                <span className="font-medium">
-                  {stateCounts.non_evalue}
-                </span>
+                <span className="font-medium">{stateCounts.non_evalue}</span>
               </div>
             </div>
           </CardContent>

@@ -409,14 +409,8 @@ export default function AdminBatimentsPage() {
                       <th className="w-[12%] text-left text-xs font-semibold uppercase tracking-[0.14em] text-ct-gray">
                         Ville
                       </th>
-                      <th className="w-[10%] text-left text-xs font-semibold uppercase tracking-[0.14em] text-ct-gray">
-                        État global
-                      </th>
                       <th className="w-[6%] text-left text-xs font-semibold uppercase tracking-[0.14em] text-ct-gray">
                         Bassins
-                      </th>
-                      <th className="w-[10%] text-left text-xs font-semibold uppercase tracking-[0.14em] text-ct-gray">
-                        Actions
                       </th>
                     </tr>
                   </DataTableHeader>
@@ -424,13 +418,17 @@ export default function AdminBatimentsPage() {
                     {filteredBatiments.map((b) => (
                       <tr
                         key={b.id}
-                        className="transition-colors hover:bg-ct-grayLight/60"
+                        className="transition-colors hover:bg-ct-grayLight/60 cursor-pointer"
+                        onClick={() => {
+                          window.location.href = `/admin/batiments/${b.id}`
+                        }}
                       >
                         <td className="align-top py-3 text-sm">
                           <div className="flex flex-col">
                             <Link
                               href={`/admin/batiments/${b.id}`}
                               className="font-medium text-ct-primary underline-offset-2 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
                             >
                               {b.name ?? '(Sans nom)'}
                             </Link>
@@ -450,21 +448,8 @@ export default function AdminBatimentsPage() {
                         <td className="align-top py-3 text-sm text-ct-grayDark">
                           {b.city ?? '—'}
                         </td>
-                        <td className="align-top py-3 text-sm">
-                          <StateBadge state={DEFAULT_BATIMENT_STATE} />
-                        </td>
                         <td className="align-top py-3 text-sm text-ct-grayDark">
                           {b.nb_bassins}
-                        </td>
-                        <td className="align-top py-3 text-sm">
-                          <div className="flex flex-wrap gap-2">
-                            <Link
-                              href={`/admin/batiments/${b.id}`}
-                              className="btn-secondary px-2 py-1 text-xs"
-                            >
-                              Voir fiche
-                            </Link>
-                          </div>
                         </td>
                       </tr>
                     ))}

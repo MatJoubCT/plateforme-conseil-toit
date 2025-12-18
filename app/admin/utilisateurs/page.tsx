@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import EditUserModal, {
+  ClientRow,
+  BatimentRow,
+} from '@/components/admin/users/EditUserModal'
 
 type UserProfileRow = {
   id: string
@@ -9,20 +13,7 @@ type UserProfileRow = {
   full_name: string | null
   role: string | null
   is_active: boolean | null
-}
-
-type ClientRow = {
-  id: string
-  name: string | null
-}
-
-type BatimentRow = {
-  id: string
-  client_id: string | null
-  name: string | null
-  address: string | null
-  city: string | null
-  postal_code: string | null
+  client_id?: string | null
 }
 
 type UserClientRow = {
@@ -48,31 +39,39 @@ export default function AdminUtilisateursPage() {
   const [clients, setClients] = useState<ClientRow[]>([])
   const [batiments, setBatiments] = useState<BatimentRow[]>([])
 
-  // État du modal d’édition
+  // Modal édition
   const [showModal, setShowModal] = useState(false)
   const [editingUser, setEditingUser] = useState<UserProfileRow | null>(null)
+
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
   const [selectedBatimentIds, setSelectedBatimentIds] = useState<string[]>([])
+
   const [editFullName, setEditFullName] = useState('')
   const [editRole, setEditRole] = useState('client')
-  const [saving, setSaving] = useState(false)
 
-  // État du modal de création
+  const [saving, setSaving] = useState(false)
+  const [modalErrorMsg, setModalErrorMsg] = useState<string | null>(null)
+  const [modalSuccessMsg, setModalSuccessMsg] = useState<string | null>(null)
+
+  // Modal création
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createEmail, setCreateEmail] = useState('')
   const [createFullName, setCreateFullName] = useState('')
   const [createRole, setCreateRole] = useState('client')
   const [createSaving, setCreateSaving] = useState(false)
 
+  // -------------------------
+  // CHARGEMENT INITIAL
+  // -------------------------
   useEffect(() => {
     const load = async () => {
       setLoading(true)
       setErrorMsg(null)
 
-      // 1) profils utilisateurs
+      // 1) Profils
       const { data: profilesData, error: profilesError } = await supabaseBrowser
         .from('user_profiles')
-        .select('id, user_id, full_name, role, is_active')
+        .select('id, user_id, full_name, role, is_active, client_id')
         .order('full_name', { ascending: true })
 
       if (profilesError) {
@@ -83,7 +82,7 @@ export default function AdminUtilisateursPage() {
 
       const profiles = (profilesData || []) as UserProfileRow[]
 
-      // 2) clients
+      // 2) Clients
       const { data: clientsData, error: clientsError } = await supabaseBrowser
         .from('clients')
         .select('id, name')
@@ -97,7 +96,7 @@ export default function AdminUtilisateursPage() {
 
       const allClients = (clientsData || []) as ClientRow[]
 
-      // 3) bâtiments
+      // 3) Bâtiments
       const { data: batData, error: batError } = await supabaseBrowser
         .from('batiments')
         .select('id, client_id, name, address, city, postal_code')
@@ -111,7 +110,7 @@ export default function AdminUtilisateursPage() {
 
       const allBatiments = (batData || []) as BatimentRow[]
 
-      // 4) liens user_clients
+      // 4) Liens user_clients
       const { data: ucData, error: ucError } = await supabaseBrowser
         .from('user_clients')
         .select('user_id, client_id')
@@ -124,7 +123,7 @@ export default function AdminUtilisateursPage() {
 
       const userClients = (ucData || []) as UserClientRow[]
 
-      // 5) liens user_batiments_access
+      // 5) Liens user_batiments_access
       const { data: ubaData, error: ubaError } = await supabaseBrowser
         .from('user_batiments_access')
         .select('user_id, batiment_id')
@@ -137,7 +136,7 @@ export default function AdminUtilisateursPage() {
 
       const userBatiments = (ubaData || []) as UserBatimentAccessRow[]
 
-      // 6) construire l'affichage
+      // 6) Construction libellés
       const clientsByIdMap = new Map<string, ClientRow>()
       allClients.forEach((c) => clientsByIdMap.set(c.id, c))
 
@@ -162,11 +161,7 @@ export default function AdminUtilisateursPage() {
           })
           .filter((x): x is string => !!x)
 
-        return {
-          ...p,
-          clientsLabels,
-          batimentsLabels,
-        }
+        return { ...p, clientsLabels, batimentsLabels }
       })
 
       setUsers(editable)
@@ -178,26 +173,23 @@ export default function AdminUtilisateursPage() {
     void load()
   }, [])
 
+  // -------------------------
+  // MÉMOS
+  // -------------------------
   const clientsById = useMemo(() => {
     const m = new Map<string, ClientRow>()
     clients.forEach((c) => m.set(c.id, c))
     return m
   }, [clients])
 
-  const batimentsParClient = useMemo(() => {
-    const m = new Map<string, BatimentRow[]>()
-    batiments.forEach((b) => {
-      const key = b.client_id || 'sans_client'
-      if (!m.has(key)) m.set(key, [])
-      m.get(key)!.push(b)
-    })
-    return m
-  }, [batiments])
-
-  // --- MODAL ÉDITION ---
-
+  // -------------------------
+  // MODAL ÉDITION (EditUserModal)
+  // -------------------------
   const openEditModal = async (user: EditableUser) => {
     setErrorMsg(null)
+    setModalErrorMsg(null)
+    setModalSuccessMsg(null)
+
     setEditingUser(user)
     setEditFullName(user.full_name || '')
     setEditRole(user.role || 'client')
@@ -234,6 +226,8 @@ export default function AdminUtilisateursPage() {
   const closeModal = () => {
     if (saving) return
     setShowModal(false)
+    setModalErrorMsg(null)
+    setModalSuccessMsg(null)
     setEditingUser(null)
     setSelectedClientIds([])
     setSelectedBatimentIds([])
@@ -241,175 +235,131 @@ export default function AdminUtilisateursPage() {
     setEditRole('client')
   }
 
-  const toggleClient = (id: string) => {
-    setSelectedClientIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    )
+  const toggleClient = (clientId: string) => {
+    setSelectedClientIds((prev) => {
+      const isChecked = prev.includes(clientId)
+      const next = isChecked ? prev.filter((x) => x !== clientId) : [...prev, clientId]
+
+      // Bonus logique: si on enlève un client, on enlève aussi ses bâtiments cochés
+      if (isChecked) {
+        setSelectedBatimentIds((prevB) => {
+          const nextB = prevB.filter((bid) => {
+            const b = batiments.find((bb) => bb.id === bid)
+            return b?.client_id !== clientId
+          })
+          return nextB
+        })
+      }
+
+      return next
+    })
   }
 
-  const toggleBatiment = (id: string) => {
-    setSelectedBatimentIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    )
+  // MICRO-AMÉLIORATION: si on coche un bâtiment, on coche son client automatiquement
+  const toggleBatiment = (batimentId: string, clientId: string | null) => {
+    setSelectedBatimentIds((prev) => {
+      const isChecked = prev.includes(batimentId)
+      const next = isChecked ? prev.filter((x) => x !== batimentId) : [...prev, batimentId]
+
+      if (!isChecked && clientId) {
+        setSelectedClientIds((prevC) => (prevC.includes(clientId) ? prevC : [...prevC, clientId]))
+      }
+
+      return next
+    })
   }
 
   const handleSave = async () => {
     if (!editingUser) return
+
     setSaving(true)
-    setErrorMsg(null)
+    setModalErrorMsg(null)
+    setModalSuccessMsg(null)
 
-    const userId = editingUser.user_id
-
-    // 1) update user_profiles
-    const { error: upError } = await supabaseBrowser
-      .from('user_profiles')
-      .update({
-        full_name: editFullName || null,
-        role: editRole || null,
-      })
-      .eq('id', editingUser.id)
-
-    if (upError) {
-      setErrorMsg(`Erreur mise à jour profil : ${upError.message}`)
-      setSaving(false)
-      return
-    }
-
-    // 2) synchroniser user_clients
-    const { error: delUcError } = await supabaseBrowser
-      .from('user_clients')
-      .delete()
-      .eq('user_id', userId)
-
-    if (delUcError) {
-      setErrorMsg(`Erreur suppression clients associés : ${delUcError.message}`)
-      setSaving(false)
-      return
-    }
-
-    if (selectedClientIds.length > 0) {
-      const insertUcRows = selectedClientIds.map((clientId) => ({
-        user_id: userId,
-        client_id: clientId,
-      }))
-      const { error: insUcError } = await supabaseBrowser
-        .from('user_clients')
-        .insert(insertUcRows)
-
-      if (insUcError) {
-        setErrorMsg(`Erreur ajout clients associés : ${insUcError.message}`)
-        setSaving(false)
-        return
-      }
-    }
-
-    // 3) synchroniser user_batiments_access
-    const { error: delUbaError } = await supabaseBrowser
-      .from('user_batiments_access')
-      .delete()
-      .eq('user_id', userId)
-
-    if (delUbaError) {
-      setErrorMsg(
-        `Erreur suppression bâtiments autorisés : ${delUbaError.message}`,
-      )
-      setSaving(false)
-      return
-    }
-
-    if (selectedBatimentIds.length > 0) {
-      const insertUbaRows = selectedBatimentIds.map((batimentId) => ({
-        user_id: userId,
-        batiment_id: batimentId,
-      }))
-      const { error: insUbaError } = await supabaseBrowser
-        .from('user_batiments_access')
-        .insert(insertUbaRows)
-
-      if (insUbaError) {
-        setErrorMsg(
-          `Erreur ajout bâtiments autorisés : ${insUbaError.message}`,
-        )
-        setSaving(false)
-        return
-      }
-    }
-
-    // 4) mettre à jour l'affichage local
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id !== editingUser.id) return u
-
-        const clientsLabels = selectedClientIds
-          .map((id) => clientsById.get(id)?.name || null)
-          .filter((x): x is string => !!x)
-
-        const batimentsLabels = selectedBatimentIds
-          .map((id) => {
-            const b = batiments.find((bb) => bb.id === id)
-            if (!b) return null
-            if (b.name && b.city) return `${b.name} — ${b.city}`
-            if (b.name) return b.name
-            return null
-          })
-          .filter((x): x is string => !!x)
-
-        return {
-          ...u,
-          full_name: editFullName || null,
+    try {
+      const res = await fetch('/api/admin/users/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId: editingUser.id,
+          userId: editingUser.user_id,
+          fullName: editFullName || null,
           role: editRole || null,
-          clientsLabels,
-          batimentsLabels,
-        }
-      }),
-    )
+          selectedClientIds,
+          selectedBatimentIds,
+        }),
+      })
 
-    setSaving(false)
-    closeModal()
+      const json = await res.json()
+      if (!res.ok) throw new Error(json?.error || 'Erreur API update')
+
+      const updatedProfile = json.profile as UserProfileRow
+
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.id !== editingUser.id) return u
+
+          const clientsLabels = selectedClientIds
+            .map((id) => clientsById.get(id)?.name || null)
+            .filter((x): x is string => !!x)
+
+          const batimentsLabels = selectedBatimentIds
+            .map((id) => {
+              const b = batiments.find((bb) => bb.id === id)
+              if (!b) return null
+              if (b.name && b.city) return `${b.name} — ${b.city}`
+              if (b.name) return b.name
+              return null
+            })
+            .filter((x): x is string => !!x)
+
+          return {
+            ...u,
+            full_name: updatedProfile.full_name,
+            role: updatedProfile.role,
+            client_id: updatedProfile.client_id ?? u.client_id ?? null,
+            is_active: updatedProfile.is_active ?? u.is_active,
+            clientsLabels,
+            batimentsLabels,
+          }
+        }),
+      )
+
+      setSaving(false)
+      closeModal()
+    } catch (e: any) {
+      setModalErrorMsg(e?.message || 'Erreur inconnue')
+      setSaving(false)
+    }
   }
 
-  // --- SUSPENSION / RÉACTIVATION ---
-
-  const toggleUserActive = async (
-    profileId: string,
-    userId: string,
-    currentActive: boolean | null,
-  ) => {
+  // -------------------------
+  // SUSPENSION / RÉACTIVATION
+  // -------------------------
+  const toggleUserActive = async (profileId: string, userId: string, currentActive: boolean | null) => {
     const nextActive = currentActive === false ? true : false
 
     try {
       const res = await fetch('/api/admin/users/toggle-active', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          profileId,
-          isActive: nextActive,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId, isActive: nextActive }),
       })
 
       const json = await res.json()
+      if (!res.ok) throw new Error(json?.error || 'Erreur API toggle-active')
 
-      if (!res.ok) {
-        throw new Error(json?.error || 'Erreur API toggle-active')
-      }
-
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === profileId ? { ...u, is_active: nextActive } : u,
-        ),
-      )
+      setUsers((prev) => prev.map((u) => (u.id === profileId ? { ...u, is_active: nextActive } : u)))
     } catch (err: any) {
       alert(
-        "Erreur lors de la mise à jour du statut de l'utilisateur : " +
-          (err?.message ?? 'Erreur inconnue'),
+        "Erreur lors de la mise à jour du statut de l'utilisateur : " + (err?.message ?? 'Erreur inconnue'),
       )
     }
   }
 
-  // --- CRÉATION D’UN NOUVEL UTILISATEUR ---
-
+  // -------------------------
+  // CRÉATION D’UN UTILISATEUR
+  // -------------------------
   const openCreateModal = () => {
     setErrorMsg(null)
     setCreateEmail('')
@@ -437,9 +387,7 @@ export default function AdminUtilisateursPage() {
     try {
       const res = await fetch('/api/admin/users/create', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
           fullName: fullName || null,
@@ -448,10 +396,7 @@ export default function AdminUtilisateursPage() {
       })
 
       const json = await res.json()
-
-      if (!res.ok) {
-        throw new Error(json?.error || "Erreur lors de la création de l'utilisateur.")
-      }
+      if (!res.ok) throw new Error(json?.error || "Erreur lors de la création de l'utilisateur.")
 
       const profile = json.profile as UserProfileRow
 
@@ -462,27 +407,24 @@ export default function AdminUtilisateursPage() {
       }
 
       setUsers((prev) => [...prev, newUser])
-
       setShowCreateModal(false)
       setCreateEmail('')
       setCreateFullName('')
       setCreateRole('client')
     } catch (err: any) {
-      alert(
-        "Erreur lors de la création de l'utilisateur : " +
-          (err?.message ?? 'Erreur inconnue'),
-      )
+      alert("Erreur lors de la création de l'utilisateur : " + (err?.message ?? 'Erreur inconnue'))
     } finally {
       setCreateSaving(false)
     }
   }
 
+  // -------------------------
+  // RENDER
+  // -------------------------
   if (loading) {
     return (
       <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-ct-primary">
-          Utilisateurs
-        </h1>
+        <h1 className="text-2xl font-semibold text-ct-primary">Utilisateurs</h1>
         <p className="text-sm text-ct-gray">Chargement des utilisateurs…</p>
       </section>
     )
@@ -491,9 +433,7 @@ export default function AdminUtilisateursPage() {
   if (errorMsg) {
     return (
       <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-ct-primary">
-          Utilisateurs
-        </h1>
+        <h1 className="text-2xl font-semibold text-ct-primary">Utilisateurs</h1>
         <p className="text-sm text-red-600">Erreur : {errorMsg}</p>
       </section>
     )
@@ -503,38 +443,25 @@ export default function AdminUtilisateursPage() {
     <section className="space-y-6">
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-ct-primary">
-            Utilisateurs
-          </h1>
+          <h1 className="text-2xl font-semibold text-ct-primary">Utilisateurs</h1>
           <p className="text-sm text-ct-gray">
-            Gestion des comptes, rôles, statut actif/suspendu et accès aux
-            clients / bâtiments pour le portail client.
+            Gestion des comptes, rôles, statut actif/suspendu et accès aux clients / bâtiments pour le portail client.
           </p>
         </div>
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={openCreateModal}
-        >
+        <button type="button" className="btn-primary" onClick={openCreateModal}>
           Ajouter un utilisateur
         </button>
       </header>
 
-      {/* Tableau des utilisateurs */}
+      {/* Tableau */}
       <div className="overflow-x-auto rounded-2xl border border-ct-grayLight bg-white shadow-sm">
         <table className="min-w-full border-collapse text-sm">
           <thead>
             <tr className="bg-ct-grayLight/60 text-left">
-              <th className="border border-ct-grayLight px-3 py-2">
-                Nom complet
-              </th>
+              <th className="border border-ct-grayLight px-3 py-2">Nom complet</th>
               <th className="border border-ct-grayLight px-3 py-2">Rôle</th>
-              <th className="border border-ct-grayLight px-3 py-2">
-                Clients associés
-              </th>
-              <th className="border border-ct-grayLight px-3 py-2">
-                Bâtiments autorisés
-              </th>
+              <th className="border border-ct-grayLight px-3 py-2">Clients associés</th>
+              <th className="border border-ct-grayLight px-3 py-2">Bâtiments autorisés</th>
               <th className="border border-ct-grayLight px-3 py-2">Statut</th>
               <th className="border border-ct-grayLight px-3 py-2">Actions</th>
             </tr>
@@ -542,27 +469,15 @@ export default function AdminUtilisateursPage() {
           <tbody>
             {users.map((u) => {
               const isActive = u.is_active !== false
-
               return (
-                <tr
-                  key={u.id}
-                  className="hover:bg-ct-primaryLight/10 transition-colors"
-                >
+                <tr key={u.id} className="hover:bg-ct-primaryLight/10 transition-colors">
+                  <td className="border border-ct-grayLight px-3 py-2">{u.full_name || '(Sans nom)'}</td>
+                  <td className="border border-ct-grayLight px-3 py-2">{u.role || '—'}</td>
                   <td className="border border-ct-grayLight px-3 py-2">
-                    {u.full_name || '(Sans nom)'}
+                    {u.clientsLabels.length > 0 ? u.clientsLabels.join(', ') : 'Aucun'}
                   </td>
                   <td className="border border-ct-grayLight px-3 py-2">
-                    {u.role || '—'}
-                  </td>
-                  <td className="border border-ct-grayLight px-3 py-2">
-                    {u.clientsLabels.length > 0
-                      ? u.clientsLabels.join(', ')
-                      : 'Aucun'}
-                  </td>
-                  <td className="border border-ct-grayLight px-3 py-2">
-                    {u.batimentsLabels.length > 0
-                      ? u.batimentsLabels.join(', ')
-                      : 'Tous les bâtiments des clients associés'}
+                    {u.batimentsLabels.length > 0 ? u.batimentsLabels.join(', ') : 'Tous les bâtiments des clients associés'}
                   </td>
                   <td className="border border-ct-grayLight px-3 py-2">
                     <span
@@ -577,19 +492,13 @@ export default function AdminUtilisateursPage() {
                   </td>
                   <td className="border border-ct-grayLight px-3 py-2">
                     <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={() => openEditModal(u)}
-                      >
+                      <button type="button" className="btn-secondary" onClick={() => openEditModal(u)}>
                         Modifier
                       </button>
                       <button
                         type="button"
                         className={isActive ? 'btn-danger' : 'btn-secondary'}
-                        onClick={() =>
-                          toggleUserActive(u.id, u.user_id, u.is_active)
-                        }
+                        onClick={() => toggleUserActive(u.id, u.user_id, u.is_active)}
                       >
                         {isActive ? 'Suspendre' : 'Réactiver'}
                       </button>
@@ -602,25 +511,20 @@ export default function AdminUtilisateursPage() {
         </table>
       </div>
 
-      {/* Modal création utilisateur */}
+      {/* Modal création */}
       {showCreateModal && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-lg mx-4 max-h-[95vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl space-y-5">
             <header className="space-y-1">
-              <h2 className="text-lg font-semibold text-ct-grayDark">
-                Ajouter un utilisateur
-              </h2>
+              <h2 className="text-lg font-semibold text-ct-grayDark">Ajouter un utilisateur</h2>
               <p className="text-sm text-ct-gray">
-                Un courriel d&apos;invitation sera envoyé à cette adresse. Le
-                profil sera créé avec le rôle sélectionné.
+                Un courriel d&apos;invitation sera envoyé à cette adresse. Le profil sera créé avec le rôle sélectionné.
               </p>
             </header>
 
             <div className="space-y-3 text-sm">
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Courriel (identifiant de connexion)
-                </label>
+                <label className="block text-xs font-medium text-ct-grayDark">Courriel (identifiant de connexion)</label>
                 <input
                   type="email"
                   value={createEmail}
@@ -631,9 +535,7 @@ export default function AdminUtilisateursPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Nom complet (optionnel)
-                </label>
+                <label className="block text-xs font-medium text-ct-grayDark">Nom complet (optionnel)</label>
                 <input
                   type="text"
                   value={createFullName}
@@ -643,9 +545,7 @@ export default function AdminUtilisateursPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Rôle
-                </label>
+                <label className="block text-xs font-medium text-ct-grayDark">Rôle</label>
                 <select
                   value={createRole}
                   onChange={(e) => setCreateRole(e.target.value)}
@@ -658,20 +558,10 @@ export default function AdminUtilisateursPage() {
             </div>
 
             <div className="mt-4 flex justify-end gap-3">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={closeCreateModal}
-                disabled={createSaving}
-              >
+              <button type="button" className="btn-secondary" onClick={closeCreateModal} disabled={createSaving}>
                 Annuler
               </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={handleCreateUser}
-                disabled={createSaving}
-              >
+              <button type="button" className="btn-primary" onClick={handleCreateUser} disabled={createSaving}>
                 {createSaving ? 'Création…' : 'Créer et inviter'}
               </button>
             </div>
@@ -679,193 +569,26 @@ export default function AdminUtilisateursPage() {
         </div>
       )}
 
-      {/* Modal édition utilisateur */}
-      {showModal && editingUser && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-3xl mx-4 max-h-[95vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl space-y-5">
-            <header className="space-y-1">
-              <h2 className="text-lg font-semibold text-ct-grayDark">
-                Modifier l&apos;utilisateur
-              </h2>
-              <p className="text-sm text-ct-gray">
-                Configurez le rôle, les clients associés et les bâtiments
-                autorisés pour cet utilisateur.
-              </p>
-            </header>
-
-            {/* Nom + rôle */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Nom complet
-                </label>
-                <input
-                  type="text"
-                  value={editFullName}
-                  onChange={(e) => setEditFullName(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Rôle
-                </label>
-                <select
-                  value={editRole}
-                  onChange={(e) => setEditRole(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                >
-                  <option value="client">client</option>
-                  <option value="admin">admin</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Clients associés */}
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ct-grayDark">
-                Clients associés (multi-sélection)
-              </p>
-              <p className="text-xs text-ct-gray mb-1">
-                Si aucun client n&apos;est sélectionné, l&apos;utilisateur ne
-                verra aucun bâtiment dans le portail client.
-              </p>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                {clients.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => toggleClient(c.id)}
-                    className={`flex items-center justify-between rounded-xl border px-3 py-2 text-sm ${
-                      selectedClientIds.includes(c.id)
-                        ? 'border-ct-primary bg-ct-primaryLight/10'
-                        : 'border-ct-grayLight bg-white'
-                    }`}
-                  >
-                    <span className="font-medium">
-                      {c.name || '(Client sans nom)'}
-                    </span>
-                    <input
-                      type="checkbox"
-                      readOnly
-                      checked={selectedClientIds.includes(c.id)}
-                      className="h-4 w-4 rounded border-ct-grayLight text-ct-primary focus:ring-ct-primary"
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Bâtiments autorisés */}
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ct-grayDark">
-                Bâtiments autorisés (optionnel)
-              </p>
-              <p className="text-xs text-ct-gray mb-1">
-                Si aucun bâtiment n&apos;est coché, l&apos;utilisateur verra{' '}
-                <strong>tous</strong> les bâtiments de ses clients associés. Si
-                au moins un bâtiment est coché, l&apos;accès sera limité
-                uniquement à ces bâtiments.
-              </p>
-
-              <div className="space-y-4">
-                {/* Groupe "Bâtiments sans client" */}
-                {batimentsParClient.get('sans_client') &&
-                  batimentsParClient.get('sans_client')!.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold text-ct-grayDark">
-                        Bâtiments sans client
-                      </p>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {batimentsParClient.get('sans_client')!.map((b) => (
-                          <label
-                            key={b.id}
-                            className="flex cursor-pointer items-start gap-2 rounded-xl border border-ct-grayLight bg-white px-3 py-2 text-sm hover:border-ct-primary/70"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedBatimentIds.includes(b.id)}
-                              onChange={() => toggleBatiment(b.id)}
-                              className="mt-1 h-4 w-4 rounded border-ct-grayLight text-ct-primary focus:ring-ct-primary"
-                            />
-                            <div>
-                              <p className="font-medium">
-                                {b.name || '(Sans nom)'}
-                              </p>
-                              <p className="text-xs text-ct-gray">
-                                {b.address && <>{b.address} · </>}
-                                {b.city}
-                              </p>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                {/* Groupes par client */}
-                {Array.from(batimentsParClient.entries())
-                  .filter(([clientId]) => clientId !== 'sans_client')
-                  .map(([clientId, bats]) => {
-                    const client = clientsById.get(clientId)
-                    return (
-                      <div key={clientId} className="space-y-2">
-                        <p className="text-xs font-semibold text-ct-grayDark">
-                          {client?.name || 'Client'}
-                        </p>
-                        <div className="grid gap-3 md:grid-cols-2">
-                          {bats.map((b) => (
-                            <label
-                              key={b.id}
-                              className="flex cursor-pointer items-start gap-2 rounded-xl border border-ct-grayLight bg-white px-3 py-2 text-sm hover:border-ct-primary/70"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedBatimentIds.includes(b.id)}
-                                onChange={() => toggleBatiment(b.id)}
-                                className="mt-1 h-4 w-4 rounded border-ct-grayLight text-ct-primary focus:ring-ct-primary"
-                              />
-                              <div>
-                                <p className="font-medium">
-                                  {b.name || '(Sans nom)'}
-                                </p>
-                                <p className="text-xs text-ct-gray">
-                                  {b.address && <>{b.address} · </>}
-                                  {b.city}
-                                </p>
-                              </div>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-              </div>
-            </div>
-
-            {/* Footer modal édition */}
-            <div className="mt-4 flex justify-end gap-3">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={closeModal}
-                disabled={saving}
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={handleSave}
-                disabled={saving}
-              >
-                {saving ? 'Enregistrement…' : 'Enregistrer'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ✅ MODAL ÉDITION : composant EditUserModal (le bon design) */}
+      <EditUserModal
+        open={showModal && !!editingUser}
+        saving={saving}
+        editFullName={editFullName}
+        setEditFullName={setEditFullName}
+        editRole={editRole}
+        setEditRole={setEditRole}
+        clients={clients}
+        batiments={batiments}
+        selectedClientIds={selectedClientIds}
+        toggleClient={toggleClient}
+        selectedBatimentIds={selectedBatimentIds}
+        toggleBatiment={toggleBatiment}
+        onClose={closeModal}
+        onSave={handleSave}
+        errorMsg={modalErrorMsg}
+        successMsg={modalSuccessMsg}
+        debugLabel="CT-MODAL-UTILISATEUR-TRACE-V2"
+      />
     </section>
   )
 }

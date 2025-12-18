@@ -120,7 +120,7 @@ export default function AdminBatimentDetailPage() {
   const [addBassinAnnee, setAddBassinAnnee] = useState('')
   const [addBassinDerniereRef, setAddBassinDerniereRef] = useState('')
   const [addBassinEtatId, setAddBassinEtatId] = useState('')
-  const [addBassinDureeText, setAddBassinDureeText] = useState('')
+  const [addBassinDureeId, setAddBassinDureeId] = useState('')
   const [addBassinReferenceInterne, setAddBassinReferenceInterne] =
     useState('')
   const [addBassinNotes, setAddBassinNotes] = useState('')
@@ -282,9 +282,7 @@ export default function AdminBatimentDetailPage() {
     setEditAddress(batiment.address || '')
     setEditCity(batiment.city || '')
     setEditPostalCode(batiment.postal_code || '')
-    setEditLatitude(
-      batiment.latitude != null ? String(batiment.latitude) : ''
-    )
+    setEditLatitude(batiment.latitude != null ? String(batiment.latitude) : '')
     setEditLongitude(
       batiment.longitude != null ? String(batiment.longitude) : ''
     )
@@ -301,8 +299,7 @@ export default function AdminBatimentDetailPage() {
     setEditError(null)
     setEditSaving(true)
 
-    const lat =
-      editLatitude.trim() !== '' ? Number(editLatitude.trim()) : null
+    const lat = editLatitude.trim() !== '' ? Number(editLatitude.trim()) : null
     const lng =
       editLongitude.trim() !== '' ? Number(editLongitude.trim()) : null
 
@@ -345,7 +342,7 @@ export default function AdminBatimentDetailPage() {
     setAddBassinAnnee('')
     setAddBassinDerniereRef('')
     setAddBassinEtatId('')
-    setAddBassinDureeText('')
+    setAddBassinDureeId('')
     setAddBassinReferenceInterne('')
     setAddBassinNotes('')
     setAddBassinError(null)
@@ -369,13 +366,9 @@ export default function AdminBatimentDetailPage() {
     setAddBassinError(null)
 
     const surface =
-      addBassinSurface.trim() !== ''
-        ? Number(addBassinSurface.trim())
-        : null
+      addBassinSurface.trim() !== '' ? Number(addBassinSurface.trim()) : null
     const annee =
-      addBassinAnnee.trim() !== ''
-        ? Number(addBassinAnnee.trim())
-        : null
+      addBassinAnnee.trim() !== '' ? Number(addBassinAnnee.trim()) : null
 
     const payload = {
       batiment_id: batimentId,
@@ -390,13 +383,10 @@ export default function AdminBatimentDetailPage() {
         addBassinDerniereRef.trim() !== ''
           ? addBassinDerniereRef.trim()
           : null,
-      etat_id:
-        addBassinEtatId.trim() !== '' ? addBassinEtatId.trim() : null,
-      duree_vie_id: null,
-      duree_vie_text:
-        addBassinDureeText.trim() !== ''
-          ? addBassinDureeText.trim()
-          : null,
+      etat_id: addBassinEtatId.trim() !== '' ? addBassinEtatId.trim() : null,
+      duree_vie_id:
+        addBassinDureeId.trim() !== '' ? addBassinDureeId.trim() : null,
+      duree_vie_text: null,
       reference_interne:
         addBassinReferenceInterne.trim() !== ''
           ? addBassinReferenceInterne.trim()
@@ -435,9 +425,7 @@ export default function AdminBatimentDetailPage() {
           <p className="text-xs uppercase tracking-wide text-ct-gray mb-1">
             Client
           </p>
-          <p className="text-sm font-medium text-ct-grayDark">
-            {clientName}
-          </p>
+          <p className="text-sm font-medium text-ct-grayDark">{clientName}</p>
           <h1 className="mt-1 text-2xl font-semibold text-ct-primary">
             {batiment.name || 'Bâtiment sans nom'}
           </h1>
@@ -486,8 +474,8 @@ export default function AdminBatimentDetailPage() {
           <CardHeader>
             <CardTitle>Bassins de toiture</CardTitle>
             <CardDescription>
-              Liste des bassins associés à ce bâtiment avec leur état,
-              membrane et durée de vie.
+              Liste des bassins associés à ce bâtiment avec leur état, membrane
+              et durée de vie.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -496,7 +484,7 @@ export default function AdminBatimentDetailPage() {
                 Aucun bassin n’est encore associé à ce bâtiment.
               </p>
             ) : (
-              <DataTable maxHeight={420}>
+              <DataTable maxHeight={480}>
                 <table className="w-full table-fixed">
                   <DataTableHeader>
                     <tr>
@@ -517,9 +505,6 @@ export default function AdminBatimentDetailPage() {
                       </th>
                       <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wide text-ct-grayDark">
                         Dernière réfection
-                      </th>
-                      <th className="w-[90px] px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-ct-grayDark">
-                        Actions
                       </th>
                     </tr>
                   </DataTableHeader>
@@ -551,7 +536,11 @@ export default function AdminBatimentDetailPage() {
                           key={b.id}
                           onMouseEnter={() => setHoveredBassinId(b.id)}
                           onMouseLeave={() => setHoveredBassinId(null)}
-                          className="cursor-pointer hover:bg-ct-primaryLight/10"
+                          className={`cursor-pointer hover:bg-ct-primaryLight/10 ${
+                            hoveredBassinId === b.id
+                              ? 'bg-ct-primaryLight/10'
+                              : ''
+                          }`}
                           onClick={() => router.push(`/admin/bassins/${b.id}`)}
                         >
                           <td className="px-3 py-2 align-middle">
@@ -569,9 +558,7 @@ export default function AdminBatimentDetailPage() {
                           <td className="px-3 py-2 align-middle whitespace-nowrap">
                             <StateBadge state={stateBadge} />
                           </td>
-                          <td className="px-3 py-2 align-middle">
-                            {dureeLabel}
-                          </td>
+                          <td className="px-3 py-2 align-middle">{dureeLabel}</td>
                           <td className="px-3 py-2 align-middle">
                             {membraneLabel}
                           </td>
@@ -580,18 +567,6 @@ export default function AdminBatimentDetailPage() {
                           </td>
                           <td className="px-3 py-2 align-middle">
                             {b.date_derniere_refection || '—'}
-                          </td>
-                          <td className="px-3 py-2 align-middle text-right">
-                            <button
-                              type="button"
-                              className="btn-secondary px-3 py-1 text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                router.push(`/admin/bassins/${b.id}`)
-                              }}
-                            >
-                              Voir
-                            </button>
                           </td>
                         </tr>
                       )
@@ -641,8 +616,7 @@ export default function AdminBatimentDetailPage() {
                   Modifier le bâtiment
                 </h2>
                 <p className="mt-1 text-xs text-ct-gray">
-                  Mettez à jour les informations générales et le client
-                  associé.
+                  Mettez à jour les informations générales et le client associé.
                 </p>
               </div>
             </div>
@@ -769,11 +743,7 @@ export default function AdminBatimentDetailPage() {
                 >
                   Annuler
                 </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={editSaving}
-                >
+                <button type="submit" className="btn-primary" disabled={editSaving}>
                   {editSaving ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
               </div>
@@ -797,8 +767,8 @@ export default function AdminBatimentDetailPage() {
                 Ajouter un bassin
               </h2>
               <p className="mt-1 text-xs text-ct-gray">
-                Créez un nouveau bassin pour ce bâtiment. Le polygone sera
-                dessiné par la suite dans la fiche du bassin.
+                Créez un nouveau bassin pour ce bâtiment. Le polygone sera dessiné
+                par la suite dans la fiche du bassin.
               </p>
             </div>
 
@@ -843,7 +813,7 @@ export default function AdminBatimentDetailPage() {
 
               <div className="space-y-1">
                 <label className="block text-xs font-medium text-ct-grayDark">
-                  Surface (m²)
+                  Surface (pi²)
                 </label>
                 <input
                   type="number"
@@ -900,13 +870,18 @@ export default function AdminBatimentDetailPage() {
                 <label className="block text-xs font-medium text-ct-grayDark">
                   Durée de vie (texte libre)
                 </label>
-                <input
-                  type="text"
-                  value={addBassinDureeText}
-                  onChange={(e) => setAddBassinDureeText(e.target.value)}
-                  placeholder="Ex.: ± 5 à 7 ans"
+                <select
+                  value={addBassinDureeId}
+                  onChange={(e) => setAddBassinDureeId(e.target.value)}
                   className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                />
+                >
+                  <option value="">Ex.: ± 5 à 7 ans</option>
+                  {durees.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="md:col-span-2 space-y-1">
@@ -916,9 +891,7 @@ export default function AdminBatimentDetailPage() {
                 <input
                   type="text"
                   value={addBassinReferenceInterne}
-                  onChange={(e) =>
-                    setAddBassinReferenceInterne(e.target.value)
-                  }
+                  onChange={(e) => setAddBassinReferenceInterne(e.target.value)}
                   className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
                 />
               </div>
@@ -944,11 +917,7 @@ export default function AdminBatimentDetailPage() {
                 >
                   Annuler
                 </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={addBassinSaving}
-                >
+                <button type="submit" className="btn-primary" disabled={addBassinSaving}>
                   {addBassinSaving ? 'Ajout en cours…' : 'Ajouter'}
                 </button>
               </div>
