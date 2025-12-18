@@ -3,6 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import EditUserModal, { BatimentRow, ClientRow } from '@/components/admin/users/EditUserModal'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 
 type UserProfileRow = {
   id: string
@@ -28,6 +36,8 @@ type EditableUser = UserProfileRow & {
   batimentsLabels: string[]
 }
 
+type ToastState = { type: 'success' | 'error'; message: string } | null
+
 export default function AdminUtilisateursPage() {
   const [loading, setLoading] = useState(true)
 
@@ -38,6 +48,13 @@ export default function AdminUtilisateursPage() {
   const [users, setUsers] = useState<EditableUser[]>([])
   const [clients, setClients] = useState<ClientRow[]>([])
   const [batiments, setBatiments] = useState<BatimentRow[]>([])
+
+  // Toast (UI pro)
+  const [toast, setToast] = useState<ToastState>(null)
+  const pushToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message })
+    window.setTimeout(() => setToast(null), 3500)
+  }
 
   // Modal édition
   const [showModal, setShowModal] = useState(false)
@@ -56,6 +73,17 @@ export default function AdminUtilisateursPage() {
   const [createClientId, setCreateClientId] = useState('')
   const [createSaving, setCreateSaving] = useState(false)
   const [createErrorMsg, setCreateErrorMsg] = useState<string | null>(null)
+
+  // Reset password (par utilisateur)
+  const [resetLoadingByUserId, setResetLoadingByUserId] = useState<Record<string, boolean>>({})
+
+  // Confirm dialog (reset password)
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false)
+  const [confirmResetUserId, setConfirmResetUserId] = useState<string | null>(null)
+  const confirmResetUser = useMemo(
+    () => (confirmResetUserId ? users.find((u) => u.user_id === confirmResetUserId) : null),
+    [confirmResetUserId, users],
+  )
 
   useEffect(() => {
     const load = async () => {
@@ -101,9 +129,7 @@ export default function AdminUtilisateursPage() {
 
       const allBatiments = (batData || []) as BatimentRow[]
 
-      const { data: ucData, error: ucError } = await supabaseBrowser
-        .from('user_clients')
-        .select('user_id, client_id')
+      const { data: ucData, error: ucError } = await supabaseBrowser.from('user_clients').select('user_id, client_id')
 
       if (ucError) {
         setErrorMsg(ucError.message)
@@ -225,20 +251,23 @@ export default function AdminUtilisateursPage() {
     setErrorMsg(null)
     setSuccessMsg(null)
 
-    const { data: authUserRes, error: authErr } = await supabaseBrowser.auth.getUser()
-    if (authErr) {
-      setErrorMsg(`Auth.getUser() a échoué : ${authErr.message}`)
+    // 1) Session + token (pour appeler l’API)
+    const { data: sessionRes, error: sessionErr } = await supabaseBrowser.auth.getSession()
+    if (sessionErr) {
+      setErrorMsg(`Auth.getSession() a échoué : ${sessionErr.message}`)
       setSaving(false)
       return
     }
-    if (!authUserRes?.user) {
-      setErrorMsg('Aucun utilisateur connecté (session absente).')
+    const accessToken = sessionRes?.session?.access_token ?? ''
+    if (!accessToken) {
+      setErrorMsg('Session absente ou access_token manquant. Reconnecte-toi.')
       setSaving(false)
       return
     }
 
     const targetUserId = editingUser.user_id
 
+    // 2) Mettre à jour le profil
     const { data: updatedProfile, error: upError } = await supabaseBrowser
       .from('user_profiles')
       .update({
@@ -261,40 +290,30 @@ export default function AdminUtilisateursPage() {
       return
     }
 
-    const { error: delUcError } = await supabaseBrowser.from('user_clients').delete().eq('user_id', targetUserId)
-    if (delUcError) {
-      setErrorMsg(`Suppression user_clients refusée : ${delUcError.message}`)
+    // 3) Accès via API (bypass RLS)
+    try {
+      const res = await fetch('/api/admin/users/update-access', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          userId: targetUserId,
+          selectedClientIds,
+          selectedBatimentIds,
+        }),
+      })
+
+      const json = await res.json()
+      if (!res.ok) throw new Error(json?.error || 'Erreur update-access (API).')
+    } catch (e: any) {
+      setErrorMsg(e?.message || 'Erreur lors de la mise à jour des accès (API).')
       setSaving(false)
       return
     }
 
-    if (selectedClientIds.length > 0) {
-      const insertUcRows = selectedClientIds.map((clientId) => ({ user_id: targetUserId, client_id: clientId }))
-      const { error: insUcError } = await supabaseBrowser.from('user_clients').insert(insertUcRows)
-      if (insUcError) {
-        setErrorMsg(`Insertion user_clients refusée : ${insUcError.message}`)
-        setSaving(false)
-        return
-      }
-    }
-
-    const { error: delUbaError } = await supabaseBrowser.from('user_batiments_access').delete().eq('user_id', targetUserId)
-    if (delUbaError) {
-      setErrorMsg(`Suppression user_batiments_access refusée : ${delUbaError.message}`)
-      setSaving(false)
-      return
-    }
-
-    if (selectedBatimentIds.length > 0) {
-      const insertUbaRows = selectedBatimentIds.map((batimentId) => ({ user_id: targetUserId, batiment_id: batimentId }))
-      const { error: insUbaError } = await supabaseBrowser.from('user_batiments_access').insert(insertUbaRows)
-      if (insUbaError) {
-        setErrorMsg(`Insertion user_batiments_access refusée : ${insUbaError.message}`)
-        setSaving(false)
-        return
-      }
-    }
-
+    // 4) Mettre à jour l’UI
     setUsers((prev) =>
       prev.map((u) => {
         if (u.id !== editingUser.id) return u
@@ -342,9 +361,63 @@ export default function AdminUtilisateursPage() {
       if (!res.ok) throw new Error(json?.error || 'Erreur API toggle-active')
 
       setUsers((prev) => prev.map((u) => (u.id === profileId ? { ...u, is_active: nextActive } : u)))
+      pushToast('success', nextActive ? 'Utilisateur réactivé.' : 'Utilisateur suspendu.')
     } catch (err: any) {
-      alert("Erreur lors de la mise à jour du statut de l'utilisateur : " + (err?.message ?? 'Erreur inconnue'))
+      pushToast('error', err?.message ?? "Erreur lors de la mise à jour du statut de l'utilisateur.")
     }
+  }
+
+  // --- RESET PASSWORD (Dialog confirm) ---
+  const requestResetPassword = (targetUserId: string) => {
+    if (!targetUserId) return
+    setConfirmResetUserId(targetUserId)
+    setConfirmResetOpen(true)
+  }
+
+  const doResetPassword = async (targetUserId: string) => {
+    if (!targetUserId) return
+
+    // token (admin)
+    const { data: sessionRes, error: sessionErr } = await supabaseBrowser.auth.getSession()
+    if (sessionErr) {
+      pushToast('error', `Auth.getSession() a échoué : ${sessionErr.message}`)
+      return
+    }
+    const accessToken = sessionRes?.session?.access_token ?? ''
+    if (!accessToken) {
+      pushToast('error', 'Session absente ou access_token manquant. Reconnecte-toi.')
+      return
+    }
+
+    setResetLoadingByUserId((prev) => ({ ...prev, [targetUserId]: true }))
+
+    try {
+      const res = await fetch('/api/admin/users/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ userId: targetUserId }),
+      })
+
+      const json = await res.json()
+      if (!res.ok) throw new Error(json?.error || 'Erreur reset-password (API).')
+
+      pushToast('success', 'Courriel de réinitialisation envoyé.')
+    } catch (e: any) {
+      pushToast('error', e?.message || 'Erreur lors de la réinitialisation.')
+    } finally {
+      setResetLoadingByUserId((prev) => ({ ...prev, [targetUserId]: false }))
+    }
+  }
+
+  const confirmResetPassword = async () => {
+    if (!confirmResetUserId) return
+    const uid = confirmResetUserId
+    setConfirmResetOpen(false)
+    setConfirmResetUserId(null)
+    await doResetPassword(uid)
   }
 
   // --- MODAL CRÉATION (inline) ---
@@ -392,8 +465,7 @@ export default function AdminUtilisateursPage() {
 
       const profile = json.profile as UserProfileRow
 
-      const clientLabel =
-        createClientId ? (clientsById.get(createClientId)?.name || 'Client') : null
+      const clientLabel = createClientId ? clientsById.get(createClientId)?.name || 'Client' : null
 
       const newUser: EditableUser = {
         ...profile,
@@ -408,6 +480,7 @@ export default function AdminUtilisateursPage() {
       setCreateFullName('')
       setCreateRole('client')
       setCreateClientId('')
+      pushToast('success', "Utilisateur créé et invitation envoyée.")
     } catch (err: any) {
       setCreateErrorMsg(err?.message ?? 'Erreur inconnue')
     } finally {
@@ -435,6 +508,73 @@ export default function AdminUtilisateursPage() {
 
   return (
     <section className="space-y-6">
+      {/* TOAST */}
+      {toast && (
+        <div className="fixed right-4 top-4 z-50 w-[min(420px,calc(100%-2rem))]">
+          <div
+            className={
+              toast.type === 'success'
+                ? 'rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-lg'
+                : 'rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-lg'
+            }
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="font-medium">{toast.message}</div>
+              <button
+                type="button"
+                className="rounded-md px-2 py-1 text-xs hover:bg-black/5"
+                onClick={() => setToast(null)}
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM DIALOG - RESET PASSWORD */}
+      <Dialog
+        open={confirmResetOpen}
+        onOpenChange={(open) => {
+          setConfirmResetOpen(open)
+          if (!open) setConfirmResetUserId(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Réinitialiser le mot de passe</DialogTitle>
+            <DialogDescription>
+              Cela envoie un courriel Supabase contenant un lien de réinitialisation.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-2 rounded-xl border border-ct-grayLight bg-white p-3 text-sm text-ct-grayDark">
+            <div className="font-medium text-ct-grayDark">
+              Utilisateur : {confirmResetUser?.full_name || '(Sans nom)'}
+            </div>
+            <div className="mt-1 text-ct-gray">
+              Rôle : {confirmResetUser?.role || '—'}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setConfirmResetOpen(false)
+                setConfirmResetUserId(null)
+              }}
+            >
+              Annuler
+            </button>
+            <button type="button" className="btn-primary" onClick={confirmResetPassword}>
+              Envoyer le courriel
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold text-ct-primary">Utilisateurs</h1>
@@ -462,6 +602,8 @@ export default function AdminUtilisateursPage() {
           <tbody>
             {users.map((u) => {
               const isActive = u.is_active !== false
+              const resetLoading = !!resetLoadingByUserId[u.user_id]
+
               return (
                 <tr key={u.id} className="transition-colors hover:bg-ct-primaryLight/10">
                   <td className="border border-ct-grayLight px-3 py-2">{u.full_name || '(Sans nom)'}</td>
@@ -470,7 +612,9 @@ export default function AdminUtilisateursPage() {
                     {u.clientsLabels.length > 0 ? u.clientsLabels.join(', ') : 'Aucun'}
                   </td>
                   <td className="border border-ct-grayLight px-3 py-2">
-                    {u.batimentsLabels.length > 0 ? u.batimentsLabels.join(', ') : 'Tous les bâtiments des clients associés'}
+                    {u.batimentsLabels.length > 0
+                      ? u.batimentsLabels.join(', ')
+                      : 'Tous les bâtiments des clients associés'}
                   </td>
                   <td className="border border-ct-grayLight px-3 py-2">
                     <span
@@ -488,6 +632,17 @@ export default function AdminUtilisateursPage() {
                       <button type="button" className="btn-secondary" onClick={() => openEditModal(u)}>
                         Modifier
                       </button>
+
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => requestResetPassword(u.user_id)}
+                        disabled={resetLoading}
+                        title="Envoie un courriel Supabase de réinitialisation"
+                      >
+                        {resetLoading ? 'Envoi…' : 'Réinitialiser MDP'}
+                      </button>
+
                       <button
                         type="button"
                         className={isActive ? 'btn-danger' : 'btn-secondary'}
@@ -507,33 +662,30 @@ export default function AdminUtilisateursPage() {
       {/* MODAL AJOUTER UTILISATEUR (inline) */}
       {showCreateModal && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-xl mx-4 rounded-2xl bg-white shadow-xl">
-            <div className="border-b border-ct-grayLight px-6 py-5">
+          <div className="w-full max-w-lg mx-4 max-h-[95vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl space-y-5">
+            <header className="space-y-1">
               <h2 className="text-lg font-semibold text-ct-grayDark">Ajouter un utilisateur</h2>
-              <p className="mt-1 text-sm text-ct-gray">
+              <p className="text-sm text-ct-gray">
                 Un courriel d&apos;invitation sera envoyé à cette adresse. Le profil sera créé avec le rôle sélectionné.
               </p>
-              {process.env.NODE_ENV === 'development' && (
-                <p className="mt-2 text-[11px] font-mono text-rose-600">CT-MODAL-CREATE-USER-TRACE-V1</p>
-              )}
-            </div>
+            </header>
 
-            <div className="px-6 py-5 space-y-4">
-              {createErrorMsg && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  <div className="font-semibold">Erreur</div>
-                  <div className="mt-1">{createErrorMsg}</div>
-                </div>
-              )}
+            {createErrorMsg && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <div className="font-semibold">Erreur</div>
+                <div className="mt-1">{createErrorMsg}</div>
+              </div>
+            )}
 
+            <div className="space-y-3 text-sm">
               <div className="space-y-1">
                 <label className="block text-xs font-medium text-ct-grayDark">Courriel (identifiant de connexion)</label>
                 <input
                   type="email"
                   value={createEmail}
                   onChange={(e) => setCreateEmail(e.target.value)}
+                  required
                   className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                  placeholder="ex: client@domaine.com"
                 />
               </div>
 
@@ -544,53 +696,45 @@ export default function AdminUtilisateursPage() {
                   value={createFullName}
                   onChange={(e) => setCreateFullName(e.target.value)}
                   className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                  placeholder="ex: Jean Tremblay"
                 />
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="block text-xs font-medium text-ct-grayDark">Rôle</label>
-                  <select
-                    value={createRole}
-                    onChange={(e) => setCreateRole(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                  >
-                    <option value="client">client</option>
-                    <option value="admin">admin</option>
-                  </select>
-                </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">Rôle</label>
+                <select
+                  value={createRole}
+                  onChange={(e) => setCreateRole(e.target.value)}
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                >
+                  <option value="client">client</option>
+                  <option value="admin">admin</option>
+                </select>
+              </div>
 
-                <div className="space-y-1">
-                  <label className="block text-xs font-medium text-ct-grayDark">Client associé (optionnel)</label>
-                  <select
-                    value={createClientId}
-                    onChange={(e) => setCreateClientId(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                  >
-                    <option value="">Aucun</option>
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name || '(Sans nom)'}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-ct-gray">
-                    Si un client est choisi, le compte sera lié à ce client dès la création.
-                  </p>
-                </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-ct-grayDark">Client associé (optionnel)</label>
+                <select
+                  value={createClientId}
+                  onChange={(e) => setCreateClientId(e.target.value)}
+                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                >
+                  <option value="">Aucun</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name || '(Sans nom)'}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            <div className="border-t border-ct-grayLight px-6 py-4">
-              <div className="flex justify-end gap-3">
-                <button type="button" className="btn-secondary" onClick={closeCreateModal} disabled={createSaving}>
-                  Annuler
-                </button>
-                <button type="button" className="btn-primary" onClick={handleCreateUser} disabled={createSaving}>
-                  {createSaving ? 'Création…' : 'Créer et inviter'}
-                </button>
-              </div>
+            <div className="mt-4 flex justify-end gap-3">
+              <button type="button" className="btn-secondary" onClick={closeCreateModal} disabled={createSaving}>
+                Annuler
+              </button>
+              <button type="button" className="btn-primary" onClick={handleCreateUser} disabled={createSaving}>
+                {createSaving ? 'Création…' : 'Créer et inviter'}
+              </button>
             </div>
           </div>
         </div>
