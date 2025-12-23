@@ -1,15 +1,20 @@
 'use client'
 
-import { useEffect, useState, FormEvent, ChangeEvent } from 'react'
+import { useEffect, useMemo, useState, FormEvent, ChangeEvent } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
-import BassinMap from '@/components/maps/BassinMap'
+import BassinMap, { InterventionMarker } from '@/components/maps/BassinMap'
 
 type GeoJSONPolygon = {
   type: 'Polygon'
   coordinates: number[][][]
+}
+
+type GeoJSONPoint = {
+  type: 'Point'
+  coordinates: [number, number] // [lng, lat]
 }
 
 type BassinRow = {
@@ -43,6 +48,7 @@ type ListeChoix = {
   categorie: string
   label: string | null
   couleur: string | null
+  ordre?: number | null
 }
 
 type GarantieRow = {
@@ -70,6 +76,29 @@ type RapportRow = {
   file_url: string | null
 }
 
+type InterventionRow = {
+  id: string
+  bassin_id: string
+  date_intervention: string
+  type_intervention_id: string | null
+  commentaire: string | null
+  location_geojson: GeoJSONPoint | null
+  created_at: string
+}
+
+type InterventionFichierRow = {
+  id: string
+  intervention_id: string
+  file_path: string
+  file_name: string | null
+  mime_type: string | null
+  created_at: string
+}
+
+type InterventionWithFiles = InterventionRow & {
+  files: InterventionFichierRow[]
+}
+
 /** mappe un libellé d'état en type pour StateBadge */
 function mapEtatToStateBadge(etat: string | null): BassinState {
   if (!etat) return 'non_evalue'
@@ -83,6 +112,28 @@ function mapEtatToStateBadge(etat: string | null): BassinState {
   return 'non_evalue'
 }
 
+function safePointFromGeoJSON(p: any): { lat: number; lng: number } | null {
+  if (!p) return null
+  if (typeof p !== 'object') return null
+  if (p.type !== 'Point') return null
+  if (!Array.isArray(p.coordinates) || p.coordinates.length < 2) return null
+  const [lng, lat] = p.coordinates
+  if (typeof lat !== 'number' || typeof lng !== 'number') return null
+  return { lat, lng }
+}
+
+function toGeoJSONPoint(pos: { lat: number; lng: number } | null): GeoJSONPoint | null {
+  if (!pos) return null
+  return { type: 'Point', coordinates: [pos.lng, pos.lat] }
+}
+
+function sanitizeFileName(name: string) {
+  return name
+    .replace(/[^\w.\- ()À-ÿ]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export default function AdminBassinDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -93,6 +144,9 @@ export default function AdminBassinDetailPage() {
   const [listes, setListes] = useState<ListeChoix[]>([])
   const [garanties, setGaranties] = useState<GarantieRow[]>([])
   const [rapports, setRapports] = useState<RapportRow[]>([])
+  const [interventions, setInterventions] = useState<InterventionWithFiles[]>([])
+  const [selectedInterventionId, setSelectedInterventionId] = useState<string | null>(null)
+
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
@@ -129,7 +183,7 @@ export default function AdminBassinDetailPage() {
   const [formCommentaireRapport, setFormCommentaireRapport] = useState('')
   const [rapportPdfFile, setRapportPdfFile] = useState<File | null>(null)
 
-  // Modal édition bassin
+  // Édition bassin
   const [showEditBassinModal, setShowEditBassinModal] = useState(false)
   const [savingBassin, setSavingBassin] = useState(false)
   const [editName, setEditName] = useState('')
@@ -141,10 +195,22 @@ export default function AdminBassinDetailPage() {
   const [editReference, setEditReference] = useState('')
   const [editNotes, setEditNotes] = useState('')
 
-  // Modal confirmation suppression bassin (modèle identique à Clients)
+  // Modal confirmation suppression bassin
   const [showDeleteBassinModal, setShowDeleteBassinModal] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deletingBassin, setDeletingBassin] = useState(false)
+
+  // Interventions — éditeur inline (pour garder la carte cliquable)
+  const [showInterventionEditor, setShowInterventionEditor] = useState(false)
+  const [savingIntervention, setSavingIntervention] = useState(false)
+  const [editingIntervention, setEditingIntervention] = useState<InterventionWithFiles | null>(null)
+  const [intDate, setIntDate] = useState('')
+  const [intTypeId, setIntTypeId] = useState('')
+  const [intCommentaire, setIntCommentaire] = useState('')
+  const [intLocation, setIntLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [intPickEnabled, setIntPickEnabled] = useState(false)
+  const [intNewFiles, setIntNewFiles] = useState<File[]>([])
+  const [busyFileIds, setBusyFileIds] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     if (!bassinId) return
@@ -184,7 +250,7 @@ export default function AdminBassinDetailPage() {
       // 3) Listes de choix
       const { data: listesData, error: listesError } = await supabaseBrowser
         .from('listes_choix')
-        .select('id, categorie, label, couleur')
+        .select('id, categorie, label, couleur, ordre')
 
       if (listesError) {
         setErrorMsg(listesError.message)
@@ -222,11 +288,57 @@ export default function AdminBassinDetailPage() {
         return
       }
 
+      // 6) Interventions + fichiers
+      const { data: intData, error: intError } = await supabaseBrowser
+        .from('interventions')
+        .select('id, bassin_id, date_intervention, type_intervention_id, commentaire, location_geojson, created_at')
+        .eq('bassin_id', bassinId)
+        .order('date_intervention', { ascending: false })
+        .order('created_at', { ascending: false })
+
+      if (intError) {
+        setErrorMsg(intError.message)
+        setLoading(false)
+        return
+      }
+
+      const intRows = (intData || []) as InterventionRow[]
+      const ids = intRows.map((i) => i.id)
+
+      let filesRows: InterventionFichierRow[] = []
+      if (ids.length > 0) {
+        const { data: filesData, error: filesError } = await supabaseBrowser
+          .from('intervention_fichiers')
+          .select('id, intervention_id, file_path, file_name, mime_type, created_at')
+          .in('intervention_id', ids)
+          .order('created_at', { ascending: true })
+
+        if (filesError) {
+          setErrorMsg(filesError.message)
+          setLoading(false)
+          return
+        }
+        filesRows = (filesData || []) as InterventionFichierRow[]
+      }
+
+      const filesByIntervention: Record<string, InterventionFichierRow[]> = {}
+      filesRows.forEach((f) => {
+        if (!filesByIntervention[f.intervention_id]) filesByIntervention[f.intervention_id] = []
+        filesByIntervention[f.intervention_id].push(f)
+      })
+
+      const combined: InterventionWithFiles[] = intRows.map((i) => ({
+        ...i,
+        location_geojson: (i.location_geojson as any) ?? null,
+        files: filesByIntervention[i.id] || [],
+      }))
+
       setBassin(bassinData as BassinRow)
       setBatiment(batData)
-      setListes(listesData || [])
-      setGaranties(garantiesData || [])
-      setRapports(rapportsData || [])
+      setListes((listesData || []) as ListeChoix[])
+      setGaranties((garantiesData || []) as GarantieRow[])
+      setRapports((rapportsData || []) as RapportRow[])
+      setInterventions(combined)
       setLoading(false)
     }
 
@@ -238,6 +350,12 @@ export default function AdminBassinDetailPage() {
   const statutsGarantie = listes.filter((l) => l.categorie === 'statut_garantie')
   const typesRapport = listes.filter((l) => l.categorie === 'type_rapport')
 
+  // Interventions - type_interventions
+  const typesInterventions = useMemo(() => {
+    const arr = listes.filter((l) => l.categorie === 'type_interventions')
+    return arr.slice().sort((a, b) => (a.label || '').localeCompare(b.label || '', 'fr-CA'))
+  }, [listes])
+
   const labelFromId = (
     category: 'type_garantie' | 'statut_garantie' | 'type_rapport',
     id: string | null
@@ -248,6 +366,11 @@ export default function AdminBassinDetailPage() {
     else if (category === 'statut_garantie') arr = statutsGarantie
     else arr = typesRapport
     return arr.find((l) => l.id === id)?.label ?? ''
+  }
+
+  const typeInterventionLabel = (id: string | null) => {
+    if (!id) return ''
+    return typesInterventions.find((t) => t.id === id)?.label ?? ''
   }
 
   // Listes de choix pour état / durée de vie du bassin
@@ -321,6 +444,23 @@ export default function AdminBassinDetailPage() {
 
     return { lat: 46.35, lng: -72.55 }
   })()
+
+  // Markers interventions
+  const interventionMarkers: InterventionMarker[] = useMemo(() => {
+    return interventions
+      .map((i) => {
+        const pos = safePointFromGeoJSON(i.location_geojson as any)
+        if (!pos) return null
+        const typeLabel = typeInterventionLabel(i.type_intervention_id)
+        const title = `${i.date_intervention}${typeLabel ? ' — ' + typeLabel : ''}`
+        return {
+          id: i.id,
+          position: pos,
+          title,
+        } as InterventionMarker
+      })
+      .filter(Boolean) as InterventionMarker[]
+  }, [interventions, typesInterventions])
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null
@@ -701,8 +841,8 @@ export default function AdminBassinDetailPage() {
   }
 
   const openDeleteBassinModal = () => {
-  setDeleteConfirmText('')
-  setShowDeleteBassinModal(true)
+    setDeleteConfirmText('')
+    setShowDeleteBassinModal(true)
   }
 
   const closeDeleteBassinModal = () => {
@@ -798,6 +938,320 @@ export default function AdminBassinDetailPage() {
     }
   }
 
+  // -----------------------------
+  // Interventions — UI + CRUD
+  // -----------------------------
+  const openNewIntervention = () => {
+    setEditingIntervention(null)
+    setSelectedInterventionId(null)
+    setIntDate('')
+    setIntTypeId('')
+    setIntCommentaire('')
+    setIntLocation(null)
+    setIntPickEnabled(false)
+    setIntNewFiles([])
+    setShowInterventionEditor(true)
+  }
+
+  const openEditIntervention = (it: InterventionWithFiles) => {
+    setEditingIntervention(it)
+    setSelectedInterventionId(it.id)
+    setIntDate(it.date_intervention || '')
+    setIntTypeId(it.type_intervention_id || '')
+    setIntCommentaire(it.commentaire || '')
+    setIntLocation(safePointFromGeoJSON(it.location_geojson as any))
+    setIntPickEnabled(false)
+    setIntNewFiles([])
+    setShowInterventionEditor(true)
+  }
+
+  const closeInterventionEditor = () => {
+    if (savingIntervention) return
+    setShowInterventionEditor(false)
+    setEditingIntervention(null)
+    setIntPickEnabled(false)
+    setIntNewFiles([])
+  }
+
+  const handleInterventionFilesChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    setIntNewFiles(files)
+  }
+
+  const refreshInterventions = async () => {
+    if (!bassinId) return
+
+    const { data: intData, error: intError } = await supabaseBrowser
+      .from('interventions')
+      .select('id, bassin_id, date_intervention, type_intervention_id, commentaire, location_geojson, created_at')
+      .eq('bassin_id', bassinId)
+      .order('date_intervention', { ascending: false })
+      .order('created_at', { ascending: false })
+
+    if (intError) {
+      console.error('Erreur refresh interventions', intError)
+      alert('Erreur chargement interventions : ' + intError.message)
+      return
+    }
+
+    const intRows = (intData || []) as InterventionRow[]
+    const ids = intRows.map((i) => i.id)
+
+    let filesRows: InterventionFichierRow[] = []
+    if (ids.length > 0) {
+      const { data: filesData, error: filesError } = await supabaseBrowser
+        .from('intervention_fichiers')
+        .select('id, intervention_id, file_path, file_name, mime_type, created_at')
+        .in('intervention_id', ids)
+        .order('created_at', { ascending: true })
+
+      if (filesError) {
+        console.error('Erreur refresh intervention_fichiers', filesError)
+        alert('Erreur chargement fichiers interventions : ' + filesError.message)
+        return
+      }
+      filesRows = (filesData || []) as InterventionFichierRow[]
+    }
+
+    const filesByIntervention: Record<string, InterventionFichierRow[]> = {}
+    filesRows.forEach((f) => {
+      if (!filesByIntervention[f.intervention_id]) filesByIntervention[f.intervention_id] = []
+      filesByIntervention[f.intervention_id].push(f)
+    })
+
+    const next = intRows.map((i) => ({
+      ...i,
+      location_geojson: (i.location_geojson as any) ?? null,
+      files: filesByIntervention[i.id] || [],
+    })) as InterventionWithFiles[]
+
+    setInterventions(next)
+
+    // si l'éditeur est ouvert sur une intervention, on garde l'objet à jour (fichiers, etc.)
+    setEditingIntervention((cur) => {
+      if (!cur) return cur
+      return next.find((x) => x.id === cur.id) ?? cur
+    })
+
+  }
+
+  const handleSaveIntervention = async () => {
+    if (!bassin?.id) {
+      alert('Bassin introuvable (id manquant).')
+      return
+    }
+
+    if (!intDate || intDate.trim() === '') {
+      alert('La date de l’intervention est obligatoire.')
+      return
+    }
+
+    setSavingIntervention(true)
+
+    const safeTypeId =
+      intTypeId && intTypeId.trim() !== '' ? intTypeId : null
+
+    const payload = {
+      bassin_id: bassin.id,
+      date_intervention: intDate,
+      type_intervention_id: safeTypeId,
+      commentaire: intCommentaire && intCommentaire.trim() !== '' ? intCommentaire : null,
+      location_geojson: toGeoJSONPoint(intLocation),
+    }
+
+    let saved: InterventionRow | null = null
+    let err: any = null
+
+    if (editingIntervention?.id) {
+      const res = await supabaseBrowser
+        .from('interventions')
+        .update(payload)
+        .eq('id', editingIntervention.id)
+        .select('id, bassin_id, date_intervention, type_intervention_id, commentaire, location_geojson, created_at')
+        .single()
+
+      saved = res.data as any
+      err = res.error
+    } else {
+      const res = await supabaseBrowser
+        .from('interventions')
+        .insert(payload)
+        .select('id, bassin_id, date_intervention, type_intervention_id, commentaire, location_geojson, created_at')
+        .single()
+
+      saved = res.data as any
+      err = res.error
+    }
+
+    if (err) {
+      setSavingIntervention(false)
+      console.error('Erreur save intervention', err)
+      alert('Erreur enregistrement intervention : ' + (err.message ?? 'Erreur inconnue'))
+      return
+    }
+
+    // Upload fichiers (si ajoutés)
+    if (saved && intNewFiles.length > 0) {
+      for (const f of intNewFiles) {
+        const ext = f.name.split('.').pop() || ''
+        const cleanName = sanitizeFileName(f.name)
+        // IMPORTANT: la policy Storage attend que le 1er segment du chemin = bassin.id
+        const filePath = `${bassin.id}/${saved.id}/${crypto.randomUUID()}${ext ? '.' + ext : ''}-${cleanName}`
+
+        const { error: upErr } = await supabaseBrowser.storage
+          .from('interventions')
+          .upload(filePath, f, { upsert: false })
+
+        if (upErr) {
+          console.error('Erreur upload fichier intervention', upErr)
+          alert('Erreur upload fichier : ' + upErr.message)
+          // on continue avec les autres fichiers
+          continue
+        }
+
+        const { error: insErr } = await supabaseBrowser
+          .from('intervention_fichiers')
+          .insert({
+            intervention_id: saved.id,
+            file_path: filePath,
+            file_name: f.name || null,
+            mime_type: f.type || null,
+          })
+
+        if (insErr) {
+          console.error('Erreur insert intervention_fichiers', insErr)
+          alert('Erreur indexation fichier : ' + insErr.message)
+        }
+      }
+    }
+
+    setSavingIntervention(false)
+    setIntNewFiles([])
+    setIntPickEnabled(false)
+    setSelectedInterventionId(saved?.id ?? null)
+
+    await refreshInterventions()
+    setShowInterventionEditor(false)
+    setEditingIntervention(null)
+  }
+
+  const handleDeleteIntervention = async (it: InterventionWithFiles) => {
+    const ok = window.confirm('Voulez-vous vraiment supprimer cette intervention ?')
+    if (!ok) return
+
+    // 1) supprimer fichiers storage + lignes
+    if (it.files && it.files.length > 0) {
+      const paths = it.files.map((f) => f.file_path).filter(Boolean)
+      if (paths.length > 0) {
+        const { error: rmErr } = await supabaseBrowser.storage
+          .from('interventions')
+          .remove(paths)
+
+        if (rmErr) {
+          console.error('Erreur suppression storage interventions', rmErr)
+          alert('Erreur suppression fichiers (storage) : ' + rmErr.message)
+          return
+        }
+      }
+
+      const { error: delFilesErr } = await supabaseBrowser
+        .from('intervention_fichiers')
+        .delete()
+        .eq('intervention_id', it.id)
+
+      if (delFilesErr) {
+        console.error('Erreur suppression intervention_fichiers', delFilesErr)
+        alert('Erreur suppression fichiers (DB) : ' + delFilesErr.message)
+        return
+      }
+    }
+
+    // 2) supprimer l’intervention
+    const { error: delErr } = await supabaseBrowser
+      .from('interventions')
+      .delete()
+      .eq('id', it.id)
+
+    if (delErr) {
+      console.error('Erreur suppression intervention', delErr)
+      alert('Erreur suppression intervention : ' + delErr.message)
+      return
+    }
+
+    setInterventions((prev) => prev.filter((x) => x.id !== it.id))
+    if (selectedInterventionId === it.id) setSelectedInterventionId(null)
+    if (editingIntervention?.id === it.id) {
+      closeInterventionEditor()
+    }
+  }
+
+  const openFileSignedUrl = async (file: InterventionFichierRow) => {
+    try {
+      setBusyFileIds((p) => ({ ...p, [file.id]: true }))
+      const { data, error } = await supabaseBrowser.storage
+        .from('interventions')
+        .createSignedUrl(file.file_path, 60 * 10)
+
+      if (error) {
+        console.error('Erreur signed url', error)
+        alert('Erreur accès fichier : ' + error.message)
+        return
+      }
+
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+      }
+    } finally {
+      setBusyFileIds((p) => ({ ...p, [file.id]: false }))
+    }
+  }
+
+  const handleDeleteFile = async (file: InterventionFichierRow) => {
+    const ok = window.confirm('Supprimer ce fichier ?')
+    if (!ok) return
+
+    setBusyFileIds((p) => ({ ...p, [file.id]: true }))
+
+    const { error: rmErr } = await supabaseBrowser.storage
+      .from('interventions')
+      .remove([file.file_path])
+
+    if (rmErr) {
+      setBusyFileIds((p) => ({ ...p, [file.id]: false }))
+      console.error('Erreur suppression storage file', rmErr)
+      alert('Erreur suppression fichier (storage) : ' + rmErr.message)
+      return
+    }
+
+    const { error: delErr } = await supabaseBrowser
+      .from('intervention_fichiers')
+      .delete()
+      .eq('id', file.id)
+
+    setBusyFileIds((p) => ({ ...p, [file.id]: false }))
+
+    if (delErr) {
+      console.error('Erreur suppression DB file', delErr)
+      alert('Erreur suppression fichier (DB) : ' + delErr.message)
+      return
+    }
+
+    // update state
+    setInterventions((prev) =>
+      prev.map((it) => {
+        if (it.id !== file.intervention_id) return it
+        return { ...it, files: it.files.filter((f) => f.id !== file.id) }
+      })
+    )
+
+    setEditingIntervention((cur) => {
+  if (!cur) return cur
+  if (cur.id !== file.intervention_id) return cur
+  return { ...cur, files: cur.files.filter((f) => f.id !== file.id) }
+    })
+
+  }
+
   if (loading) {
     return (
       <section className="space-y-4">
@@ -832,7 +1286,7 @@ export default function AdminBassinDetailPage() {
   const etatLabel = etatsBassin.find((l) => l.id === bassin.etat_id)?.label || null
 
   const membraneLabel =
-  membranesBassin.find((l) => l.id === bassin.membrane_type_id)?.label ?? null
+    membranesBassin.find((l) => l.id === bassin.membrane_type_id)?.label ?? null
 
   return (
     <section className="space-y-6">
@@ -887,41 +1341,324 @@ export default function AdminBassinDetailPage() {
         </div>
       </div>
 
-      {/* Layout 2 colonnes : gauche = résumé + documents, droite = carte */}
+      {/* Layout 2 colonnes : gauche = résumé + interventions + documents, droite = carte */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] lg:items-start">
-        {/* Colonne gauche : résumé + documents */}
+        {/* Colonne gauche */}
         <div className="space-y-6">
-            {/* Résumé du bassin */}
-            <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm space-y-4">
-              <h2 className="text-sm font-semibold text-ct-grayDark uppercase tracking-wide">
-                Résumé du bassin
-              </h2>
-              <div className="space-y-2 text-sm text-ct-grayDark">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-ct-gray">État global</span>
-                  <StateBadge state={mapEtatToStateBadge(etatLabel)} />
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-ct-gray">Durée de vie résiduelle</span>
-                  <span className="font-medium">{typeDuree || 'Non définie'}</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-ct-gray">Type de membrane</span>
-                  <span className="font-medium">{membraneLabel || 'Non défini'}</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-ct-gray">Référence interne</span>
-                  <span className="font-medium">{bassin.reference_interne || '—'}</span>
-                </div>
+          {/* Résumé du bassin */}
+          <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm space-y-4">
+            <h2 className="text-sm font-semibold text-ct-grayDark uppercase tracking-wide">
+              Résumé du bassin
+            </h2>
+            <div className="space-y-2 text-sm text-ct-grayDark">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-ct-gray">État global</span>
+                <StateBadge state={mapEtatToStateBadge(etatLabel)} />
               </div>
-
-              <div className="pt-3 border-t border-ct-grayLight space-y-1">
-                <p className="text-xs uppercase tracking-wide text-ct-gray">Notes internes</p>
-                <p className="text-sm text-ct-grayDark whitespace-pre-line">
-                  {bassin.notes || 'Aucune note pour ce bassin.'}
-                </p>
+              <div className="flex justify-between gap-4">
+                <span className="text-ct-gray">Durée de vie résiduelle</span>
+                <span className="font-medium">{typeDuree || 'Non définie'}</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-ct-gray">Type de membrane</span>
+                <span className="font-medium">{membraneLabel || 'Non défini'}</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-ct-gray">Référence interne</span>
+                <span className="font-medium">{bassin.reference_interne || '—'}</span>
               </div>
             </div>
+
+            <div className="pt-3 border-t border-ct-grayLight space-y-1">
+              <p className="text-xs uppercase tracking-wide text-ct-gray">Notes internes</p>
+              <p className="text-sm text-ct-grayDark whitespace-pre-line">
+                {bassin.notes || 'Aucune note pour ce bassin.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Interventions */}
+          <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-ct-grayDark uppercase tracking-wide">
+                  Interventions
+                </h2>
+                <p className="text-xs text-ct-gray mt-1">
+                  Suivi des interventions (date, type, commentaire, fichiers, localisation sur la carte).
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={openNewIntervention}
+                >
+                  Ajouter une intervention
+                </button>
+              </div>
+            </div>
+
+            {interventions.length === 0 ? (
+              <p className="text-sm text-ct-gray">
+                Aucune intervention n’est enregistrée pour ce bassin.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-ct-grayLight/60 text-left">
+                      <th className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">Date</th>
+                      <th className="border border-ct-grayLight px-3 py-2">Type</th>
+                      <th className="border border-ct-grayLight px-3 py-2">Commentaire</th>
+                      <th className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">Fichiers</th>
+                      <th className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">Localisation</th>
+                      <th className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {interventions.map((it) => {
+                      const selected = selectedInterventionId === it.id
+                      const typeLabel = typeInterventionLabel(it.type_intervention_id) || '—'
+                      const hasLoc = !!safePointFromGeoJSON(it.location_geojson as any)
+                      const comment =
+                        (it.commentaire || '').length > 70
+                          ? (it.commentaire || '').slice(0, 70) + '…'
+                          : it.commentaire || '—'
+
+                      return (
+                        <tr
+                          key={it.id}
+                          className={`transition-colors cursor-pointer ${
+                            selected
+                              ? 'bg-ct-primaryLight/20'
+                              : 'hover:bg-ct-primaryLight/10'
+                          }`}
+                          onClick={() => setSelectedInterventionId(it.id)}
+                        >
+                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                            {it.date_intervention}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {typeLabel}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2">
+                            {comment}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                            {it.files?.length ?? 0}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                            {hasLoc ? 'Oui' : '—'}
+                          </td>
+                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openEditIntervention(it)
+                                }}
+                              >
+                                Modifier
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-danger"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  void handleDeleteIntervention(it)
+                                }}
+                              >
+                                Supprimer
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Éditeur inline (pour garder la carte cliquable) */}
+            {showInterventionEditor && (
+              <div className="mt-3 rounded-xl border border-ct-grayLight bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-ct-grayDark">
+                      {editingIntervention ? 'Modifier l’intervention' : 'Nouvelle intervention'}
+                    </h3>
+                    <p className="text-xs text-ct-gray mt-1">
+                      Pour localiser: active “Choisir sur la carte”, clique sur la carte, puis ajuste avec le marker draggable.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={closeInterventionEditor}
+                      disabled={savingIntervention}
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={() => void handleSaveIntervention()}
+                      disabled={savingIntervention}
+                    >
+                      {savingIntervention ? 'Enregistrement…' : 'Enregistrer'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-ct-grayDark">
+                      Date de l’intervention *
+                    </label>
+                    <input
+                      type="date"
+                      value={intDate}
+                      onChange={(e) => setIntDate(e.target.value)}
+                      className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-ct-grayDark">
+                      Type d’intervention
+                    </label>
+                    <select
+                      value={intTypeId}
+                      onChange={(e) => setIntTypeId(e.target.value)}
+                      className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                    >
+                      <option value="">Sélectionner…</option>
+                      {typesInterventions.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-ct-gray mt-1">
+                      Catégorie attendue: <span className="font-medium">type_interventions</span> (listes_choix).
+                    </p>
+                  </div>
+
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="block text-xs font-medium text-ct-grayDark">
+                      Commentaire
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={intCommentaire}
+                      onChange={(e) => setIntCommentaire(e.target.value)}
+                      className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2 flex flex-wrap items-center gap-2 rounded-lg border border-ct-grayLight bg-ct-grayLight/20 px-3 py-2">
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setIntPickEnabled((v) => !v)}
+                    >
+                      {intPickEnabled ? 'Désactiver la sélection' : 'Choisir sur la carte'}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setIntLocation(null)}
+                      disabled={intLocation == null}
+                    >
+                      Effacer la localisation
+                    </button>
+
+                    <div className="text-xs text-ct-gray">
+                      {intLocation ? (
+                        <>
+                          Position: <span className="font-medium text-ct-grayDark">{intLocation.lat.toFixed(6)}, {intLocation.lng.toFixed(6)}</span>
+                          <span className="ml-2">(marker draggable actif)</span>
+                        </>
+                      ) : (
+                        'Aucune localisation'
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="block text-xs font-medium text-ct-grayDark">
+                      Ajouter des fichiers / photos
+                    </label>
+                    <input
+                      type="file"
+                      multiple
+                      onChange={handleInterventionFilesChange}
+                      className="block w-full text-xs text-ct-gray file:mr-3 file:rounded-md file:border-0 file:bg-ct-primary/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ct-primary hover:file:bg-ct-primary/20"
+                    />
+                    {intNewFiles.length > 0 && (
+                      <p className="text-xs text-ct-gray mt-1">
+                        {intNewFiles.length} fichier(s) prêt(s) à téléverser.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Fichiers existants si édition */}
+                  {editingIntervention && editingIntervention.files.length > 0 && (
+                    <div className="md:col-span-2 space-y-2">
+                      <p className="text-xs font-medium text-ct-grayDark">
+                        Fichiers existants
+                      </p>
+                      <div className="space-y-2">
+                        {editingIntervention.files.map((f) => (
+                          <div
+                            key={f.id}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ct-grayLight px-3 py-2"
+                          >
+                            <div className="text-xs text-ct-grayDark">
+                              <span className="font-medium">
+                                {f.file_name || f.file_path.split('/').pop() || 'Fichier'}
+                              </span>
+                              {f.mime_type ? (
+                                <span className="ml-2 text-ct-gray">({f.mime_type})</span>
+                              ) : null}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                disabled={!!busyFileIds[f.id]}
+                                onClick={() => void openFileSignedUrl(f)}
+                              >
+                                {busyFileIds[f.id] ? 'Ouverture…' : 'Ouvrir'}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-danger"
+                                disabled={!!busyFileIds[f.id]}
+                                onClick={() => void handleDeleteFile(f)}
+                              >
+                                {busyFileIds[f.id] ? 'Suppression…' : 'Supprimer'}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Documents du bassin (Garanties / Rapports) */}
           <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm">
@@ -1158,7 +1895,7 @@ export default function AdminBassinDetailPage() {
           </div>
         </div>
 
-        {/* Colonne droite : carte + polygone */}
+        {/* Colonne droite : carte + polygone + markers interventions + point picker */}
         <div className="rounded-2xl border border-ct-grayLight bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -1166,18 +1903,25 @@ export default function AdminBassinDetailPage() {
                 Polygone de toiture
               </h2>
               <p className="text-xs text-ct-gray mt-1">
-                Utilisez la vue satellite et les outils de dessin pour ajuster
-                le contour du bassin. Le polygone est sauvegardé dans Supabase.
+                Polygone sauvegardé dans Supabase. Les interventions sont affichées en markers. Pour localiser une intervention: active “Choisir sur la carte”.
               </p>
             </div>
           </div>
 
-          <div className="h-[480px] w-full rounded-xl border border-ct-grayLight overflow-hidden">
+          <div className="h-[520px] w-full rounded-xl border border-ct-grayLight overflow-hidden">
             <BassinMap
               bassinId={bassin.id}
               center={mapCenter}
               initialPolygon={bassin.polygone_geojson}
               couleurPolygon={couleurEtat}
+              interventionMarkers={interventionMarkers}
+              selectedInterventionId={selectedInterventionId}
+              onInterventionMarkerClick={(id) => setSelectedInterventionId(id)}
+              pointPicker={{
+                enabled: intPickEnabled,
+                value: intLocation,
+                onChange: (pos) => setIntLocation(pos),
+              }}
             />
           </div>
         </div>
@@ -1578,54 +2322,55 @@ export default function AdminBassinDetailPage() {
           </div>
         </div>
       )}
-              {/* Modal confirmation suppression bassin (même modèle que Clients) */}
-        {showDeleteBassinModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="w-full max-w-xl mx-4 rounded-2xl bg-white p-6 shadow-xl">
-              <h3 className="text-lg font-semibold text-red-600">Supprimer ce bassin?</h3>
 
-              <p className="mt-2 text-sm text-ct-gray">
-                Cette action est permanente.
-              </p>
+      {/* Modal confirmation suppression bassin */}
+      {showDeleteBassinModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-xl mx-4 rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-red-600">Supprimer ce bassin?</h3>
 
-              <p className="mt-4 text-sm font-medium text-ct-grayDark">
-                Pour confirmer, écrivez exactement :{' '}
-                <span className="font-semibold">SUPPRIMER</span>
-              </p>
+            <p className="mt-2 text-sm text-ct-gray">
+              Cette action est permanente.
+            </p>
 
-              <input
-                value={deleteConfirmText}
-                onChange={(e) => setDeleteConfirmText(e.target.value)}
-                placeholder="SUPPRIMER"
-                className="mt-2 w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-              />
+            <p className="mt-4 text-sm font-medium text-ct-grayDark">
+              Pour confirmer, écrivez exactement :{' '}
+              <span className="font-semibold">SUPPRIMER</span>
+            </p>
 
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={closeDeleteBassinModal}
-                  disabled={deletingBassin}
-                >
-                  Annuler
-                </button>
+            <input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="SUPPRIMER"
+              className="mt-2 w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+            />
 
-                <button
-                  type="button"
-                  className={`btn-danger ${
-                    deleteConfirmText !== 'SUPPRIMER' || deletingBassin
-                      ? 'opacity-50 cursor-not-allowed'
-                      : ''
-                  }`}
-                  onClick={handleDeleteBassin}
-                  disabled={deleteConfirmText !== 'SUPPRIMER' || deletingBassin}
-                >
-                  {deletingBassin ? 'Suppression…' : 'Confirmer la suppression'}
-                </button>
-              </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={closeDeleteBassinModal}
+                disabled={deletingBassin}
+              >
+                Annuler
+              </button>
+
+              <button
+                type="button"
+                className={`btn-danger ${
+                  deleteConfirmText !== 'SUPPRIMER' || deletingBassin
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
+                }`}
+                onClick={handleDeleteBassin}
+                disabled={deleteConfirmText !== 'SUPPRIMER' || deletingBassin}
+              >
+                {deletingBassin ? 'Suppression…' : 'Confirmer la suppression'}
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
     </section>
   )
 }
