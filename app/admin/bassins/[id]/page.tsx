@@ -127,11 +127,17 @@ function toGeoJSONPoint(pos: { lat: number; lng: number } | null): GeoJSONPoint 
   return { type: 'Point', coordinates: [pos.lng, pos.lat] }
 }
 
-function sanitizeFileName(name: string) {
-  return name
-    .replace(/[^\w.\- ()À-ÿ]/g, '_')
-    .replace(/\s+/g, ' ')
-    .trim()
+function sanitizeStorageKey(name: string) {
+  const n = (name || 'fichier')
+    .normalize('NFD') // sépare accents
+    .replace(/[\u0300-\u036f]/g, '') // enlève accents
+    .replace(/[/\\]/g, '_') // enlève slash/backslash
+    .replace(/\s+/g, '_') // espaces -> _
+    .replace(/[^A-Za-z0-9._-]/g, '_') // garde seulement safe
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+
+  return n.length ? n : 'fichier'
 }
 
 export default function AdminBassinDetailPage() {
@@ -1093,10 +1099,8 @@ export default function AdminBassinDetailPage() {
     // Upload fichiers (si ajoutés)
     if (saved && intNewFiles.length > 0) {
       for (const f of intNewFiles) {
-        const ext = f.name.split('.').pop() || ''
-        const cleanName = sanitizeFileName(f.name)
-        // IMPORTANT: la policy Storage attend que le 1er segment du chemin = bassin.id
-        const filePath = `${bassin.id}/${saved.id}/${crypto.randomUUID()}${ext ? '.' + ext : ''}-${cleanName}`
+        const safeName = sanitizeStorageKey(f.name || 'fichier.pdf')
+        const filePath = `${bassin.id}/${saved.id}/${crypto.randomUUID()}-${safeName}`
 
         const { error: upErr } = await supabaseBrowser.storage
           .from('interventions')

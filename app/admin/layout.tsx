@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import Image from 'next/image'
 
 type NavItem = {
   label: string
@@ -15,7 +16,7 @@ type NavItem = {
 
 const primaryNav: NavItem[] = [
   {
-    label: 'Dashboard',
+    label: 'Tableau de bord',
     description: 'Vue globale des indicateurs',
     href: '/admin',
   },
@@ -61,6 +62,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  // Nom complet affiché dans le header
+  const [userFullName, setUserFullName] = useState<string>('')
+
   const handleLogout = async () => {
     await supabaseBrowser.auth.signOut()
     router.push('/login')
@@ -86,7 +90,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
         const { data: profile, error: profileError } = await supabaseBrowser
           .from('user_profiles')
-          .select('role')
+          .select('role, full_name')
           .eq('user_id', user.id) // IMPORTANT : colonne user_id (conformément à ton schéma actuel)
           .single()
 
@@ -97,10 +101,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         }
 
         if (profile.role !== 'admin') {
-          setErrorMsg("Accès refusé : rôle non administrateur.")
+          setErrorMsg('Accès refusé : rôle non administrateur.')
           router.replace('/login')
           return
         }
+
+        // Nom complet (depuis user_profiles.full_name)
+        setUserFullName((profile.full_name as string | null) || '')
 
         setChecking(false)
       } catch (err) {
@@ -185,21 +192,25 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         ].join(' ')}
       >
         {/* Logo + titre */}
-        <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/95 shadow-lg">
-            <span className="text-xs font-bold tracking-tight text-[#1F4E79]">
-              CT
-            </span>
+          <div className="flex items-center gap-4 border-b border-white/10 px-5 py-4">
+            <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg">
+              <Image
+                src="/brand/connect-toit-icon.png"
+                alt="Connect-Toit"
+                width={256}
+                height={256}
+                quality={100}
+                className="object-cover h-24 w-24 md:h-34 md:w-34"
+                priority
+              />
+            </div>
+
+            <div className="flex flex-col">
+              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-100/80">
+                Connect-Toit
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-100/80">
-              Conseil-Toit
-            </span>
-            <span className="text-sm font-semibold text-white">
-              Portail administrateur
-            </span>
-          </div>
-        </div>
 
         {/* Navigation principale */}
         <nav className="flex-1 overflow-y-auto px-4 py-4">
@@ -277,6 +288,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </span>
           <div className="h-7 w-7 rounded-full bg-[#1F4E79]/90" />
         </header>
+
+        {/* Header statique (desktop) : pleine largeur jusqu'au sidebar */}
+        <div className="hidden md:block border-b border-slate-200/70 bg-white/95">
+          <div className="flex items-center px-6 py-4 lg:px-8">
+            <span className="text-base font-semibold text-slate-900">
+              Bonjour{userFullName ? ` ${userFullName}` : ''}
+            </span>
+          </div>
+        </div>
 
         <main className="admin-main flex-1 px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
           {children}
