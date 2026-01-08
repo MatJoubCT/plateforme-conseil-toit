@@ -4,20 +4,25 @@ import { useEffect, useState, FormEvent, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/Card'
-import {
-  DataTable,
-  DataTableHeader,
-  DataTableBody,
-} from '@/components/ui/DataTable'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import { GoogleMap, Polygon, useLoadScript } from '@react-google-maps/api'
+import {
+  Building2,
+  ChevronLeft,
+  Pencil,
+  Plus,
+  Layers,
+  MapPin,
+  User,
+  Clock,
+  Hash,
+  StickyNote,
+  X,
+  AlertTriangle,
+  Map,
+  Calendar,
+  Ruler,
+} from 'lucide-react'
 
 type GeoJSONPolygon = {
   type: 'Polygon'
@@ -211,12 +216,12 @@ export default function AdminBatimentDetailPage() {
 
   if (!batimentId) {
     return (
-      <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-ct-primary">Bâtiment</h1>
-        <p className="text-sm text-red-600">
-          Identifiant du bâtiment manquant dans l’URL.
-        </p>
-      </section>
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-8 py-6 text-center shadow-sm">
+          <AlertTriangle className="mx-auto h-10 w-10 text-red-500 mb-3" />
+          <p className="text-sm font-medium text-red-700">Identifiant du bâtiment manquant dans l'URL.</p>
+        </div>
+      </div>
     )
   }
 
@@ -231,42 +236,50 @@ export default function AdminBatimentDetailPage() {
 
   if (loading) {
     return (
-      <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-ct-primary">Bâtiment</h1>
-        <p className="text-sm text-ct-gray">Chargement des données…</p>
-      </section>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">Chargement du bâtiment…</p>
+        </div>
+      </div>
     )
   }
 
   if (errorMsg) {
     return (
-      <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-ct-primary">Bâtiment</h1>
-        <p className="text-sm text-red-600">Erreur : {errorMsg}</p>
-        <button
-          onClick={() => router.push('/admin/batiments')}
-          className="btn-secondary"
-        >
-          Retour à la liste des bâtiments
-        </button>
-      </section>
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-8 py-6 text-center shadow-sm">
+          <AlertTriangle className="mx-auto h-10 w-10 text-red-500 mb-3" />
+          <p className="text-sm font-medium text-red-700 mb-4">Erreur : {errorMsg}</p>
+          <button
+            onClick={() => router.push('/admin/batiments')}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Retour aux bâtiments
+          </button>
+        </div>
+      </div>
     )
   }
 
   if (!batiment) {
     return (
-      <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-ct-primary">Bâtiment</h1>
-        <p className="text-sm text-red-600">
-          Le bâtiment demandé est introuvable.
-        </p>
-        <button
-          onClick={() => router.push('/admin/batiments')}
-          className="btn-secondary"
-        >
-          Retour à la liste des bâtiments
-        </button>
-      </section>
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="rounded-2xl border border-slate-200 bg-white px-8 py-6 text-center shadow-sm">
+          <Building2 className="mx-auto h-10 w-10 text-slate-400 mb-3" />
+          <p className="text-sm font-medium text-slate-600 mb-4">Le bâtiment demandé est introuvable.</p>
+          <button
+            onClick={() => router.push('/admin/batiments')}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Retour aux bâtiments
+          </button>
+        </div>
+      </div>
     )
   }
 
@@ -417,239 +430,366 @@ export default function AdminBatimentDetailPage() {
     }
   }
 
+  // Calcul des stats
+  const totalSurface = bassins.reduce((acc, b) => {
+    if (b.surface_m2 != null) {
+      return acc + Math.round(b.surface_m2 * 10.7639)
+    }
+    return acc
+  }, 0)
+
+  const bassinsAvecPolygone = bassins.filter(
+    (b) => b.polygone_geojson && b.polygone_geojson.coordinates && b.polygone_geojson.coordinates[0]?.length > 0
+  ).length
+
   return (
     <section className="space-y-6">
-      {/* En-tête */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-ct-gray mb-1">
-            Client
-          </p>
-          <p className="text-sm font-medium text-ct-grayDark">{clientName}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-ct-primary">
-            {batiment.name || 'Bâtiment sans nom'}
-          </h1>
-          <p className="mt-1 text-sm text-ct-gray">
-            {batiment.address && (
-              <>
-                {batiment.address}
-                {', '}
-              </>
-            )}
-            {batiment.city && (
-              <>
-                {batiment.city}
-                {', '}
-              </>
-            )}
-            {batiment.postal_code}
-          </p>
+      {/* ========== HEADER ========== */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+        {/* Décoration background */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
+          <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href="/admin/batiments" className="btn-secondary">
-            ← Retour aux bâtiments
-          </Link>
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={openEditModal}
-          >
-            Modifier le bâtiment
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={openAddBassinModal}
-          >
-            Ajouter un bassin
-          </button>
-        </div>
-      </div>
+        <div className="relative z-10">
+          {/* Breadcrumb */}
+          <div className="mb-4 flex items-center gap-2 text-sm">
+            <Link
+              href="/admin/batiments"
+              className="flex items-center gap-1.5 text-white/70 transition-colors hover:text-white"
+            >
+              <Building2 className="h-4 w-4" />
+              <span>Bâtiments</span>
+            </Link>
+            <span className="text-white/40">/</span>
+            <span className="font-medium text-white">{batiment.name || 'Sans nom'}</span>
+          </div>
 
-      {/* Grille principale : table bassins + carte */}
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)]">
-        {/* Colonne gauche : table des bassins */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Bassins de toiture</CardTitle>
-            <CardDescription>
-              Liste des bassins associés à ce bâtiment avec leur état, membrane
-              et durée de vie.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {bassins.length === 0 ? (
-              <p className="text-sm text-ct-gray">
-                Aucun bassin n’est encore associé à ce bâtiment.
-              </p>
-            ) : (
-              <DataTable maxHeight={480}>
-                <table className="w-full table-fixed">
-                  <DataTableHeader>
-                    <tr>
-                      <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wide text-ct-grayDark">
-                        Nom du bassin
-                      </th>
-                      <th className="w-[130px] px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wide text-ct-grayDark">
-                        État
-                      </th>
-                      <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wide text-ct-grayDark">
-                        Durée de vie résiduelle
-                      </th>
-                      <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wide text-ct-grayDark">
-                        Type de membrane
-                      </th>
-                      <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wide text-ct-grayDark">
-                        Surface (pi²)
-                      </th>
-                      <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wide text-ct-grayDark">
-                        Dernière réfection
-                      </th>
-                    </tr>
-                  </DataTableHeader>
+          {/* Titre + actions */}
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
+                  <Building2 className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-white">
+                    {batiment.name || 'Bâtiment sans nom'}
+                  </h1>
+                  <p className="mt-0.5 text-sm text-white/70">
+                    {batiment.address && <>{batiment.address}, </>}
+                    {batiment.city && <>{batiment.city}, </>}
+                    {batiment.postal_code}
+                  </p>
+                </div>
+              </div>
 
-                  <DataTableBody>
-                    {bassins.map((b) => {
-                      const membraneLabel =
-                        membranes.find((m) => m.id === b.membrane_type_id)
-                          ?.label ?? 'N/D'
-
-                      const etatLabel =
-                        etats.find((e) => e.id === b.etat_id)?.label ??
-                        'Non évalué'
-
-                      const dureeLabel =
-                        b.duree_vie_text ??
-                        durees.find((d) => d.id === b.duree_vie_id)?.label ??
-                        'Non définie'
-
-                      const surfaceFt2 =
-                        b.surface_m2 != null
-                          ? Math.round(b.surface_m2 * 10.7639)
-                          : null
-
-                      const stateBadge = mapEtatToStateBadge(etatLabel)
-
-                      return (
-                        <tr
-                          key={b.id}
-                          onMouseEnter={() => setHoveredBassinId(b.id)}
-                          onMouseLeave={() => setHoveredBassinId(null)}
-                          className={`cursor-pointer hover:bg-ct-primaryLight/10 ${
-                            hoveredBassinId === b.id
-                              ? 'bg-ct-primaryLight/10'
-                              : ''
-                          }`}
-                          onClick={() => router.push(`/admin/bassins/${b.id}`)}
-                        >
-                          <td className="px-3 py-2 align-middle">
-                            <div className="flex flex-col">
-                              <span className="font-medium text-ct-grayDark">
-                                {b.name || 'Bassin sans nom'}
-                              </span>
-                              {b.reference_interne && (
-                                <span className="text-xs text-ct-gray">
-                                  Réf. interne : {b.reference_interne}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 align-middle whitespace-nowrap">
-                            <StateBadge state={stateBadge} />
-                          </td>
-                          <td className="px-3 py-2 align-middle">{dureeLabel}</td>
-                          <td className="px-3 py-2 align-middle">
-                            {membraneLabel}
-                          </td>
-                          <td className="px-3 py-2 align-middle">
-                            {surfaceFt2 != null ? `${surfaceFt2} pi²` : 'n/d'}
-                          </td>
-                          <td className="px-3 py-2 align-middle">
-                            {b.date_derniere_refection || '—'}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </DataTableBody>
-                </table>
-              </DataTable>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Carte Google Maps */}
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Carte Google Maps</CardTitle>
-              <CardDescription>
-                Visualisation des polygones des bassins sur l’image satellite.
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <BatimentBasinsMap
-              center={mapCenter}
-              bassins={bassins}
-              etats={etats}
-              hoveredBassinId={hoveredBassinId}
-              onHoverBassin={setHoveredBassinId}
-            />
-          </CardContent>
-        </Card>
-      </section>
-
-      {/* Modal édition bâtiment */}
-      {editOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm"
-          onClick={closeEditModal}
-        >
-          <div
-            className="w-full max-w-2xl rounded-2xl bg-ct-white p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-ct-primary">
-                  Modifier le bâtiment
-                </h2>
-                <p className="mt-1 text-xs text-ct-gray">
-                  Mettez à jour les informations générales et le client associé.
-                </p>
+              {/* Stats rapides */}
+              <div className="mt-4 flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                  <User className="h-4 w-4 text-white/70" />
+                  <span className="text-sm text-white/90">{clientName}</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                  <Layers className="h-4 w-4 text-white/70" />
+                  <span className="text-sm text-white/90">
+                    {bassins.length} bassin{bassins.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                  <Ruler className="h-4 w-4 text-white/70" />
+                  <span className="text-sm text-white/90">
+                    {totalSurface > 0 ? `${totalSurface.toLocaleString('fr-CA')} pi²` : 'N/D'}
+                  </span>
+                </div>
               </div>
             </div>
 
+            {/* Boutons d'action */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/admin/batiments"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/20 hover:border-white/50"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Bâtiments
+              </Link>
+              <button
+                type="button"
+                onClick={openEditModal}
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#1F4E79] shadow-lg transition-all hover:bg-white/90 hover:shadow-xl"
+              >
+                <Pencil className="h-4 w-4" />
+                Modifier
+              </button>
+              <button
+                type="button"
+                onClick={openAddBassinModal}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:bg-emerald-600 hover:shadow-xl"
+              >
+                <Plus className="h-4 w-4" />
+                Ajouter un bassin
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ========== LAYOUT 2 COLONNES ========== */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)] lg:items-start">
+        
+        {/* ===== COLONNE GAUCHE : LISTE DES BASSINS ===== */}
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
+                  <Layers className="h-5 w-5 text-[#1F4E79]" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                    Bassins de toiture
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {bassins.length} bassin{bassins.length !== 1 ? 's' : ''} associé{bassins.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={openAddBassinModal}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#1F4E79] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#163555]"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Ajouter
+              </button>
+            </div>
+          </div>
+
+          <div className="p-5">
+            {bassins.length === 0 ? (
+              <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 py-12 text-center">
+                <Layers className="mx-auto h-12 w-12 text-slate-300 mb-4" />
+                <p className="text-sm font-medium text-slate-600 mb-2">
+                  Aucun bassin pour ce bâtiment
+                </p>
+                <p className="text-xs text-slate-500 mb-4">
+                  Commencez par ajouter un premier bassin de toiture
+                </p>
+                <button
+                  type="button"
+                  onClick={openAddBassinModal}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#1F4E79] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#163555]"
+                >
+                  <Plus className="h-4 w-4" />
+                  Ajouter un bassin
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                {bassins.map((b) => {
+                  const membraneLabel =
+                    membranes.find((m) => m.id === b.membrane_type_id)?.label ?? 'N/D'
+
+                  const etatLabel =
+                    etats.find((e) => e.id === b.etat_id)?.label ?? 'Non évalué'
+
+                  const dureeLabel =
+                    b.duree_vie_text ??
+                    durees.find((d) => d.id === b.duree_vie_id)?.label ??
+                    'Non définie'
+
+                  const surfaceFt2 =
+                    b.surface_m2 != null
+                      ? Math.round(b.surface_m2 * 10.7639)
+                      : null
+
+                  const stateBadge = mapEtatToStateBadge(etatLabel)
+                  const isHovered = hoveredBassinId === b.id
+                  const hasPolygon = b.polygone_geojson && b.polygone_geojson.coordinates && b.polygone_geojson.coordinates[0]?.length > 0
+
+                  return (
+                    <div
+                      key={b.id}
+                      onMouseEnter={() => setHoveredBassinId(b.id)}
+                      onMouseLeave={() => setHoveredBassinId(null)}
+                      onClick={() => router.push(`/admin/bassins/${b.id}`)}
+                      className={`group cursor-pointer rounded-xl border p-4 transition-all ${
+                        isHovered
+                          ? 'border-[#1F4E79] bg-[#1F4E79]/5 shadow-md'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          {/* Nom + état */}
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`text-sm font-semibold ${isHovered ? 'text-[#1F4E79]' : 'text-slate-800'}`}>
+                              {b.name || 'Bassin sans nom'}
+                            </span>
+                            <StateBadge state={stateBadge} />
+                          </div>
+
+                          {/* Infos secondaires */}
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-500">
+                            <div className="flex items-center gap-1.5">
+                              <Layers className="h-3.5 w-3.5 text-slate-400" />
+                              <span>{membraneLabel}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Ruler className="h-3.5 w-3.5 text-slate-400" />
+                              <span>{surfaceFt2 != null ? `${surfaceFt2.toLocaleString('fr-CA')} pi²` : 'N/D'}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="h-3.5 w-3.5 text-slate-400" />
+                              <span>{dureeLabel}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                              <span>{b.date_derniere_refection || '—'}</span>
+                            </div>
+                          </div>
+
+                          {/* Référence interne */}
+                          {b.reference_interne && (
+                            <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
+                              <Hash className="h-3.5 w-3.5" />
+                              <span>Réf. : {b.reference_interne}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Indicateur polygone */}
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                          hasPolygon
+                            ? 'bg-green-100 text-green-600'
+                            : 'bg-slate-100 text-slate-400'
+                        }`}>
+                          <MapPin className="h-4 w-4" />
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ===== COLONNE DROITE : CARTE ===== */}
+        <div className="lg:sticky lg:top-6">
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
+                  <Map className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                    Carte Google Maps
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {bassinsAvecPolygone} polygone{bassinsAvecPolygone !== 1 ? 's' : ''} visible{bassinsAvecPolygone !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4">
+              <BatimentBasinsMap
+                center={mapCenter}
+                bassins={bassins}
+                etats={etats}
+                hoveredBassinId={hoveredBassinId}
+                onHoverBassin={setHoveredBassinId}
+              />
+
+              {/* Légende */}
+              {bassinsAvecPolygone > 0 && (
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-slate-500">
+                  <p className="text-center">
+                    Cliquez sur un polygone pour voir le détail du bassin
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Notes du bâtiment */}
+          {batiment.notes && (
+            <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10">
+                    <StickyNote className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                    Notes du bâtiment
+                  </h2>
+                </div>
+              </div>
+              <div className="p-5">
+                <p className="text-sm leading-relaxed text-slate-600 whitespace-pre-line">
+                  {batiment.notes}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ========== MODALS ========== */}
+
+      {/* Modal édition bâtiment */}
+      {editOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Modifier le bâtiment</h3>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  Mettez à jour les informations générales et le client associé
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditModal}
+                disabled={editSaving}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
             {editError && (
-              <p className="mb-3 text-sm text-red-600">{editError}</p>
+              <div className="mx-6 mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
+                <p className="text-sm text-red-700">{editError}</p>
+              </div>
             )}
 
-            <form
-              onSubmit={handleEditSubmit}
-              className="grid gap-4 text-sm md:grid-cols-2"
-            >
-              <div className="md:col-span-2 space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Nom du bâtiment
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-5">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Nom du bâtiment <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   required
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                 />
               </div>
 
-              <div className="md:col-span-2 space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
                   Client
                 </label>
                 <select
                   value={editClientId}
                   onChange={(e) => setEditClientId(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                 >
                   <option value="">Aucun client</option>
                   {clients.map((c) => (
@@ -660,90 +800,96 @@ export default function AdminBatimentDetailPage() {
                 </select>
               </div>
 
-              <div className="md:col-span-2 space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
                   Adresse
                 </label>
                 <input
                   type="text"
                   value={editAddress}
                   onChange={(e) => setEditAddress(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Ville
-                </label>
-                <input
-                  type="text"
-                  value={editCity}
-                  onChange={(e) => setEditCity(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Ville
+                  </label>
+                  <input
+                    type="text"
+                    value={editCity}
+                    onChange={(e) => setEditCity(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Code postal
+                  </label>
+                  <input
+                    type="text"
+                    value={editPostalCode}
+                    onChange={(e) => setEditPostalCode(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Code postal
-                </label>
-                <input
-                  type="text"
-                  value={editPostalCode}
-                  onChange={(e) => setEditPostalCode(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Latitude
+                  </label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={editLatitude}
+                    onChange={(e) => setEditLatitude(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Longitude
+                  </label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={editLongitude}
+                    onChange={(e) => setEditLongitude(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Latitude
-                </label>
-                <input
-                  type="number"
-                  step="0.000001"
-                  value={editLatitude}
-                  onChange={(e) => setEditLatitude(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Longitude
-                </label>
-                <input
-                  type="number"
-                  step="0.000001"
-                  value={editLongitude}
-                  onChange={(e) => setEditLongitude(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                />
-              </div>
-
-              <div className="md:col-span-2 space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
                   Notes internes
                 </label>
                 <textarea
                   rows={3}
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                 />
               </div>
 
-              <div className="mt-4 md:col-span-2 flex justify-end gap-3">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
                 <button
                   type="button"
-                  className="btn-secondary"
                   onClick={closeEditModal}
                   disabled={editSaving}
+                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   Annuler
                 </button>
-                <button type="submit" className="btn-primary" disabled={editSaving}>
+                <button
+                  type="submit"
+                  disabled={editSaving}
+                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+                >
                   {editSaving ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
               </div>
@@ -754,170 +900,177 @@ export default function AdminBatimentDetailPage() {
 
       {/* Modal ajout bassin */}
       {addBassinOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm"
-          onClick={closeAddBassinModal}
-        >
-          <div
-            className="w-full max-w-2xl rounded-2xl bg-ct-white p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-ct-primary">
-                Ajouter un bassin
-              </h2>
-              <p className="mt-1 text-xs text-ct-gray">
-                Créez un nouveau bassin pour ce bâtiment. Le polygone sera dessiné
-                par la suite dans la fiche du bassin.
-              </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Ajouter un bassin</h3>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  Le polygone sera dessiné par la suite dans la fiche du bassin
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeAddBassinModal}
+                disabled={addBassinSaving}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
             {addBassinError && (
-              <p className="mb-3 text-sm text-red-600">{addBassinError}</p>
+              <div className="mx-6 mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
+                <p className="text-sm text-red-700">{addBassinError}</p>
+              </div>
             )}
 
-            <form
-              onSubmit={handleAddBassinSubmit}
-              className="grid gap-4 text-sm md:grid-cols-2"
-            >
-              <div className="md:col-span-2 space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Nom du bassin
+            <form onSubmit={handleAddBassinSubmit} className="p-6 space-y-5">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Nom du bassin <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={addBassinName}
                   onChange={(e) => setAddBassinName(e.target.value)}
                   required
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Type de membrane
-                </label>
-                <select
-                  value={addBassinMembraneId}
-                  onChange={(e) => setAddBassinMembraneId(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                >
-                  <option value="">Non défini</option>
-                  {membranes.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Type de membrane
+                  </label>
+                  <select
+                    value={addBassinMembraneId}
+                    onChange={(e) => setAddBassinMembraneId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  >
+                    <option value="">Non défini</option>
+                    {membranes.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Surface (pi²)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={addBassinSurface}
+                    onChange={(e) => setAddBassinSurface(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Surface (pi²)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={addBassinSurface}
-                  onChange={(e) => setAddBassinSurface(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Année d'installation
+                  </label>
+                  <input
+                    type="number"
+                    value={addBassinAnnee}
+                    onChange={(e) => setAddBassinAnnee(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Date de la dernière réfection
+                  </label>
+                  <input
+                    type="date"
+                    value={addBassinDerniereRef}
+                    onChange={(e) => setAddBassinDerniereRef(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Année d&apos;installation
-                </label>
-                <input
-                  type="number"
-                  value={addBassinAnnee}
-                  onChange={(e) => setAddBassinAnnee(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    État du bassin
+                  </label>
+                  <select
+                    value={addBassinEtatId}
+                    onChange={(e) => setAddBassinEtatId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  >
+                    <option value="">Non défini</option>
+                    {etats.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Durée de vie
+                  </label>
+                  <select
+                    value={addBassinDureeId}
+                    onChange={(e) => setAddBassinDureeId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  >
+                    <option value="">Ex.: ± 5 à 7 ans</option>
+                    {durees.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Date de la dernière réfection
-                </label>
-                <input
-                  type="date"
-                  value={addBassinDerniereRef}
-                  onChange={(e) => setAddBassinDerniereRef(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  État du bassin
-                </label>
-                <select
-                  value={addBassinEtatId}
-                  onChange={(e) => setAddBassinEtatId(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                >
-                  <option value="">Non défini</option>
-                  {etats.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="md:col-span-2 space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Durée de vie (texte libre)
-                </label>
-                <select
-                  value={addBassinDureeId}
-                  onChange={(e) => setAddBassinDureeId(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                >
-                  <option value="">Ex.: ± 5 à 7 ans</option>
-                  {durees.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="md:col-span-2 space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
                   Référence interne
                 </label>
                 <input
                   type="text"
                   value={addBassinReferenceInterne}
                   onChange={(e) => setAddBassinReferenceInterne(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                 />
               </div>
 
-              <div className="md:col-span-2 space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
                   Notes internes
                 </label>
                 <textarea
                   rows={3}
                   value={addBassinNotes}
                   onChange={(e) => setAddBassinNotes(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                 />
               </div>
 
-              <div className="mt-4 md:col-span-2 flex justify-end gap-3">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
                 <button
                   type="button"
-                  className="btn-secondary"
                   onClick={closeAddBassinModal}
                   disabled={addBassinSaving}
+                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   Annuler
                 </button>
-                <button type="submit" className="btn-primary" disabled={addBassinSaving}>
+                <button
+                  type="submit"
+                  disabled={addBassinSaving}
+                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+                >
                   {addBassinSaving ? 'Ajout en cours…' : 'Ajouter'}
                 </button>
               </div>
@@ -1005,26 +1158,35 @@ function BatimentBasinsMap({
 
   if (!isLoaded) {
     return (
-      <div className="flex h-[480px] items-center justify-center text-sm text-ct-gray">
-        Chargement de la carte…
+      <div className="flex h-[480px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 rounded-lg bg-slate-200 animate-pulse" />
+          <p className="text-sm text-slate-500">Chargement de la carte…</p>
+        </div>
       </div>
     )
   }
 
   if (polygons.length === 0) {
     return (
-      <div className="flex h-[480px] items-center justify-center rounded-xl border border-ct-gray bg-ct-grayLight text-sm text-ct-gray">
-        Aucun polygone n’est encore dessiné pour ce bâtiment.
+      <div className="flex h-[480px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50">
+        <MapPin className="h-12 w-12 text-slate-300 mb-4" />
+        <p className="text-sm font-medium text-slate-600 mb-1">
+          Aucun polygone à afficher
+        </p>
+        <p className="text-xs text-slate-500 text-center max-w-xs">
+          Les polygones seront visibles une fois dessinés dans les fiches des bassins
+        </p>
       </div>
     )
   }
 
   return (
-    <div className="relative h-[480px] w-full overflow-hidden rounded-xl border border-ct-grayLight bg-ct-grayLight">
+    <div className="relative h-[480px] w-full overflow-hidden rounded-xl border border-slate-200">
       <GoogleMap
         mapContainerStyle={{ width: '100%', height: '100%' }}
-        defaultCenter={center}
-        defaultZoom={18}
+        center={center}
+        zoom={18}
         options={{
           mapTypeId: 'satellite',
           streetViewControl: false,

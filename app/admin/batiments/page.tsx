@@ -3,19 +3,20 @@
 import { useEffect, useState, ChangeEvent, FormEvent } from 'react'
 import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/Card'
-import {
-  DataTable,
-  DataTableHeader,
-  DataTableBody,
-} from '@/components/ui/DataTable'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
+import {
+  Building2,
+  Plus,
+  Search,
+  Filter,
+  MapPin,
+  Users,
+  Layers,
+  ChevronRight,
+  X,
+  AlertTriangle,
+  SlidersHorizontal,
+} from 'lucide-react'
 
 type BatimentRow = {
   id: string
@@ -202,6 +203,12 @@ export default function AdminBatimentsPage() {
     return true
   })
 
+  // Statistiques
+  const totalBatiments = batiments.length
+  const totalBassins = batiments.reduce((sum, b) => sum + b.nb_bassins, 0)
+  const totalClients = new Set(batiments.map((b) => b.client_id).filter(Boolean)).size
+  const totalVilles = cityOptions.length
+
   // --- Modal "Nouveau bâtiment" ---
 
   const openAddModal = () => {
@@ -283,61 +290,156 @@ export default function AdminBatimentsPage() {
     setAddOpen(false)
   }
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">Chargement des bâtiments…</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (errorMsg) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-8 py-6 text-center shadow-sm">
+          <AlertTriangle className="mx-auto h-10 w-10 text-red-500 mb-3" />
+          <p className="text-sm font-medium text-red-700">Erreur : {errorMsg}</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       <section className="space-y-6">
-        {/* En-tête (aligné avec la page client) */}
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold text-ct-primary">Bâtiments</h1>
-            <p className="text-sm text-ct-gray">
-              Vue d’ensemble des bâtiments, avec recherche, filtres et accès rapide à
-              chaque fiche.
-            </p>
+        {/* ========== HEADER ========== */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+          {/* Décoration background */}
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
+            <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
           </div>
 
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={openAddModal}
-          >
-            + Nouveau bâtiment
-          </button>
-        </div>
+          <div className="relative z-10">
+            {/* Titre + actions */}
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
+                    <Building2 className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-bold text-white">
+                      Bâtiments
+                    </h1>
+                    <p className="mt-0.5 text-sm text-white/70">
+                      Vue d'ensemble des bâtiments, avec recherche et filtres
+                    </p>
+                  </div>
+                </div>
 
-        {/* Filtres */}
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Filtres</CardTitle>
-              <CardDescription>
-                Affinez la liste par client, ville ou recherche texte.
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_minmax(0,1.3fr)]">
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Recherche
-                </label>
-                <input
-                  type="text"
-                  value={search}
-                  onChange={handleSearchChange}
-                  placeholder="Nom de bâtiment, adresse, client…"
-                  className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                />
+                {/* Stats rapides */}
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                    <Building2 className="h-4 w-4 text-white/70" />
+                    <span className="text-sm text-white/90">
+                      {totalBatiments} bâtiment{totalBatiments > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                    <Layers className="h-4 w-4 text-white/70" />
+                    <span className="text-sm text-white/90">
+                      {totalBassins} bassin{totalBassins > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                    <Users className="h-4 w-4 text-white/70" />
+                    <span className="text-sm text-white/90">
+                      {totalClients} client{totalClients > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                    <MapPin className="h-4 w-4 text-white/70" />
+                    <span className="text-sm text-white/90">
+                      {totalVilles} ville{totalVilles > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
+              {/* Bouton d'action */}
+              <button
+                type="button"
+                onClick={openAddModal}
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#1F4E79] shadow-lg transition-all hover:bg-white/90 hover:shadow-xl"
+              >
+                <Plus className="h-4 w-4" />
+                Nouveau bâtiment
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ========== FILTRES ========== */}
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
+                <SlidersHorizontal className="h-5 w-5 text-[#1F4E79]" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                  Filtres
+                </h2>
+                <p className="text-xs text-slate-500">Affinez la liste par client, ville ou recherche texte</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5">
+            <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_minmax(0,1.3fr)]">
+              {/* Recherche */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Recherche
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={handleSearchChange}
+                    placeholder="Nom de bâtiment, adresse, client…"
+                    className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-11 pr-10 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => setSearch('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Client */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
                   Client
                 </label>
                 <select
                   value={clientFilter}
                   onChange={handleClientFilterChange}
-                  className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                 >
                   <option value="all">Tous les clients</option>
                   {clientOptions.map((c) => (
@@ -348,14 +450,15 @@ export default function AdminBatimentsPage() {
                 </select>
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
+              {/* Ville */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
                   Ville
                 </label>
                 <select
                   value={cityFilter}
                   onChange={handleCityFilterChange}
-                  className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                 >
                   <option value="all">Toutes les villes</option>
                   {cityOptions.map((city) => (
@@ -366,153 +469,189 @@ export default function AdminBatimentsPage() {
                 </select>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Liste des bâtiments */}
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-              <div>
-                <CardTitle>Liste des bâtiments</CardTitle>
-                <CardDescription>
-                  {filteredBatiments.length} bâtiment
-                  {filteredBatiments.length > 1 ? 's' : ''} trouvé
-                  {filteredBatiments.length > 1 ? 's' : ''}.
-                </CardDescription>
+        {/* ========== LISTE DES BÂTIMENTS ========== */}
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
+                  <Building2 className="h-5 w-5 text-[#1F4E79]" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                    Liste des bâtiments
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    {filteredBatiments.length} bâtiment{filteredBatiments.length > 1 ? 's' : ''} trouvé{filteredBatiments.length > 1 ? 's' : ''}
+                  </p>
+                </div>
               </div>
             </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <p className="text-sm text-ct-gray">Chargement des bâtiments…</p>
-            ) : errorMsg ? (
-              <p className="text-sm text-red-600">{errorMsg}</p>
-            ) : filteredBatiments.length === 0 ? (
-              <p className="text-sm text-ct-gray">
-                Aucun bâtiment ne correspond aux filtres/recherche.
-              </p>
+          </div>
+
+          <div className="p-5">
+            {filteredBatiments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 mb-4">
+                  <Building2 className="h-8 w-8 text-slate-400" />
+                </div>
+                <p className="text-sm font-medium text-slate-600">Aucun bâtiment trouvé</p>
+                <p className="mt-1 text-xs text-slate-500">Modifiez vos filtres ou ajoutez un nouveau bâtiment</p>
+              </div>
             ) : (
-              <DataTable maxHeight={600}>
-                <table>
-                  <DataTableHeader>
-                    <tr>
-                      <th className="w-[26%] text-left text-xs font-semibold uppercase tracking-[0.14em] text-ct-gray">
-                        Nom du bâtiment
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200">
+                      <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Bâtiment
                       </th>
-                      <th className="w-[18%] text-left text-xs font-semibold uppercase tracking-[0.14em] text-ct-gray">
+                      <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Client
                       </th>
-                      <th className="w-[28%] text-left text-xs font-semibold uppercase tracking-[0.14em] text-ct-gray">
+                      <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Adresse
                       </th>
-                      <th className="w-[12%] text-left text-xs font-semibold uppercase tracking-[0.14em] text-ct-gray">
-                        Ville
+                      <th className="pb-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        État
                       </th>
-                      <th className="w-[6%] text-left text-xs font-semibold uppercase tracking-[0.14em] text-ct-gray">
+                      <th className="pb-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Bassins
                       </th>
+                      <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Action
+                      </th>
                     </tr>
-                  </DataTableHeader>
-                  <DataTableBody>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
                     {filteredBatiments.map((b) => (
                       <tr
                         key={b.id}
-                        className="transition-colors hover:bg-ct-grayLight/60 cursor-pointer"
-                        onClick={() => {
-                          window.location.href = `/admin/batiments/${b.id}`
-                        }}
+                        className="group cursor-pointer transition-colors hover:bg-slate-50"
+                        onClick={() => window.location.href = `/admin/batiments/${b.id}`}
                       >
-                        <td className="align-top py-3 text-sm">
-                          <div className="flex flex-col">
-                            <Link
-                              href={`/admin/batiments/${b.id}`}
-                              className="font-medium text-ct-primary underline-offset-2 hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {b.name ?? '(Sans nom)'}
-                            </Link>
-                            {b.postal_code && (
-                              <span className="text-[11px] text-ct-gray">
-                                {b.postal_code}
+                        <td className="py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-sm font-semibold text-white shadow-sm">
+                              {(b.name ?? 'B')[0].toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="block truncate font-semibold text-slate-800 transition-colors group-hover:text-[#1F4E79]">
+                                {b.name ?? '(Sans nom)'}
                               </span>
-                            )}
+                            </div>
                           </div>
                         </td>
-                        <td className="align-top py-3 text-sm text-ct-grayDark">
-                          {b.client_name ?? '—'}
+                        <td className="py-4">
+                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                            <Users className="h-3 w-3 text-slate-400" />
+                            {b.client_name ?? '—'}
+                          </span>
                         </td>
-                        <td className="align-top py-3 text-sm text-ct-grayDark">
-                          {b.address ?? '—'}
+                        <td className="py-4">
+                          <div className="flex items-start gap-2">
+                            <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
+                            <div className="min-w-0">
+                              <p className="truncate text-sm text-slate-700">
+                                {b.address || '—'}
+                              </p>
+                              <p className="truncate text-xs text-slate-500">
+                                {b.city || ''}
+                                {b.city && b.postal_code ? ', ' : ''}
+                                {b.postal_code || ''}
+                              </p>
+                            </div>
+                          </div>
                         </td>
-                        <td className="align-top py-3 text-sm text-ct-grayDark">
-                          {b.city ?? '—'}
+                        <td className="py-4 text-center">
+                          <StateBadge state={DEFAULT_BATIMENT_STATE} />
                         </td>
-                        <td className="align-top py-3 text-sm text-ct-grayDark">
-                          {b.nb_bassins}
+                        <td className="py-4 text-center">
+                          <span className={`inline-flex min-w-[2rem] items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            b.nb_bassins > 0 
+                              ? 'bg-[#1F4E79]/10 text-[#1F4E79]' 
+                              : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {b.nb_bassins}
+                          </span>
+                        </td>
+                        <td className="py-4 text-right">
+                          <Link
+                            href={`/admin/batiments/${b.id}`}
+                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-[#1F4E79] transition-all hover:bg-[#1F4E79]/10"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Voir
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Link>
                         </td>
                       </tr>
                     ))}
-                  </DataTableBody>
+                  </tbody>
                 </table>
-              </DataTable>
+              </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </section>
 
-      {/* Modal Nouveau bâtiment */}
+      {/* ========== MODAL NOUVEAU BÂTIMENT ========== */}
       {addOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={closeAddModal}
         >
           <div
-            className="w-full max-w-2xl rounded-2xl bg-ct-white p-6 shadow-2xl"
+            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex items-start justify-between gap-3">
+            {/* Header du modal */}
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
-                <h2 className="text-lg font-semibold text-ct-primary">
-                  Nouveau bâtiment
-                </h2>
-                <p className="mt-1 text-xs text-ct-gray">
-                  Créez un bâtiment et assignez-le à un client existant.
+                <h3 className="text-lg font-bold text-slate-800">Nouveau bâtiment</h3>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  Créez un bâtiment et assignez-le à un client existant
                 </p>
               </div>
               <button
                 type="button"
                 onClick={closeAddModal}
-                className="rounded-full border border-ct-grayLight px-2 py-1 text-xs text-ct-gray hover:bg-ct-grayLight/70 transition-colors"
                 disabled={addSaving}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
               >
-                Fermer
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddSubmit} className="space-y-4">
+            {/* Corps du modal */}
+            <form onSubmit={handleAddSubmit} className="p-6 space-y-5">
+              {/* Informations principales */}
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
-                    Nom du bâtiment *
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Nom du bâtiment <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={addName}
                     onChange={(e) => setAddName(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    placeholder="Ex: École Primaire Saint-Joseph"
                     required
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
-                    Client associé *
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Client associé <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={addClientId}
                     onChange={(e) => setAddClientId(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                     required
                   >
                     <option value="">Sélectionnez un client…</option>
@@ -523,100 +662,114 @@ export default function AdminBatimentsPage() {
                     ))}
                   </select>
                 </div>
+              </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+              {/* Localisation */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Adresse
                   </label>
                   <input
                     type="text"
                     value={addAddress}
                     onChange={(e) => setAddAddress(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                     placeholder="No civique, rue"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Ville
                   </label>
                   <input
                     type="text"
                     value={addCity}
                     onChange={(e) => setAddCity(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    placeholder="Montréal"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Code postal
                   </label>
                   <input
                     type="text"
                     value={addPostalCode}
                     onChange={(e) => setAddPostalCode(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    placeholder="H2X 1Y4"
                   />
                 </div>
+              </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
-                    Latitude (optionnel)
+              {/* Coordonnées GPS */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Latitude <span className="text-xs font-normal text-slate-400">(optionnel)</span>
                   </label>
                   <input
                     type="text"
                     value={addLatitude}
                     onChange={(e) => setAddLatitude(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                     placeholder="ex.: 46.12345"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
-                    Longitude (optionnel)
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Longitude <span className="text-xs font-normal text-slate-400">(optionnel)</span>
                   </label>
                   <input
                     type="text"
                     value={addLongitude}
                     onChange={(e) => setAddLongitude(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                     placeholder="ex.: -72.98765"
                   />
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-ct-grayDark">
+              {/* Notes */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
                   Notes internes
                 </label>
                 <textarea
                   value={addNotes}
                   onChange={(e) => setAddNotes(e.target.value)}
-                  rows={4}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                  rows={3}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  placeholder="Informations supplémentaires sur le bâtiment..."
                 />
               </div>
 
+              {/* Message d'erreur */}
               {addError && (
-                <p className="text-xs text-red-600">{addError}</p>
+                <div className="rounded-xl bg-red-50 border border-red-200 p-4">
+                  <p className="text-sm text-red-700">{addError}</p>
+                </div>
               )}
 
-              <div className="mt-2 flex items-center justify-end gap-2">
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={closeAddModal}
-                  className="btn-secondary px-3 py-1.5 text-xs"
                   disabled={addSaving}
+                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary px-3 py-1.5 text-xs"
                   disabled={addSaving}
+                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
                 >
                   {addSaving ? 'Enregistrement…' : 'Créer le bâtiment'}
                 </button>
