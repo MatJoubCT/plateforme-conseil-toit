@@ -523,14 +523,6 @@ export default function AdminBatimentDetailPage() {
                 <Pencil className="h-4 w-4" />
                 Modifier
               </button>
-              <button
-                type="button"
-                onClick={openAddBassinModal}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-all hover:bg-emerald-600 hover:shadow-xl"
-              >
-                <Plus className="h-4 w-4" />
-                Ajouter un bassin
-              </button>
             </div>
           </div>
         </div>

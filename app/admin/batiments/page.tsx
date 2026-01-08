@@ -212,6 +212,13 @@ export default function AdminBatimentsPage() {
   // --- Modal "Nouveau bâtiment" ---
 
   const openAddModal = () => {
+    setAddOpen(true)
+    setAddError(null)
+  }
+
+  const closeAddModal = () => {
+    setAddOpen(false)
+    setAddError(null)
     setAddName('')
     setAddClientId('')
     setAddAddress('')
@@ -220,74 +227,37 @@ export default function AdminBatimentsPage() {
     setAddLatitude('')
     setAddLongitude('')
     setAddNotes('')
-    setAddError(null)
-    setAddOpen(true)
   }
 
-  const closeAddModal = () => {
-    if (!addSaving) setAddOpen(false)
-  }
-
-  const handleAddSubmit = async (e: FormEvent) => {
+  const handleAddSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!addName.trim()) {
-      setAddError('Le nom du bâtiment est obligatoire.')
-      return
-    }
-    if (!addClientId) {
-      setAddError('Vous devez sélectionner un client existant.')
-      return
-    }
-
     setAddSaving(true)
     setAddError(null)
 
-    let latitude: number | null = null
-    let longitude: number | null = null
+    const lat = addLatitude.trim() ? parseFloat(addLatitude) : null
+    const lng = addLongitude.trim() ? parseFloat(addLongitude) : null
 
-    if (addLatitude.trim() !== '') {
-      const val = Number(addLatitude.replace(',', '.'))
-      if (Number.isNaN(val)) {
-        setAddError('La latitude doit être un nombre.')
-        setAddSaving(false)
-        return
-      }
-      latitude = val
-    }
-
-    if (addLongitude.trim() !== '') {
-      const val = Number(addLongitude.replace(',', '.'))
-      if (Number.isNaN(val)) {
-        setAddError('La longitude doit être un nombre.')
-        setAddSaving(false)
-        return
-      }
-      longitude = val
-    }
-
-    const payload = {
+    const { error: insertError } = await supabaseBrowser.from('batiments').insert({
       name: addName.trim(),
       client_id: addClientId,
       address: addAddress.trim() || null,
       city: addCity.trim() || null,
       postal_code: addPostalCode.trim() || null,
-      latitude,
-      longitude,
+      latitude: lat,
+      longitude: lng,
       notes: addNotes.trim() || null,
-    }
+    })
 
-    const { error } = await supabaseBrowser.from('batiments').insert([payload])
+    setAddSaving(false)
 
-    if (error) {
-      console.error('Erreur création bâtiment:', error)
-      setAddError(error.message)
-      setAddSaving(false)
+    if (insertError) {
+      console.error('Erreur insert batiment:', insertError)
+      setAddError(insertError.message)
       return
     }
 
-    await loadData()
-    setAddSaving(false)
-    setAddOpen(false)
+    closeAddModal()
+    void loadData()
   }
 
   // Loading state
@@ -410,15 +380,19 @@ export default function AdminBatimentsPage() {
                 <label className="block text-sm font-semibold text-slate-700">
                   Recherche
                 </label>
+
                 <div className="relative">
-                  <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
                   <input
                     type="text"
                     value={search}
                     onChange={handleSearchChange}
                     placeholder="Nom de bâtiment, adresse, client…"
-                    className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-11 pr-10 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pr-10 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    style={{ paddingLeft: '3rem' }}
                   />
+
                   {search && (
                     <button
                       type="button"
@@ -504,89 +478,104 @@ export default function AdminBatimentsPage() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <thead className="border-b-2 border-slate-200 bg-slate-50">
+                    <tr>
+                      <th className="py-4 pl-6 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
                         Bâtiment
                       </th>
-                      <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <th className="py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden md:table-cell">
                         Client
                       </th>
-                      <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Adresse
+                      <th className="py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden lg:table-cell">
+                        Localisation
                       </th>
-                      <th className="pb-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <th className="py-4 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
                         État
                       </th>
-                      <th className="pb-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <th className="py-4 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
                         Bassins
                       </th>
-                      <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <th className="py-4 pr-6 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
                         Action
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 bg-white">
                     {filteredBatiments.map((b) => (
-                      <tr
-                        key={b.id}
-                        className="group cursor-pointer transition-colors hover:bg-slate-50"
-                        onClick={() => window.location.href = `/admin/batiments/${b.id}`}
-                      >
-                        <td className="py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-sm font-semibold text-white shadow-sm">
-                              {(b.name ?? 'B')[0].toUpperCase()}
-                            </div>
-                            <div className="min-w-0">
-                              <span className="block truncate font-semibold text-slate-800 transition-colors group-hover:text-[#1F4E79]">
-                                {b.name ?? '(Sans nom)'}
-                              </span>
-                            </div>
+                      <tr key={b.id} className="group hover:bg-slate-50 transition-colors">
+                      {/* Nom du bâtiment */}
+                      <td className="py-4 pl-6">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-sm font-semibold text-white shadow-sm">
+                            {(b.name ?? 'B')[0].toUpperCase()}
                           </div>
+                          <div className="min-w-0">
+                            <span className="block truncate font-semibold text-slate-800 transition-colors group-hover:text-[#1F4E79]">
+                              {b.name || '(Sans nom)'}
+                            </span>
+                            <p className="truncate text-xs text-slate-500 md:hidden">
+                              {b.client_name || '—'}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                        {/* Client (caché sur mobile) */}
+                        <td className="py-4 hidden md:table-cell">
+                          <p className="text-sm text-slate-700">{b.client_name || '—'}</p>
                         </td>
-                        <td className="py-4">
-                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
-                            <Users className="h-3 w-3 text-slate-400" />
-                            {b.client_name ?? '—'}
-                          </span>
-                        </td>
-                        <td className="py-4">
+
+                        {/* Localisation (cachée sur mobile/tablet) */}
+                        <td className="py-4 hidden lg:table-cell">
                           <div className="flex items-start gap-2">
                             <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
-                            <div className="min-w-0">
-                              <p className="truncate text-sm text-slate-700">
-                                {b.address || '—'}
-                              </p>
-                              <p className="truncate text-xs text-slate-500">
-                                {b.city || ''}
-                                {b.city && b.postal_code ? ', ' : ''}
-                                {b.postal_code || ''}
-                              </p>
+                            <div className="text-sm">
+                              {b.city || b.address ? (
+                                <>
+                                  <p className="font-medium text-slate-700">{b.city || '—'}</p>
+                                  <p className="text-xs text-slate-500">{b.address || '—'}</p>
+                                </>
+                              ) : (
+                                <p className="text-slate-500">—</p>
+                              )}
                             </div>
                           </div>
                         </td>
-                        <td className="py-4 text-center">
-                          <StateBadge state={DEFAULT_BATIMENT_STATE} />
+
+                        {/* État (centré) */}
+                        <td className="py-4">
+                          <div className="flex justify-center">
+                            <StateBadge state={DEFAULT_BATIMENT_STATE} />
+                          </div>
                         </td>
-                        <td className="py-4 text-center">
-                          <span className={`inline-flex min-w-[2rem] items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-                            b.nb_bassins > 0 
-                              ? 'bg-[#1F4E79]/10 text-[#1F4E79]' 
-                              : 'bg-slate-100 text-slate-500'
-                          }`}>
-                            {b.nb_bassins}
-                          </span>
+
+                        {/* Nombre de bassins (centré) */}
+                        <td className="py-4">
+                          <div className="flex justify-center">
+                            <span
+                              className={`inline-flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold ${
+                                b.nb_bassins > 0
+                                  ? 'bg-[#1F4E79]/10 text-[#1F4E79]'
+                                  : 'bg-slate-100 text-slate-400'
+                              }`}
+                            >
+                              {b.nb_bassins}
+                            </span>
+                          </div>
                         </td>
-                        <td className="py-4 text-right">
-                          <Link
-                            href={`/admin/batiments/${b.id}`}
-                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-[#1F4E79] transition-all hover:bg-[#1F4E79]/10"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Voir
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </Link>
+
+                        {/* Action (centré) */}
+                        <td className="py-4 pr-6">
+                          <div className="flex justify-center">
+                            <Link
+                              href={`/admin/batiments/${b.id}`}
+                              className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-[#1F4E79] transition-all hover:bg-[#1F4E79]/10"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Voir
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     ))}

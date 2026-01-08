@@ -4,12 +4,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/Card'
+  Users,
+  Building2,
+  Layers,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Calendar,
+  Activity,
+} from 'lucide-react'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 
 type ClientRow = {
@@ -241,129 +245,291 @@ export default function AdminDashboardPage() {
     }
   }, [clients, batiments, bassins, etatsBassin, dureesBassin])
 
+  // Calcul des pourcentages
+  const totalBassinsNonBon = stateCounts.urgent + stateCounts.planifier + stateCounts.a_surveille
+  const pourcentageRisque = nbBassins > 0 ? Math.round((totalBassinsNonBon / nbBassins) * 100) : 0
+  const pourcentageBon = nbBassins > 0 ? Math.round((stateCounts.bon / nbBassins) * 100) : 0
+
   if (loading) {
     return (
-      <section className="space-y-4">
-        <p className="text-sm text-ct-gray">Chargement du dashboard…</p>
-      </section>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">Chargement du tableau de bord…</p>
+        </div>
+      </div>
     )
   }
 
   if (errorMsg) {
     return (
-      <section className="space-y-4">
-        <p className="text-sm text-red-600">Erreur : {errorMsg}</p>
-      </section>
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-8 py-6 text-center shadow-sm">
+          <AlertTriangle className="mx-auto h-10 w-10 text-red-500 mb-3" />
+          <p className="text-sm font-medium text-red-700">Erreur : {errorMsg}</p>
+        </div>
+      </div>
     )
   }
 
   return (
     <section className="space-y-6">
-      {/* En-tête */}
-      <div>
-        <h1 className="text-2xl font-semibold text-ct-primary">
-          Dashboard administrateur
-        </h1>
-        <p className="mt-1 text-sm text-ct-gray">
-          Vue globale des clients, bâtiments et bassins, avec un résumé de l’état
-          du parc de toitures.
-        </p>
-      </div>
+      {/* ========== HEADER ========== */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+        {/* Décoration background */}
+        <div className="pointer-events-none absolute inset-0 opacity-10">
+          <div className="absolute -right-4 -top-4 h-32 w-32 rounded-full bg-white blur-3xl" />
+          <div className="absolute -bottom-8 -left-8 h-40 w-40 rounded-full bg-white blur-3xl" />
+        </div>
 
-      {/* Cartes de KPIs */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Clients</CardTitle>
-            <CardDescription>Nombre de comptes clients</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-semibold text-ct-grayDark">
-              {nbClients}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Bâtiments</CardTitle>
-            <CardDescription>Adresses gérées</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-semibold text-ct-grayDark">
-              {nbBatiments}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Bassins</CardTitle>
-            <CardDescription>Unités de toiture suivies</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-semibold text-ct-grayDark">
-              {nbBassins}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Surface totale</CardTitle>
-            <CardDescription>Somme des surfaces de bassins</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-semibold text-ct-grayDark">
-              {Math.round(totalSurfaceFt2).toLocaleString('fr-CA')} pi²
-            </p>
-            <p className="mt-1 text-xs text-ct-gray">
-              ({Math.round(totalSurfaceM2).toLocaleString('fr-CA')} m²)
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Répartition par état */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,0.55fr)]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Bassins à risque</CardTitle>
-            <CardDescription>
-              Bassins classés urgent, à planifier ou à surveiller.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {bassinsRisque.length === 0 ? (
-              <p className="text-sm text-ct-gray">
-                Aucun bassin à risque identifié pour le moment.
+        <div className="relative z-10">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-white">
+                Tableau de bord administrateur
+              </h1>
+              <p className="mt-2 text-base text-white/80">
+                Vue d'ensemble du parc de toitures et analyse des priorités
               </p>
+            </div>
+            <div className="hidden sm:flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2 backdrop-blur-sm">
+              <Activity className="h-5 w-5 text-white" />
+              <span className="text-sm font-medium text-white">En temps réel</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ========== CARTES KPI PRINCIPALES ========== */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Clients */}
+        <div className="group overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all hover:shadow-md">
+          <div className="p-5">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
+                    <Users className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Clients actifs
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-3xl font-bold text-slate-800">{nbClients}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {nbBatiments} bâtiment{nbBatiments > 1 ? 's' : ''} total
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bâtiments */}
+        <div className="group overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all hover:shadow-md">
+          <div className="p-5">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10">
+                    <Building2 className="h-5 w-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Bâtiments
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-3xl font-bold text-slate-800">{nbBatiments}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {(nbBatiments / Math.max(nbClients, 1)).toFixed(1)} par client
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bassins */}
+        <div className="group overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all hover:shadow-md">
+          <div className="p-5">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10">
+                    <Layers className="h-5 w-5 text-violet-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Bassins
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-3xl font-bold text-slate-800">{nbBassins}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {(nbBassins / Math.max(nbBatiments, 1)).toFixed(1)} par bâtiment
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Surface totale */}
+        <div className="group overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all hover:shadow-md">
+          <div className="p-5">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
+                    <TrendingUp className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Surface totale
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-2xl font-bold text-slate-800">
+                  {Math.round(totalSurfaceFt2).toLocaleString('fr-CA')} pi²
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {Math.round(totalSurfaceM2).toLocaleString('fr-CA')} m²
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ========== BADGES D'IMPORTANCE / ALERTES ========== */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {/* Bassins urgents */}
+        <div className="overflow-hidden rounded-2xl border-2 border-red-200 bg-gradient-to-br from-red-50 to-white shadow-sm">
+          <div className="p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-red-500">
+                <AlertTriangle className="h-6 w-6 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
+                  Urgents
+                </p>
+                <p className="mt-1 text-3xl font-bold text-red-700">{stateCounts.urgent}</p>
+                <p className="mt-1 text-xs font-medium text-red-600">
+                  Intervention immédiate requise
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bassins à planifier */}
+        <div className="overflow-hidden rounded-2xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-white shadow-sm">
+          <div className="p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-orange-500">
+                <Calendar className="h-6 w-6 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">
+                  À planifier
+                </p>
+                <p className="mt-1 text-3xl font-bold text-orange-700">{stateCounts.planifier}</p>
+                <p className="mt-1 text-xs font-medium text-orange-600">
+                  Budget à prévoir sous 12-24 mois
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bassins à surveiller */}
+        <div className="overflow-hidden rounded-2xl border-2 border-yellow-200 bg-gradient-to-br from-yellow-50 to-white shadow-sm">
+          <div className="p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-yellow-500">
+                <Clock className="h-6 w-6 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-yellow-700">
+                  À surveiller
+                </p>
+                <p className="mt-1 text-3xl font-bold text-yellow-700">{stateCounts.a_surveille}</p>
+                <p className="mt-1 text-xs font-medium text-yellow-700">
+                  Inspection régulière nécessaire
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ========== GRILLE PRINCIPALE ========== */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,0.55fr)]">
+        {/* Liste des bassins à risque */}
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-500/10">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                  Bassins prioritaires
+                </h2>
+                <p className="text-xs text-slate-500">
+                  {bassinsRisque.length} bassin{bassinsRisque.length > 1 ? 's' : ''} nécessitant une attention
+                </p>
+              </div>
+              {totalBassinsNonBon > 0 && (
+                <div className="hidden sm:flex items-center gap-2 rounded-full bg-red-100 px-3 py-1.5">
+                  <span className="text-xs font-bold text-red-700">
+                    {pourcentageRisque}% à risque
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="p-5">
+            {bassinsRisque.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mb-4">
+                  <CheckCircle2 className="h-8 w-8 text-green-600" />
+                </div>
+                <p className="text-sm font-semibold text-slate-700">Excellent état général</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Aucun bassin à risque identifié pour le moment
+                </p>
+              </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-sm">
+                <table className="w-full">
                   <thead>
-                    <tr className="bg-ct-grayLight/60 text-left">
-                      <th className="border border-ct-grayLight px-3 py-2">
+                    <tr className="border-b border-slate-200">
+                      <th className="pb-3 pl-0 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Bassin
                       </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
+                      <th className="pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                         État
                       </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
+                      <th className="hidden lg:table-cell pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Bâtiment
                       </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
+                      <th className="hidden xl:table-cell pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Client
                       </th>
-                      <th className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                        Durée de vie
+                      <th className="pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Durée
                       </th>
-                      <th className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                        Surface (pi²)
+                      <th className="pb-3 pr-0 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Surface
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100">
                     {bassinsRisque.map((b) => {
                       const bat = b.batiment_id
                         ? batimentById.get(b.batiment_id)
@@ -384,38 +550,37 @@ export default function AdminDashboardPage() {
                       return (
                         <tr
                           key={b.id}
-                          className="hover:bg-ct-primaryLight/10 transition-colors cursor-pointer"
+                          className="group cursor-pointer transition-colors hover:bg-slate-50"
                           onClick={() => router.push(`/admin/bassins/${b.id}`)}
-                          role="button"
-                          tabIndex={0}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault()
-                              router.push(`/admin/bassins/${b.id}`)
-                            }
-                          }}
                         >
-                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap font-medium text-ct-grayDark">
-                            {b.name || '(Sans nom)'}
-                          </td>
-                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <StateBadge state={state} />
+                          <td className="py-3.5">
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-xs font-semibold text-white">
+                                {(b.name ?? 'B')[0].toUpperCase()}
+                              </div>
+                              <span className="font-semibold text-slate-800 transition-colors group-hover:text-[#1F4E79]">
+                                {b.name || '(Sans nom)'}
+                              </span>
                             </div>
                           </td>
-                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                          <td className="py-3.5 px-3">
+                            <StateBadge state={state} />
+                          </td>
+                          <td className="hidden lg:table-cell py-3.5 px-3 text-sm text-slate-600">
                             {bat?.name || '—'}
                           </td>
-                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                          <td className="hidden xl:table-cell py-3.5 px-3 text-sm text-slate-600">
                             {client?.name || '—'}
                           </td>
-                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+                          <td className="py-3.5 px-3 text-sm text-slate-600">
                             {dureeLib || 'Non définie'}
                           </td>
-                          <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                            {surfaceFt2 != null
-                              ? `${surfaceFt2.toLocaleString('fr-CA')} pi²`
-                              : 'n/d'}
+                          <td className="py-3.5 pr-0 text-right">
+                            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                              {surfaceFt2 != null
+                                ? `${surfaceFt2.toLocaleString('fr-CA')} pi²`
+                                : 'n/d'}
+                            </span>
                           </td>
                         </tr>
                       )
@@ -424,53 +589,106 @@ export default function AdminDashboardPage() {
                 </table>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Répartition des bassins</CardTitle>
-            <CardDescription>Par état global</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-2 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center">
-                  <StateBadge state="urgent" />
-                </div>
-                <span className="font-medium">{stateCounts.urgent}</span>
+        {/* Répartition par état */}
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
+                <Layers className="h-5 w-5 text-[#1F4E79]" />
               </div>
-
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center">
-                  <StateBadge state="planifier" />
-                </div>
-                <span className="font-medium">{stateCounts.planifier}</span>
-              </div>
-
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center">
-                  <StateBadge state="a_surveille" />
-                </div>
-                <span className="font-medium">{stateCounts.a_surveille}</span>
-              </div>
-
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center">
-                  <StateBadge state="bon" />
-                </div>
-                <span className="font-medium">{stateCounts.bon}</span>
-              </div>
-
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center">
-                  <StateBadge state="non_evalue" />
-                </div>
-                <span className="font-medium">{stateCounts.non_evalue}</span>
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                  Répartition
+                </h2>
+                <p className="text-xs text-slate-500">
+                  État global des bassins
+                </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+
+          <div className="p-5">
+            <div className="space-y-4">
+              {/* Urgent */}
+              <div className="group rounded-xl border border-red-200 bg-red-50/50 p-4 transition-all hover:shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <StateBadge state="urgent" />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-red-700">{stateCounts.urgent}</p>
+                    <p className="text-xs font-medium text-red-600">
+                      {nbBassins > 0 ? Math.round((stateCounts.urgent / nbBassins) * 100) : 0}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Planifier */}
+              <div className="group rounded-xl border border-orange-200 bg-orange-50/50 p-4 transition-all hover:shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <StateBadge state="planifier" />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-orange-700">{stateCounts.planifier}</p>
+                    <p className="text-xs font-medium text-orange-600">
+                      {nbBassins > 0 ? Math.round((stateCounts.planifier / nbBassins) * 100) : 0}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* À surveiller */}
+              <div className="group rounded-xl border border-yellow-200 bg-yellow-50/50 p-4 transition-all hover:shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <StateBadge state="a_surveille" />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-yellow-700">{stateCounts.a_surveille}</p>
+                    <p className="text-xs font-medium text-yellow-700">
+                      {nbBassins > 0 ? Math.round((stateCounts.a_surveille / nbBassins) * 100) : 0}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bon */}
+              <div className="group rounded-xl border border-green-200 bg-green-50/50 p-4 transition-all hover:shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <StateBadge state="bon" />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-green-700">{stateCounts.bon}</p>
+                    <p className="text-xs font-medium text-green-600">
+                      {pourcentageBon}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Non évalué */}
+              <div className="group rounded-xl border border-slate-200 bg-slate-50/50 p-4 transition-all hover:shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <StateBadge state="non_evalue" />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-slate-700">{stateCounts.non_evalue}</p>
+                    <p className="text-xs font-medium text-slate-600">
+                      {nbBassins > 0 ? Math.round((stateCounts.non_evalue / nbBassins) * 100) : 0}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   )

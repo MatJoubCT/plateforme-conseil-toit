@@ -5,12 +5,21 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/Card'
+  Users,
+  Building2,
+  ChevronLeft,
+  Pencil,
+  Plus,
+  Trash2,
+  MapPin,
+  User,
+  Mail,
+  Phone,
+  StickyNote,
+  Home,
+  X,
+  AlertTriangle,
+} from 'lucide-react'
 
 type ClientRecord = {
   id: string
@@ -118,7 +127,8 @@ export default function AdminClientDetailPage() {
       if (clientError || !clientData) {
         console.error('Erreur chargement client:', clientError)
         setErrorMsg(
-          clientError?.message || "Impossible de charger les informations du client."
+          clientError?.message ||
+            "Impossible de charger les informations du client."
         )
         setLoading(false)
         return
@@ -198,10 +208,7 @@ export default function AdminClientDetailPage() {
       notes: editNotes.trim() || null,
     }
 
-    const { error } = await supabaseBrowser
-      .from('clients')
-      .update(payload)
-      .eq('id', clientId)
+    const { error } = await supabaseBrowser.from('clients').update(payload).eq('id', clientId)
 
     if (error) {
       console.error('Erreur mise à jour client:', error)
@@ -238,10 +245,7 @@ export default function AdminClientDetailPage() {
 
     setDeleteSaving(true)
 
-    const { error } = await supabaseBrowser
-      .from('clients')
-      .delete()
-      .eq('id', clientId)
+    const { error } = await supabaseBrowser.from('clients').delete().eq('id', clientId)
 
     if (error) {
       console.error('Erreur suppression client:', error)
@@ -322,9 +326,7 @@ export default function AdminClientDetailPage() {
       notes: addNotes.trim() || null,
     }
 
-    const { error } = await supabaseBrowser
-      .from('batiments')
-      .insert([payload])
+    const { error } = await supabaseBrowser.from('batiments').insert([payload])
 
     if (error) {
       console.error('Erreur ajout bâtiment:', error)
@@ -340,388 +342,556 @@ export default function AdminClientDetailPage() {
 
   // --- Rendus ---
 
+  if (!clientId) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-8 py-6 text-center shadow-sm">
+          <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-red-500" />
+          <p className="text-sm font-medium text-red-700">
+            Identifiant du client manquant dans l'URL.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
-      <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-ct-primary">Client</h1>
-        <p className="text-sm text-ct-gray">Chargement des informations…</p>
-      </section>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">
+            Chargement du client…
+          </p>
+        </div>
+      </div>
     )
   }
 
   if (errorMsg || !client) {
     return (
-      <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-ct-primary">Client</h1>
-        <p className="text-sm text-red-600">
-          {errorMsg ?? 'Client introuvable.'}
-        </p>
-      </section>
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-8 py-6 text-center shadow-sm">
+          <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-red-500" />
+          <p className="text-sm font-medium text-red-700 mb-4">
+            {errorMsg ?? 'Client introuvable.'}
+          </p>
+          <button
+            onClick={() => router.push('/admin/clients')}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Retour aux clients
+          </button>
+        </div>
+      </div>
     )
   }
 
   const clientName = client.name ?? '(Sans nom)'
+  const fullAddress = [
+    client.address ?? null,
+    client.city ?? null,
+    client.postal_code ?? null,
+  ]
+    .filter(Boolean)
+    .join(', ')
 
   return (
     <>
       <section className="space-y-6">
-        {/* ENTÊTE PAGE */}
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ct-gray">
-              Client
-            </p>
-            <h1 className="text-2xl font-semibold text-ct-primary">{clientName}</h1>
-            <p className="text-sm text-ct-gray">Coordonnées à compléter.</p>
+        {/* ========== HEADER ========== */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+          {/* Décoration background */}
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
+            <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
           </div>
 
-          <button
-            type="button"
-            className="btn-secondary hover:border-ct-primary/70 hover:bg-ct-grayLight/80 hover:text-ct-primary transition-colors"
-            onClick={() => router.push('/admin/clients')}
-          >
-            ← Retour à la liste des clients
-          </button>
-        </div>
-
-        {/* INFOS CLIENT */}
-        <Card>
-          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle>Informations du client</CardTitle>
-              <CardDescription>
-                Coordonnées générales et informations internes pour ce client.
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                className="btn-secondary px-3 py-1.5 text-xs hover:border-ct-primary/70 hover:bg-ct-grayLight/80 hover:text-ct-primary transition-colors"
-                onClick={openEditModal}
+          <div className="relative z-10">
+            {/* Breadcrumb */}
+            <div className="mb-4 flex items-center gap-2 text-sm">
+              <Link
+                href="/admin/clients"
+                className="flex items-center gap-1.5 text-white/70 transition-colors hover:text-white"
               >
-                Modifier
-              </button>
-              <button
-                type="button"
-                className="btn-danger px-3 py-1.5 text-xs hover:bg-red-600/90 hover:text-white transition-colors"
-                onClick={openDeleteModal}
-              >
-                Supprimer
-              </button>
+                <Users className="h-4 w-4" />
+                <span>Clients</span>
+              </Link>
+              <span className="text-white/40">/</span>
+              <span className="font-medium text-white">{clientName}</span>
             </div>
-          </CardHeader>
 
-          <CardContent>
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-4">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ct-gray">
-                    Nom
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-ct-primary">
-                    {clientName}
-                  </p>
+            {/* Titre + actions */}
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
+                    <Users className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-bold text-white">{clientName}</h1>
+                    <p className="mt-0.5 text-sm text-white/70">
+                      {fullAddress || 'Adresse non définie'}
+                    </p>
+                  </div>
                 </div>
 
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ct-gray">
-                    Type de client
-                  </p>
-                  <p className="mt-1 text-sm text-ct-grayDark">
-                    {client.type ?? '—'}
-                  </p>
-                </div>
+                {/* Stats rapides */}
+                <div className="mt-4 flex flex-wrap items-center gap-4">
+                  {client.type && (
+                    <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                      <Home className="h-4 w-4 text-white/70" />
+                      <span className="text-sm text-white/90">{client.type}</span>
+                    </div>
+                  )}
 
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ct-gray">
-                    Notes internes
-                  </p>
-                  <p className="mt-1 text-sm text-ct-grayDark whitespace-pre-line">
-                    {client.notes ?? 'Aucune note pour ce client.'}
-                  </p>
-                </div>
-              </div>
+                  <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                    <Building2 className="h-4 w-4 text-white/70" />
+                    <span className="text-sm text-white/90">
+                      {batiments.length} bâtiment{batiments.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
 
-              <div className="space-y-4">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ct-gray">
-                    Personne contact
-                  </p>
-                  <p className="mt-1 text-sm text-ct-grayDark">
-                    {client.contact_name ?? '—'}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ct-gray">
-                    Courriel
-                  </p>
-                  <p className="mt-1 text-sm text-ct-grayDark">
-                    {client.contact_email ?? '—'}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ct-gray">
-                    Téléphone
-                  </p>
-                  <p className="mt-1 text-sm text-ct-grayDark">
-                    {client.contact_phone ?? '—'}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ct-gray">
-                    Adresse
-                  </p>
-                  <p className="mt-1 text-sm text-ct-grayDark">
-                    {client.address ?? '—'}
-                    {client.city ? `, ${client.city}` : ''}
-                    {client.postal_code ? `, ${client.postal_code}` : ''}
-                  </p>
+                  {client.contact_name && (
+                    <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                      <User className="h-4 w-4 text-white/70" />
+                      <span className="text-sm text-white/90">{client.contact_name}</span>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* BÂTIMENTS ASSOCIÉS */}
-        <Card>
-          <CardHeader className="pb-0">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              {/* Bloc titre + compteur */}
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-baseline gap-3">
-                  <CardTitle>Bâtiments associés</CardTitle>
-                  <span className="text-xs font-semibold text-ct-gray">
-                    {batiments.length} bâtiment
-                    {batiments.length > 1 ? 's' : ''}
-                  </span>
-                </div>
-                <p className="text-xs text-ct-gray">
-                  Vue d’ensemble des bâtiments liés à ce client.
-                </p>
-              </div>
+              {/* Boutons d'action */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href="/admin/clients"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/20 hover:border-white/50"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Clients
+                </Link>
 
-              {/* Recherche + bouton ajout */}
-              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end md:w-auto">
-                <div className="w-full sm:w-64 space-y-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ct-gray">
-                    Recherche
-                  </p>
-                  <input
-                    type="text"
-                    value={batimentsSearch}
-                    onChange={handleBatimentsSearchChange}
-                    placeholder="Nom, adresse, ville…"
-                    className="w-full rounded-lg border border-ct-grayLight bg-ct-white px-3 py-2 text-sm"
-                  />
-                </div>
                 <button
                   type="button"
-                  className="btn-primary px-3 py-1.5 text-xs sm:self-end"
-                  onClick={openAddModal}
+                  onClick={openEditModal}
+                  className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#1F4E79] shadow-lg transition-all hover:bg-white/90 hover:shadow-xl"
                 >
-                  + Ajouter un bâtiment
+                  <Pencil className="h-4 w-4" />
+                  Modifier
                 </button>
+
+                <button
+                  type="button"
+                  onClick={openDeleteModal}
+                  className="inline-flex items-center gap-2 rounded-xl border border-red-400/50 bg-red-500/20 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-red-500/30"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Supprimer
+                </button>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ========== LAYOUT 2 COLONNES ========== */}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:items-start">
+          {/* ===== COLONNE GAUCHE : BÂTIMENTS ===== */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
+                    <Building2 className="h-5 w-5 text-[#1F4E79]" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                      Bâtiments associés
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {batiments.length} bâtiment{batiments.length !== 1 ? 's' : ''} lié
+                      {batiments.length !== 1 ? 's' : ''} à ce client
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end md:w-auto">
+                  <div className="w-full sm:w-72 space-y-1.5">
+                    <label className="block text-sm font-semibold text-slate-700">
+                      Recherche
+                    </label>
+
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={batimentsSearch}
+                        onChange={handleBatimentsSearchChange}
+                        placeholder="Nom, adresse, ville…"
+                        className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pr-10 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                        style={{ paddingLeft: '1rem' }}
+                      />
+
+                      {batimentsSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setBatimentsSearch('')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                          aria-label="Effacer la recherche"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={openAddModal}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1F4E79] px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-colors hover:bg-[#163555] sm:self-end"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Ajouter
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="mt-4 border-t border-ct-grayLight" />
-          </CardHeader>
+            <div className="p-5">
+              {filteredBatiments.length === 0 ? (
+                <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 py-12 text-center">
+                  <Building2 className="mx-auto mb-4 h-12 w-12 text-slate-300" />
+                  <p className="mb-2 text-sm font-medium text-slate-600">
+                    Aucun bâtiment associé
+                  </p>
+                  <p className="mb-4 text-xs text-slate-500">
+                    Ajoutez un bâtiment pour commencer.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openAddModal}
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#1F4E79] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#163555]"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Ajouter un bâtiment
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredBatiments.map((b) => {
+                    const bName = b.name ?? '(Sans nom)'
+                    const bAddr = [b.address, b.city, b.postal_code]
+                      .filter(Boolean)
+                      .join(', ')
 
-          <CardContent className="pt-4">
-            {filteredBatiments.length === 0 ? (
-              <p className="text-sm text-ct-gray">
-                Aucun bâtiment n’est encore associé à ce client.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {filteredBatiments.map((b) => {
-                  const bName = b.name ?? '(Sans nom)'
-                  const bAddress =
-                    b.address ??
-                    [b.city, b.postal_code].filter(Boolean).join(', ') ??
-                    ''
+                    return (
+                      <Link
+                        key={b.id}
+                        href={`/admin/batiments/${b.id}`}
+                        className="group block rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-slate-300 hover:shadow-sm"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate text-sm font-semibold text-slate-800 transition-colors group-hover:text-[#1F4E79]">
+                                {bName}
+                              </span>
+                            </div>
 
-                  return (
-                    <Link
-                      key={b.id}
-                      href={`/admin/batiments/${b.id}`}
-                      className="flex flex-col gap-1 rounded-xl border border-ct-grayLight bg-ct-white px-4 py-3 text-sm text-ct-grayDark shadow-sm transition-colors hover:border-ct-primary/60 hover:bg-ct-grayLight/60"
-                    >
-                      <span className="font-medium text-ct-primary">{bName}</span>
-                      {bAddress && (
-                        <span className="text-xs text-ct-gray">{bAddress}</span>
-                      )}
-                    </Link>
-                  )
-                })}
+                            {bAddr && (
+                              <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                                <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="truncate">{bAddr}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1F4E79]/10 text-[#1F4E79]">
+                            <Building2 className="h-4 w-4" />
+                          </div>
+                        </div>
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ===== COLONNE DROITE : INFOS / NOTES ===== */}
+          <div className="space-y-6 lg:sticky lg:top-6">
+            <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
+                    <Users className="h-5 w-5 text-[#1F4E79]" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                      Informations du client
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Coordonnées et informations internes.
+                    </p>
+                  </div>
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+
+              <div className="p-5">
+                <div className="grid gap-5">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Nom
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800">
+                      {clientName}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Type de client
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {client.type ?? '—'}
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Personne contact
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {client.contact_name ?? '—'}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Courriel
+                      </p>
+                      <p className="mt-1 flex items-center gap-2 text-sm text-slate-600">
+                        <Mail className="h-4 w-4 text-slate-400" />
+                        <span>{client.contact_email ?? '—'}</span>
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Téléphone
+                      </p>
+                      <p className="mt-1 flex items-center gap-2 text-sm text-slate-600">
+                        <Phone className="h-4 w-4 text-slate-400" />
+                        <span>{client.contact_phone ?? '—'}</span>
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Adresse
+                      </p>
+                      <p className="mt-1 flex items-center gap-2 text-sm text-slate-600">
+                        <MapPin className="h-4 w-4 text-slate-400" />
+                        <span>{fullAddress || '—'}</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10">
+                    <StickyNote className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                      Notes internes
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Informations internes pour ce client.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5">
+                <p className="whitespace-pre-line text-sm leading-relaxed text-slate-600">
+                  {client.notes ?? 'Aucune note pour ce client.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
+
+      {/* ========== MODALS ========== */}
 
       {/* MODAL ÉDITION CLIENT */}
       {editOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={closeEditModal}
         >
           <div
-            className="w-full max-w-2xl rounded-2xl bg-ct-white p-6 shadow-2xl"
+            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto overflow-hidden rounded-2xl bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
-                <h2 className="text-lg font-semibold text-ct-primary">
-                  Modifier le client
-                </h2>
-                <p className="mt-1 text-xs text-ct-gray">
+                <h3 className="text-lg font-bold text-slate-800">Modifier le client</h3>
+                <p className="mt-0.5 text-sm text-slate-500">
                   Mettez à jour les informations générales et de contact.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={closeEditModal}
-                className="rounded-full border border-ct-grayLight px-2 py-1 text-xs text-ct-gray hover:bg-ct-grayLight/70 transition-colors"
                 disabled={editSaving}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Fermer"
               >
-                Fermer
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="space-y-4">
+            {editError && (
+              <div className="mx-6 mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                <p className="text-sm text-red-700">{editError}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-5">
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
-                    Nom du client *
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Nom du client <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                     required
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Type de client
                   </label>
                   <input
                     type="text"
                     value={editType}
                     onChange={(e) => setEditType(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                     placeholder="Municipal, institutionnel, privé…"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Personne contact
                   </label>
                   <input
                     type="text"
                     value={editContactName}
                     onChange={(e) => setEditContactName(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Courriel
                   </label>
                   <input
                     type="email"
                     value={editContactEmail}
                     onChange={(e) => setEditContactEmail(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Téléphone
                   </label>
                   <input
                     type="text"
                     value={editContactPhone}
                     onChange={(e) => setEditContactPhone(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Adresse
                   </label>
                   <input
                     type="text"
                     value={editAddress}
                     onChange={(e) => setEditAddress(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Ville
                   </label>
                   <input
                     type="text"
                     value={editCity}
                     onChange={(e) => setEditCity(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Code postal
                   </label>
                   <input
                     type="text"
                     value={editPostalCode}
                     onChange={(e) => setEditPostalCode(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                   />
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-ct-grayDark">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
                   Notes internes
                 </label>
                 <textarea
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
                   rows={4}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                 />
               </div>
 
-              {editError && (
-                <p className="text-xs text-red-600">{editError}</p>
-              )}
-
-              <div className="mt-2 flex items-center justify-end gap-2">
+              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
                 <button
                   type="button"
                   onClick={closeEditModal}
-                  className="btn-secondary px-3 py-1.5 text-xs"
                   disabled={editSaving}
+                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary px-3 py-1.5 text-xs"
                   disabled={editSaving}
+                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
                 >
                   {editSaving ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
@@ -734,54 +904,70 @@ export default function AdminClientDetailPage() {
       {/* MODAL SUPPRESSION CLIENT */}
       {deleteOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={closeDeleteModal}
         >
           <div
-            className="w-full max-w-md rounded-2xl bg-ct-white p-5 shadow-2xl"
+            className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 space-y-2">
-              <h2 className="text-lg font-semibold text-red-600">
-                Supprimer ce client?
-              </h2>
-              <p className="text-xs text-ct-gray">
-                Cette action est permanente. La suppression échouera si des
-                bâtiments, bassins ou garanties sont encore rattachés à ce client.
-              </p>
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Supprimer ce client?</h3>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  Cette action est permanente.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                disabled={deleteSaving}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Fermer"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
-            <form onSubmit={handleDeleteSubmit} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-ct-grayDark">
-                  Pour confirmer, écrivez exactement&nbsp;: <b>SUPPRIMER</b>
+            <form onSubmit={handleDeleteSubmit} className="p-6 space-y-5">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm text-amber-800">
+                  La suppression échouera si des bâtiments, bassins ou garanties sont encore rattachés à ce client.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Pour confirmer, écrivez exactement : <span className="font-bold">SUPPRIMER</span>
                 </label>
                 <input
                   type="text"
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
                   placeholder="SUPPRIMER"
                 />
               </div>
 
               {deleteError && (
-                <p className="text-xs text-red-600">{deleteError}</p>
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                  <p className="text-sm text-red-700">{deleteError}</p>
+                </div>
               )}
 
-              <div className="mt-2 flex items-center justify-end gap-2">
+              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
                 <button
                   type="button"
                   onClick={closeDeleteModal}
-                  className="btn-secondary px-3 py-1.5 text-xs"
                   disabled={deleteSaving}
+                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="btn-danger px-3 py-1.5 text-xs hover:bg-red-600/90 hover:text-white transition-colors"
                   disabled={deleteSaving}
+                  className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-red-600 hover:shadow-lg disabled:opacity-50"
                 >
                   {deleteSaving ? 'Suppression…' : 'Confirmer la suppression'}
                 </button>
@@ -794,141 +980,141 @@ export default function AdminClientDetailPage() {
       {/* MODAL AJOUT BÂTIMENT */}
       {addOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={closeAddModal}
         >
           <div
-            className="w-full max-w-2xl rounded-2xl bg-ct-white p-6 shadow-2xl"
+            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto overflow-hidden rounded-2xl bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
-                <h2 className="text-lg font-semibold text-ct-primary">
-                  Ajouter un bâtiment
-                </h2>
-                <p className="mt-1 text-xs text-ct-gray">
-                  Créez un nouveau bâtiment rattaché à ce client. Les bassins et
-                  polygones seront ajoutés ultérieurement.
+                <h3 className="text-lg font-bold text-slate-800">Ajouter un bâtiment</h3>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  Créez un nouveau bâtiment rattaché à ce client. Les bassins et polygones seront ajoutés ultérieurement.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={closeAddModal}
-                className="rounded-full border border-ct-grayLight px-2 py-1 text-xs text-ct-gray hover:bg-ct-grayLight/70 transition-colors"
                 disabled={addSaving}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Fermer"
               >
-                Fermer
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddSubmit} className="space-y-4">
+            {addError && (
+              <div className="mx-6 mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                <p className="text-sm text-red-700">{addError}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleAddSubmit} className="p-6 space-y-5">
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
-                    Nom du bâtiment *
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Nom du bâtiment <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={addName}
                     onChange={(e) => setAddName(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                     required
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Adresse
                   </label>
                   <input
                     type="text"
                     value={addAddress}
                     onChange={(e) => setAddAddress(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                     placeholder="No, rue"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Ville
                   </label>
                   <input
                     type="text"
                     value={addCity}
                     onChange={(e) => setAddCity(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Code postal
                   </label>
                   <input
                     type="text"
                     value={addPostalCode}
                     onChange={(e) => setAddPostalCode(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Latitude (optionnel)
                   </label>
                   <input
                     type="text"
                     value={addLatitude}
                     onChange={(e) => setAddLatitude(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                     placeholder="Ex.: 46.12345"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-ct-grayDark">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Longitude (optionnel)
                   </label>
                   <input
                     type="text"
                     value={addLongitude}
                     onChange={(e) => setAddLongitude(e.target.value)}
-                    className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                     placeholder="-72.98765"
                   />
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-ct-grayDark">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
                   Notes internes
                 </label>
                 <textarea
                   value={addNotes}
                   onChange={(e) => setAddNotes(e.target.value)}
                   rows={4}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                 />
               </div>
 
-              {addError && (
-                <p className="text-xs text-red-600">{addError}</p>
-              )}
-
-              <div className="mt-2 flex items-center justify-end gap-2">
+              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
                 <button
                   type="button"
                   onClick={closeAddModal}
-                  className="btn-secondary px-3 py-1.5 text-xs"
                   disabled={addSaving}
+                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary px-3 py-1.5 text-xs"
                   disabled={addSaving}
+                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
                 >
                   {addSaving ? 'Enregistrement…' : 'Créer le bâtiment'}
                 </button>

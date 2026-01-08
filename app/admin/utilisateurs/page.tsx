@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { Users, UserPlus, Shield, KeyRound, Ban, CheckCircle2, X } from 'lucide-react'
 
 type UserProfileRow = {
   id: string
@@ -490,18 +491,59 @@ export default function AdminUtilisateursPage() {
 
   if (loading) {
     return (
-      <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-ct-primary">Utilisateurs</h1>
-        <p className="text-sm text-ct-gray">Chargement des utilisateurs…</p>
+      <section className="space-y-6">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
+            <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+          </div>
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
+              <Users className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Utilisateurs</h1>
+              <p className="mt-0.5 text-sm text-white/70">Chargement des utilisateurs…</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+          <div className="p-6">
+            <div className="h-10 w-10 rounded-xl bg-slate-100 animate-pulse" />
+            <div className="mt-4 h-4 w-1/3 rounded bg-slate-100 animate-pulse" />
+            <div className="mt-2 h-4 w-1/2 rounded bg-slate-100 animate-pulse" />
+          </div>
+        </div>
       </section>
     )
   }
 
   if (errorMsg && !showModal && !showCreateModal) {
     return (
-      <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-ct-primary">Utilisateurs</h1>
-        <p className="text-sm text-red-600">Erreur : {errorMsg}</p>
+      <section className="space-y-6">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
+            <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+          </div>
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
+              <Users className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Utilisateurs</h1>
+              <p className="mt-0.5 text-sm text-white/70">
+                Gestion des comptes, rôles, statut et accès clients / bâtiments.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-5 shadow-sm">
+          <div className="text-sm font-semibold text-red-700">Erreur</div>
+          <div className="mt-1 text-sm text-red-700">{errorMsg}</div>
+        </div>
       </section>
     )
   }
@@ -522,7 +564,7 @@ export default function AdminUtilisateursPage() {
               <div className="font-medium">{toast.message}</div>
               <button
                 type="button"
-                className="rounded-md px-2 py-1 text-xs hover:bg-black/5"
+                className="rounded-lg px-2 py-1 text-xs hover:bg-black/5"
                 onClick={() => setToast(null)}
               >
                 Fermer
@@ -540,7 +582,7 @@ export default function AdminUtilisateursPage() {
           if (!open) setConfirmResetUserId(null)
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg rounded-2xl">
           <DialogHeader>
             <DialogTitle>Réinitialiser le mot de passe</DialogTitle>
             <DialogDescription>
@@ -548,19 +590,17 @@ export default function AdminUtilisateursPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="mt-2 rounded-xl border border-ct-grayLight bg-white p-3 text-sm text-ct-grayDark">
-            <div className="font-medium text-ct-grayDark">
+          <div className="mt-2 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+            <div className="font-medium text-slate-800">
               Utilisateur : {confirmResetUser?.full_name || '(Sans nom)'}
             </div>
-            <div className="mt-1 text-ct-gray">
-              Rôle : {confirmResetUser?.role || '—'}
-            </div>
+            <div className="mt-1 text-slate-500">Rôle : {confirmResetUser?.role || '—'}</div>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-2">
             <button
               type="button"
-              className="btn-secondary"
+              className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
               onClick={() => {
                 setConfirmResetOpen(false)
                 setConfirmResetUserId(null)
@@ -568,173 +608,269 @@ export default function AdminUtilisateursPage() {
             >
               Annuler
             </button>
-            <button type="button" className="btn-primary" onClick={confirmResetPassword}>
+            <button
+              type="button"
+              className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
+              onClick={confirmResetPassword}
+            >
               Envoyer le courriel
             </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-ct-primary">Utilisateurs</h1>
-          <p className="text-sm text-ct-gray">
-            Gestion des comptes, rôles, statut actif/suspendu et accès aux clients / bâtiments pour le portail client.
-          </p>
+      {/* HEADER */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
+          <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
         </div>
-        <button type="button" className="btn-primary" onClick={openCreateModal}>
-          Ajouter un utilisateur
-        </button>
-      </header>
 
-      <div className="overflow-x-auto rounded-2xl border border-ct-grayLight bg-white shadow-sm">
-        <table className="min-w-full border-collapse text-sm">
-          <thead>
-            <tr className="bg-ct-grayLight/60 text-left">
-              <th className="border border-ct-grayLight px-3 py-2">Nom complet</th>
-              <th className="border border-ct-grayLight px-3 py-2">Rôle</th>
-              <th className="border border-ct-grayLight px-3 py-2">Clients associés</th>
-              <th className="border border-ct-grayLight px-3 py-2">Bâtiments autorisés</th>
-              <th className="border border-ct-grayLight px-3 py-2">Statut</th>
-              <th className="border border-ct-grayLight px-3 py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => {
-              const isActive = u.is_active !== false
-              const resetLoading = !!resetLoadingByUserId[u.user_id]
+        <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
+              <Users className="h-6 w-6 text-white" />
+            </div>
+            <div className="max-w-3xl">
+              <h1 className="text-2xl font-bold text-white">Utilisateurs</h1>
+              <p className="mt-0.5 text-sm text-white/70">
+                Gestion des comptes, rôles, statut actif/suspendu et accès aux clients / bâtiments pour le portail
+                client.
+              </p>
+            </div>
+          </div>
 
-              return (
-                <tr key={u.id} className="transition-colors hover:bg-ct-primaryLight/10">
-                  <td className="border border-ct-grayLight px-3 py-2">{u.full_name || '(Sans nom)'}</td>
-                  <td className="border border-ct-grayLight px-3 py-2">{u.role || '—'}</td>
-                  <td className="border border-ct-grayLight px-3 py-2">
-                    {u.clientsLabels.length > 0 ? u.clientsLabels.join(', ') : 'Aucun'}
-                  </td>
-                  <td className="border border-ct-grayLight px-3 py-2">
-                    {u.batimentsLabels.length > 0
-                      ? u.batimentsLabels.join(', ')
-                      : 'Tous les bâtiments des clients associés'}
-                  </td>
-                  <td className="border border-ct-grayLight px-3 py-2">
-                    <span
-                      className={
-                        isActive
-                          ? 'inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700'
-                          : 'inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700'
-                      }
-                    >
-                      {isActive ? 'Actif' : 'Suspendu'}
-                    </span>
-                  </td>
-                  <td className="border border-ct-grayLight px-3 py-2">
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" className="btn-secondary" onClick={() => openEditModal(u)}>
-                        Modifier
-                      </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#1F4E79] shadow-lg transition-all hover:bg-white/90 hover:shadow-xl"
+              onClick={openCreateModal}
+            >
+              <UserPlus className="h-4 w-4" />
+              Ajouter un utilisateur
+            </button>
+          </div>
+        </div>
+      </div>
 
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={() => requestResetPassword(u.user_id)}
-                        disabled={resetLoading}
-                        title="Envoie un courriel Supabase de réinitialisation"
+      {/* TABLE */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-gradient-to-r from-slate-50 to-white text-left">
+                <th className="border-b border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                  Nom complet
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                  Rôle
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                  Clients associés
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                  Bâtiments autorisés
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                  Statut
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {users.map((u) => {
+                const isActive = u.is_active !== false
+                const resetLoading = !!resetLoadingByUserId[u.user_id]
+
+                return (
+                  <tr key={u.id} className="transition-colors hover:bg-slate-50/70">
+                    <td className="border-b border-slate-100 px-4 py-3 text-slate-800">
+                      {u.full_name || '(Sans nom)'}
+                    </td>
+
+                    <td className="border-b border-slate-100 px-4 py-3">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                        <Shield className="h-3.5 w-3.5 text-slate-500" />
+                        {u.role || '—'}
+                      </span>
+                    </td>
+
+                    <td className="border-b border-slate-100 px-4 py-3 text-slate-600">
+                      {u.clientsLabels.length > 0 ? u.clientsLabels.join(', ') : 'Aucun'}
+                    </td>
+
+                    <td className="border-b border-slate-100 px-4 py-3 text-slate-600">
+                      {u.batimentsLabels.length > 0
+                        ? u.batimentsLabels.join(', ')
+                        : 'Tous les bâtiments des clients associés'}
+                    </td>
+
+                    <td className="border-b border-slate-100 px-4 py-3">
+                      <span
+                        className={
+                          isActive
+                            ? 'inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700'
+                            : 'inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700'
+                        }
                       >
-                        {resetLoading ? 'Envoi…' : 'Réinitialiser MDP'}
-                      </button>
+                        {isActive ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        ) : (
+                          <Ban className="h-3.5 w-3.5 text-rose-600" />
+                        )}
+                        {isActive ? 'Actif' : 'Suspendu'}
+                      </span>
+                    </td>
 
-                      <button
-                        type="button"
-                        className={isActive ? 'btn-danger' : 'btn-secondary'}
-                        onClick={() => toggleUserActive(u.id, u.user_id, u.is_active)}
-                      >
-                        {isActive ? 'Suspendre' : 'Réactiver'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                    <td className="border-b border-slate-100 px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                          onClick={() => openEditModal(u)}
+                        >
+                          <Shield className="h-4 w-4 text-slate-500" />
+                          Modifier
+                        </button>
+
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                          onClick={() => requestResetPassword(u.user_id)}
+                          disabled={resetLoading}
+                          title="Envoie un courriel Supabase de réinitialisation"
+                        >
+                          <KeyRound className="h-4 w-4 text-slate-500" />
+                          {resetLoading ? 'Envoi…' : 'Réinitialiser MDP'}
+                        </button>
+
+                        <button
+                          type="button"
+                          className={
+                            isActive
+                              ? 'inline-flex items-center gap-2 rounded-xl border border-red-300/60 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-500/15'
+                              : 'inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50'
+                          }
+                          onClick={() => toggleUserActive(u.id, u.user_id, u.is_active)}
+                        >
+                          {isActive ? <Ban className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                          {isActive ? 'Suspendre' : 'Réactiver'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* MODAL AJOUTER UTILISATEUR (inline) */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-lg mx-4 max-h-[95vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl space-y-5">
-            <header className="space-y-1">
-              <h2 className="text-lg font-semibold text-ct-grayDark">Ajouter un utilisateur</h2>
-              <p className="text-sm text-ct-gray">
-                Un courriel d&apos;invitation sera envoyé à cette adresse. Le profil sera créé avec le rôle sélectionné.
-              </p>
-            </header>
-
-            {createErrorMsg && (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                <div className="font-semibold">Erreur</div>
-                <div className="mt-1">{createErrorMsg}</div>
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg max-h-[95vh] overflow-y-auto overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">Ajouter un utilisateur</h2>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  Un courriel d&apos;invitation sera envoyé à cette adresse. Le profil sera créé avec le rôle
+                  sélectionné.
+                </p>
               </div>
-            )}
-
-            <div className="space-y-3 text-sm">
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">Courriel (identifiant de connexion)</label>
-                <input
-                  type="email"
-                  value={createEmail}
-                  onChange={(e) => setCreateEmail(e.target.value)}
-                  required
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">Nom complet (optionnel)</label>
-                <input
-                  type="text"
-                  value={createFullName}
-                  onChange={(e) => setCreateFullName(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">Rôle</label>
-                <select
-                  value={createRole}
-                  onChange={(e) => setCreateRole(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                >
-                  <option value="client">client</option>
-                  <option value="admin">admin</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">Client associé (optionnel)</label>
-                <select
-                  value={createClientId}
-                  onChange={(e) => setCreateClientId(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-                >
-                  <option value="">Aucun</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name || '(Sans nom)'}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <button
+                type="button"
+                onClick={closeCreateModal}
+                disabled={createSaving}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                aria-label="Fermer"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
-            <div className="mt-4 flex justify-end gap-3">
-              <button type="button" className="btn-secondary" onClick={closeCreateModal} disabled={createSaving}>
-                Annuler
-              </button>
-              <button type="button" className="btn-primary" onClick={handleCreateUser} disabled={createSaving}>
-                {createSaving ? 'Création…' : 'Créer et inviter'}
-              </button>
+            <div className="p-6 space-y-5">
+              {createErrorMsg && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  <div className="font-semibold">Erreur</div>
+                  <div className="mt-1">{createErrorMsg}</div>
+                </div>
+              )}
+
+              <div className="space-y-3 text-sm">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Courriel (identifiant de connexion) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={createEmail}
+                    onChange={(e) => setCreateEmail(e.target.value)}
+                    required
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">Nom complet (optionnel)</label>
+                  <input
+                    type="text"
+                    value={createFullName}
+                    onChange={(e) => setCreateFullName(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">Rôle</label>
+                  <select
+                    value={createRole}
+                    onChange={(e) => setCreateRole(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  >
+                    <option value="client">client</option>
+                    <option value="admin">admin</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">Client associé (optionnel)</label>
+                  <select
+                    value={createClientId}
+                    onChange={(e) => setCreateClientId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  >
+                    <option value="">Aucun</option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name || '(Sans nom)'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
+                <button
+                  type="button"
+                  onClick={closeCreateModal}
+                  disabled={createSaving}
+                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateUser}
+                  disabled={createSaving}
+                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+                >
+                  {createSaving ? 'Création…' : 'Créer et inviter'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

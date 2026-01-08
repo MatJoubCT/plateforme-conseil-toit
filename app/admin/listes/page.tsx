@@ -9,12 +9,20 @@ import {
 } from 'react'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/Card'
+  ListChecks,
+  Plus,
+  Save,
+  Pencil,
+  Trash2,
+  ChevronUp,
+  ChevronDown,
+  X,
+  Palette,
+  Tag,
+  CheckCircle2,
+  Ban,
+  AlertTriangle,
+} from 'lucide-react'
 
 type ListeChoixRow = {
   id: string
@@ -484,332 +492,441 @@ export default function AdminListesChoixPage() {
     }
   }
 
+  const needColor = selectedCategory && isColorRequired(selectedCategory)
+
   if (loading) {
     return (
-      <section className="space-y-4">
-        <p className="text-sm text-ct-gray">
-          Chargement des listes de choix…
-        </p>
+      <section className="space-y-6">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
+            <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+          </div>
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
+              <ListChecks className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Listes de choix</h1>
+              <p className="mt-0.5 text-sm text-white/70">
+                Chargement des listes de choix…
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+          <div className="p-6">
+            <div className="h-10 w-10 rounded-xl bg-slate-100 animate-pulse" />
+            <div className="mt-4 h-4 w-1/3 rounded bg-slate-100 animate-pulse" />
+            <div className="mt-2 h-4 w-1/2 rounded bg-slate-100 animate-pulse" />
+          </div>
+        </div>
       </section>
     )
   }
 
   if (errorMsg) {
     return (
-      <section className="space-y-4">
-        <p className="text-sm text-red-600">Erreur : {errorMsg}</p>
+      <section className="space-y-6">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
+            <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+          </div>
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
+              <ListChecks className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Listes de choix</h1>
+              <p className="mt-0.5 text-sm text-white/70">
+                Gestion centralisée des états, durées de vie, types de garantie,
+                statuts, types de rapport, etc.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-5 shadow-sm">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 text-red-600" />
+            <div>
+              <div className="text-sm font-semibold text-red-700">Erreur</div>
+              <div className="mt-1 text-sm text-red-700">{errorMsg}</div>
+            </div>
+          </div>
+        </div>
       </section>
     )
   }
 
-  const needColor = selectedCategory && isColorRequired(selectedCategory)
-
   return (
     <section className="space-y-6">
-      {/* En-tête */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-ct-primary">
-            Listes de choix
-          </h1>
-          <p className="mt-1 text-sm text-ct-gray">
-            Gestion centralisée des états, durées de vie, types de garantie,
-            statuts, types de rapport, etc.
-          </p>
+      {/* HEADER */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
+          <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
         </div>
 
-        <div className="flex flex-col items-stretch gap-2 md:flex-row md:items-end">
-          <div className="w-full md:w-64">
-            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-ct-grayDark">
-              Catégorie
-            </label>
-            <select
-              value={selectedCategory}
-              onChange={handleCategoryChange}
-              className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
-            >
-              <option value="">Sélectionner une catégorie…</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
+        <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
+              <ListChecks className="h-6 w-6 text-white" />
+            </div>
+            <div className="max-w-3xl">
+              <h1 className="text-2xl font-bold text-white">Listes de choix</h1>
+              <p className="mt-0.5 text-sm text-white/70">
+                Gestion centralisée des états, durées de vie, types de garantie,
+                statuts, types de rapport, etc.
+              </p>
+            </div>
           </div>
 
-          <button
-            type="button"
-            className="btn-primary md:ml-4"
-            onClick={openCreateModal}
-            disabled={!selectedCategory}
-          >
-            Ajouter un élément
-          </button>
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-end sm:justify-end lg:w-auto">
+            <div className="w-full sm:w-72 space-y-1.5">
+              <label className="block text-sm font-semibold text-white/90">
+                Catégorie
+              </label>
+              <select
+                value={selectedCategory}
+                onChange={handleCategoryChange}
+                className="w-full rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm text-white backdrop-blur-sm transition-colors focus:border-white/40 focus:outline-none focus:ring-2 focus:ring-white/20"
+              >
+                <option value="" className="text-slate-900">
+                  Sélectionner une catégorie…
+                </option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat} className="text-slate-900">
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={openCreateModal}
+              disabled={!selectedCategory}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#1F4E79] shadow-lg transition-all hover:bg-white/90 hover:shadow-xl disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              Ajouter un élément
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Tableau */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Éléments de la catégorie</CardTitle>
-          <CardDescription>
-            {selectedCategory
-              ? `Catégorie : ${selectedCategory}${
-                  needColor
-                    ? ' — une couleur est requise pour chaque élément.'
-                    : ''
-                }`
-              : 'Veuillez choisir une catégorie pour afficher et modifier ses éléments.'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!selectedCategory ? (
-            <p className="text-sm text-ct-gray">
-              Aucune catégorie sélectionnée.
-            </p>
-          ) : itemsForCategory.length === 0 ? (
-            <p className="text-sm text-ct-gray">
-              Aucun élément pour cette catégorie. Ajoutez un premier élément.
-            </p>
-          ) : (
-            <>
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="text-xs text-ct-gray">
-                  Utilisez les flèches pour réordonner les éléments, puis
-                  cliquez sur « Enregistrer l&apos;ordre ».
+      {/* CONTENU */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
+                <Tag className="h-5 w-5 text-[#1F4E79]" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                  Éléments de la catégorie
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {selectedCategory
+                    ? `Catégorie : ${selectedCategory}${
+                        needColor ? ' — une couleur est requise pour chaque élément.' : ''
+                      }`
+                    : 'Veuillez choisir une catégorie pour afficher et modifier ses éléments.'}
                 </p>
+              </div>
+            </div>
+
+            {selectedCategory && (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <div className="text-xs text-slate-500">
+                  Utilisez les flèches pour réordonner, puis enregistrez l’ordre.
+                </div>
                 <button
                   type="button"
-                  className="btn-secondary"
                   onClick={handleSaveOrder}
                   disabled={!orderDirty || savingOrder}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
                 >
-                  {savingOrder
-                    ? "Enregistrement de l'ordre…"
-                    : "Enregistrer l'ordre"}
+                  <Save className="h-4 w-4 text-slate-500" />
+                  {savingOrder ? "Enregistrement de l'ordre…" : "Enregistrer l'ordre"}
                 </button>
               </div>
+            )}
+          </div>
+        </div>
 
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-ct-grayLight/60 text-left">
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Ordre
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Libellé
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Code
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Couleur
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Actif
-                      </th>
-                      <th className="border border-ct-grayLight px-3 py-2">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {itemsForCategory.map((item) => (
-                      <tr
-                        key={item.id}
-                        className="hover:bg-ct-primaryLight/10 transition-colors"
-                      >
-                        <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
+        <div className="p-5">
+          {!selectedCategory ? (
+            <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 py-10 text-center">
+              <ListChecks className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+              <p className="text-sm font-medium text-slate-600">Aucune catégorie sélectionnée.</p>
+              <p className="mt-1 text-xs text-slate-500">Choisissez une catégorie pour voir ses éléments.</p>
+            </div>
+          ) : itemsForCategory.length === 0 ? (
+            <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 py-10 text-center">
+              <ListChecks className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+              <p className="text-sm font-medium text-slate-600">
+                Aucun élément pour cette catégorie.
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Ajoutez un premier élément pour commencer.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-gradient-to-r from-slate-50 to-white text-left">
+                    <th className="border-b border-slate-200 px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                      Ordre
+                    </th>
+                    <th className="border-b border-slate-200 px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                      Libellé
+                    </th>
+                    <th className="border-b border-slate-200 px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                      Code
+                    </th>
+                    <th className="border-b border-slate-200 px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                      Couleur
+                    </th>
+                    <th className="border-b border-slate-200 px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                      Actif
+                    </th>
+                    <th className="border-b border-slate-200 px-3 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {itemsForCategory.map((item) => (
+                    <tr
+                      key={item.id}
+                      className="transition-colors hover:bg-slate-50/70"
+                    >
+                      <td className="border-b border-slate-100 px-3 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-800">{item.ordre ?? '—'}</span>
+                          <div className="flex flex-col gap-1">
+                            <button
+                              type="button"
+                              className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+                              onClick={() => moveItem(item.id, 'up')}
+                              aria-label="Monter"
+                            >
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+                              onClick={() => moveItem(item.id, 'down')}
+                              aria-label="Descendre"
+                            >
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="border-b border-slate-100 px-3 py-3 text-slate-800">
+                        {item.label || '—'}
+                      </td>
+
+                      <td className="border-b border-slate-100 px-3 py-3 whitespace-nowrap">
+                        <span className="rounded-lg bg-slate-50 px-2 py-1 font-mono text-xs text-slate-700 ring-1 ring-slate-200">
+                          {item.code || '—'}
+                        </span>
+                      </td>
+
+                      <td className="border-b border-slate-100 px-3 py-3 whitespace-nowrap">
+                        {item.couleur ? (
                           <div className="flex items-center gap-2">
-                            <span>{item.ordre ?? '—'}</span>
-                            <div className="flex flex-col gap-1">
-                              <button
-                                type="button"
-                                className="rounded border border-ct-grayLight px-1 text-[10px] leading-none"
-                                onClick={() => moveItem(item.id, 'up')}
-                              >
-                                ▲
-                              </button>
-                              <button
-                                type="button"
-                                className="rounded border border-ct-grayLight px-1 text-[10px] leading-none"
-                                onClick={() => moveItem(item.id, 'down')}
-                              >
-                                ▼
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="border border-ct-grayLight px-3 py-2">
-                          {item.label || '—'}
-                        </td>
-                        <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                          <span className="font-mono text-xs">
-                            {item.code || '—'}
-                          </span>
-                        </td>
-                        <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                          {item.couleur ? (
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="inline-block h-4 w-4 rounded-full border border-ct-grayLight"
-                                style={{ backgroundColor: item.couleur }}
-                              />
-                              <span className="font-mono text-xs">
-                                {item.couleur}
+                            <span
+                              className="inline-block h-4 w-4 rounded-full border border-slate-200"
+                              style={{ backgroundColor: item.couleur }}
+                            />
+                            <span className="font-mono text-xs text-slate-700">
+                              {item.couleur}
+                            </span>
+                            {needColor && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-[#1F4E79]/10 px-2 py-0.5 text-xs font-semibold text-[#1F4E79]">
+                                <Palette className="h-3.5 w-3.5" />
+                                requis
                               </span>
-                            </div>
-                          ) : (
-                            <span className="text-ct-gray">—</span>
-                          )}
-                        </td>
-                        <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                          {item.actif ? (
-                            <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                              Actif
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center rounded-full bg-ct-grayLight px-2 py-0.5 text-xs font-medium text-ct-grayDark">
-                              Inactif
-                            </span>
-                          )}
-                        </td>
-                        <td className="border border-ct-grayLight px-3 py-2 whitespace-nowrap">
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              className="btn-secondary"
-                              onClick={() => openEditModal(item)}
-                            >
-                              Modifier
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-danger"
-                              onClick={() => handleDelete(item)}
-                              disabled={deletingId === item.id}
-                            >
-                              {deletingId === item.id
-                                ? 'Suppression…'
-                                : 'Supprimer'}
-                            </button>
+                            )}
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
 
-      {/* Modal ajout / modification */}
+                      <td className="border-b border-slate-100 px-3 py-3 whitespace-nowrap">
+                        {item.actif ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                            Actif
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                            <Ban className="h-3.5 w-3.5 text-slate-500" />
+                            Inactif
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="border-b border-slate-100 px-3 py-3 whitespace-nowrap">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(item)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                          >
+                            <Pencil className="h-4 w-4 text-slate-500" />
+                            Modifier
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(item)}
+                            disabled={deletingId === item.id}
+                            className="inline-flex items-center gap-2 rounded-xl border border-red-300/60 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-500/15 disabled:opacity-60"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            {deletingId === item.id ? 'Suppression…' : 'Supprimer'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* MODAL AJOUT / MODIFICATION */}
       {showModal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-xl mx-4 max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-ct-grayDark">
-              {modalMode === 'create'
-                ? 'Ajouter un élément'
-                : 'Modifier un élément'}
-            </h3>
-            <p className="mt-1 text-sm text-ct-gray">
-              Catégorie :{' '}
-              <span className="font-medium">{selectedCategory}</span>
-              {needColor && (
-                <>
-                  {' — '}
-                  <span className="text-ct-primary">
-                    Une couleur est requise pour cette catégorie.
-                  </span>
-                </>
-              )}
-            </p>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={closeModal}
+        >
+          <div
+            className="w-full max-w-xl max-h-[90vh] overflow-y-auto overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">
+                  {modalMode === 'create' ? 'Ajouter un élément' : 'Modifier un élément'}
+                </h3>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  Catégorie : <span className="font-semibold text-slate-700">{selectedCategory}</span>
+                  {needColor ? ' — une couleur est requise.' : ''}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeModal}
+                disabled={savingModal}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                aria-label="Fermer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
             <form
               onSubmit={handleModalSubmit}
-              className="mt-4 space-y-4 text-sm"
+              className="p-6 space-y-5 text-sm"
             >
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
-                  Libellé
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Libellé <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={formLabel}
                   onChange={(e) => setFormLabel(e.target.value)}
                   required
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
                   Code interne (optionnel)
                 </label>
                 <input
                   type="text"
                   value={formCode}
                   onChange={(e) => setFormCode(e.target.value)}
-                  className="w-full rounded-lg border border-ct-grayLight px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-xs font-medium text-ct-grayDark">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
                   Couleur {needColor ? '(obligatoire)' : '(optionnelle)'}
                 </label>
+
                 <div className="flex items-center gap-3">
                   <input
                     type="text"
                     value={formCouleur}
                     onChange={(e) => setFormCouleur(e.target.value)}
                     placeholder="#00A3FF"
-                    className="flex-1 rounded-lg border border-ct-grayLight px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ct-primary/60"
+                    className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-mono transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                   />
+
                   <div
-                    className="h-8 w-8 rounded-full border border-ct-grayLight"
+                    className="h-10 w-10 rounded-full border border-slate-200"
                     style={{
                       backgroundColor:
                         formCouleur && /^#([0-9a-fA-F]{6})$/.test(formCouleur)
                           ? formCouleur
                           : '#ffffff',
                     }}
+                    aria-label="Aperçu couleur"
+                    title="Aperçu couleur"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
+              <div className="flex items-start gap-2 pt-1">
                 <input
                   id="actif-checkbox"
                   type="checkbox"
                   checked={formActif}
                   onChange={(e) => setFormActif(e.target.checked)}
-                  className="h-4 w-4 rounded border-ct-grayLight text-ct-primary focus:ring-ct-primary/60"
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#1F4E79] focus:ring-[#1F4E79]/30"
                 />
                 <label
                   htmlFor="actif-checkbox"
-                  className="text-xs font-medium text-ct-grayDark"
+                  className="text-sm text-slate-600"
                 >
                   Élément actif (disponible dans les listes de sélection)
                 </label>
               </div>
 
-              <div className="mt-4 flex justify-end gap-3">
+              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
                 <button
                   type="button"
-                  className="btn-secondary"
                   onClick={closeModal}
                   disabled={savingModal}
+                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary"
                   disabled={savingModal}
+                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
                 >
                   {savingModal ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
