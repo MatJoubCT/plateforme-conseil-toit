@@ -502,7 +502,13 @@ export default function AdminBatimentsPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {filteredBatiments.map((b) => (
-                      <tr key={b.id} className="group hover:bg-slate-50 transition-colors">
+                    <tr
+                      key={b.id}
+                      className="group hover:bg-slate-50 transition-colors cursor-pointer"
+                      onClick={() => {
+                        window.location.href = `/admin/batiments/${b.id}`
+                      }}
+                    >
                       {/* Nom du bâtiment */}
                       <td className="py-4 pl-6">
                         <div className="flex items-center gap-3">
@@ -520,64 +526,64 @@ export default function AdminBatimentsPage() {
                         </div>
                       </td>
 
-                        {/* Client (caché sur mobile) */}
-                        <td className="py-4 hidden md:table-cell">
-                          <p className="text-sm text-slate-700">{b.client_name || '—'}</p>
-                        </td>
+                      {/* Client (caché sur mobile) */}
+                      <td className="py-4 hidden md:table-cell">
+                        <p className="text-sm text-slate-700">{b.client_name || '—'}</p>
+                      </td>
 
-                        {/* Localisation (cachée sur mobile/tablet) */}
-                        <td className="py-4 hidden lg:table-cell">
-                          <div className="flex items-start gap-2">
-                            <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
-                            <div className="text-sm">
-                              {b.city || b.address ? (
-                                <>
-                                  <p className="font-medium text-slate-700">{b.city || '—'}</p>
-                                  <p className="text-xs text-slate-500">{b.address || '—'}</p>
-                                </>
-                              ) : (
-                                <p className="text-slate-500">—</p>
-                              )}
-                            </div>
+                      {/* Localisation (cachée sur mobile/tablet) */}
+                      <td className="py-4 hidden lg:table-cell">
+                        <div className="flex items-start gap-2">
+                          <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
+                          <div className="text-sm">
+                            {b.city || b.address ? (
+                              <>
+                                <p className="font-medium text-slate-700">{b.city || '—'}</p>
+                                <p className="text-xs text-slate-500">{b.address || '—'}</p>
+                              </>
+                            ) : (
+                              <p className="text-slate-500">—</p>
+                            )}
                           </div>
-                        </td>
+                        </div>
+                      </td>
 
-                        {/* État (centré) */}
-                        <td className="py-4">
-                          <div className="flex justify-center">
-                            <StateBadge state={DEFAULT_BATIMENT_STATE} />
-                          </div>
-                        </td>
+                      {/* État (centré) */}
+                      <td className="py-4">
+                        <div className="flex justify-center">
+                          <StateBadge state={DEFAULT_BATIMENT_STATE} />
+                        </div>
+                      </td>
 
-                        {/* Nombre de bassins (centré) */}
-                        <td className="py-4">
-                          <div className="flex justify-center">
-                            <span
-                              className={`inline-flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold ${
-                                b.nb_bassins > 0
-                                  ? 'bg-[#1F4E79]/10 text-[#1F4E79]'
-                                  : 'bg-slate-100 text-slate-400'
-                              }`}
-                            >
-                              {b.nb_bassins}
-                            </span>
-                          </div>
-                        </td>
+                      {/* Nombre de bassins (centré) */}
+                      <td className="py-4">
+                        <div className="flex justify-center">
+                          <span
+                            className={`inline-flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold ${
+                              b.nb_bassins > 0
+                                ? 'bg-[#1F4E79]/10 text-[#1F4E79]'
+                                : 'bg-slate-100 text-slate-400'
+                            }`}
+                          >
+                            {b.nb_bassins}
+                          </span>
+                        </div>
+                      </td>
 
-                        {/* Action (centré) */}
-                        <td className="py-4 pr-6">
-                          <div className="flex justify-center">
-                            <Link
-                              href={`/admin/batiments/${b.id}`}
-                              className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-[#1F4E79] transition-all hover:bg-[#1F4E79]/10"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              Voir
-                              <ChevronRight className="h-3.5 w-3.5" />
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
+                      {/* Action (centré) */}
+                      <td className="py-4 pr-6">
+                        <div className="flex justify-center">
+                          <Link
+                            href={`/admin/batiments/${b.id}`}
+                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-[#1F4E79] transition-all hover:bg-[#1F4E79]/10"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Voir
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
                     ))}
                   </tbody>
                 </table>

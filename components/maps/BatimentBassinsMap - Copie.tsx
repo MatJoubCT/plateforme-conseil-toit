@@ -2,7 +2,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { GoogleMap, Polygon, useJsApiLoader, OverlayView } from '@react-google-maps/api'
+import { GoogleMap, Polygon, useJsApiLoader } from '@react-google-maps/api'
 
 type GeoJSONPolygon = {
   type: 'Polygon'
@@ -21,7 +21,6 @@ type BatimentBassinsMapProps = {
   bassins: BassinPolygon[]
   onHoverBassin?: (id: string | null) => void
   onClickBassin?: (id: string) => void
-  hoveredBassinId?: string | null  // ✨ AJOUTÉ pour le hover externe
 }
 
 const GOOGLE_MAPS_LIBRARIES = ['drawing', 'geometry'] as const
@@ -31,28 +30,8 @@ function geoJsonToLatLngPath(poly: GeoJSONPolygon | null) {
   return poly.coordinates[0].map(([lng, lat]) => ({ lat, lng }))
 }
 
-/**
- * ✨ NOUVEAU : Calcule le centre d'un polygone (centroïde)
- */
-function getPolygonCenter(path: { lat: number; lng: number }[]): { lat: number; lng: number } | null {
-  if (path.length === 0) return null
-  
-  const sum = path.reduce(
-    (acc, p) => ({
-      lat: acc.lat + p.lat,
-      lng: acc.lng + p.lng,
-    }),
-    { lat: 0, lng: 0 }
-  )
-  
-  return {
-    lat: sum.lat / path.length,
-    lng: sum.lng / path.length,
-  }
-}
-
 export default function BatimentBassinsMap(props: BatimentBassinsMapProps) {
-  const { center, bassins, onHoverBassin, onClickBassin, hoveredBassinId } = props
+  const { center, bassins, onHoverBassin, onClickBassin } = props
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'script-loader',
@@ -62,11 +41,7 @@ export default function BatimentBassinsMap(props: BatimentBassinsMapProps) {
   })
 
   const [map, setMap] = useState<google.maps.Map | null>(null)
-  const [localHoveredId, setLocalHoveredId] = useState<string | null>(null)
   const enforcingRef = useRef(false)
-
-  // ✨ NOUVEAU : Combine hover local (carte) et externe (liste)
-  const effectiveHoveredId = hoveredBassinId ?? localHoveredId
 
   useEffect(() => {
     if (!map) return
@@ -88,10 +63,12 @@ export default function BatimentBassinsMap(props: BatimentBassinsMapProps) {
       })
     }
 
+    // Appliquer tout de suite
     map.setOptions({ rotateControl: false, tilt: 0, heading: 0 })
     map.setTilt(0)
     map.setHeading(0)
 
+    // IMPORTANT: idle est plus robuste que tilt_changed (évite les loops + couvre plus de cas)
     const l1 = map.addListener('idle', enforceFlat)
     const l2 = map.addListener('maptypeid_changed', enforceFlat)
 
@@ -103,31 +80,14 @@ export default function BatimentBassinsMap(props: BatimentBassinsMapProps) {
 
   const polygons = useMemo(
     () =>
-      bassins.map((b) => {
-        const path = geoJsonToLatLngPath(b.polygon)
-        const center = getPolygonCenter(path)  // ✨ NOUVEAU : calcul du centre
-        
-        return {
-          id: b.id,
-          name: b.name,
-          path,
-          center,  // ✨ NOUVEAU
-          color: b.color || '#22c55e',
-        }
-      }),
+      bassins.map((b) => ({
+        id: b.id,
+        name: b.name,
+        path: geoJsonToLatLngPath(b.polygon),
+        color: b.color || '#22c55e',
+      })),
     [bassins]
   )
-
-  // ✨ NOUVEAU : Gestion du hover local
-  const handleMouseOver = (id: string) => {
-    setLocalHoveredId(id)
-    onHoverBassin?.(id)
-  }
-
-  const handleMouseOut = () => {
-    setLocalHoveredId(null)
-    onHoverBassin?.(null)
-  }
 
   if (loadError) {
     return (
@@ -147,7 +107,9 @@ export default function BatimentBassinsMap(props: BatimentBassinsMapProps) {
 
   return (
     <div className="ct-map-no-tilt h-[420px] w-full overflow-hidden rounded-2xl border border-ct-grayLight bg-white shadow-card">
+      {/* Masque uniquement dans ce bloc (pas dans toute l'app) */}
       <style jsx global>{`
+        /* Boutons "Incliner / Tilt / 3D / 2D" (varie selon langue et version Maps) */
         .ct-map-no-tilt button[aria-label*='Tilt'],
         .ct-map-no-tilt button[aria-label*='tilt'],
         .ct-map-no-tilt button[aria-label*='Incliner'],
@@ -161,18 +123,6 @@ export default function BatimentBassinsMap(props: BatimentBassinsMapProps) {
         .ct-map-no-tilt button[title*='3D'],
         .ct-map-no-tilt button[title*='2D'] {
           display: none !important;
-        }
-
-        /* ✨ NOUVEAU : Animation pour les labels */
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(0.9);
-          }
-          to {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
-          }
         }
       `}</style>
 
@@ -197,57 +147,23 @@ export default function BatimentBassinsMap(props: BatimentBassinsMapProps) {
           heading: 0,
         }}
       >
-        {polygons.map((poly) => {
-          const isHovered = effectiveHoveredId === poly.id  // ✨ MODIFIÉ
-
-          return (
-            <Polygon
-              key={poly.id}
-              path={poly.path}
-              options={{
-                fillColor: poly.color,
-                fillOpacity: isHovered ? 0.7 : 0.4,  // ✨ MODIFIÉ : plus visible au hover
-                strokeColor: poly.color,
-                strokeOpacity: isHovered ? 1 : 0.9,  // ✨ MODIFIÉ
-                strokeWeight: isHovered ? 4 : 2,     // ✨ MODIFIÉ : bordure plus épaisse
-                clickable: true,
-                cursor: 'pointer',  // ✨ AJOUTÉ
-              }}
-              onMouseOver={() => handleMouseOver(poly.id)}  // ✨ MODIFIÉ
-              onMouseOut={handleMouseOut}                    // ✨ MODIFIÉ
-              onClick={() => onClickBassin?.(poly.id)}
-            />
-          )
-        })}
-
-        {/* ✨ NOUVEAU : Labels au hover */}
-        {polygons.map((poly) => {
-          const isHovered = effectiveHoveredId === poly.id
-          
-          if (!isHovered || !poly.center) return null
-
-          return (
-            <OverlayView
-              key={`label-${poly.id}`}
-              position={poly.center}
-              mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-            >
-              <div
-                className="pointer-events-none"
-                style={{
-                  transform: 'translate(-50%, -50%)',
-                  animation: 'fadeIn 0.2s ease-in-out',
-                }}
-              >
-                <div className="rounded-lg bg-white/95 backdrop-blur-sm px-3 py-1.5 shadow-lg border-2 border-ct-primary">
-                  <p className="text-sm font-semibold text-ct-grayDark whitespace-nowrap">
-                    {poly.name}
-                  </p>
-                </div>
-              </div>
-            </OverlayView>
-          )
-        })}
+        {polygons.map((poly) => (
+          <Polygon
+            key={poly.id}
+            path={poly.path}
+            options={{
+              fillColor: poly.color,
+              fillOpacity: 0.4,
+              strokeColor: poly.color,
+              strokeOpacity: 1,
+              strokeWeight: 2,
+              clickable: true,
+            }}
+            onMouseOver={() => onHoverBassin?.(poly.id)}
+            onMouseOut={() => onHoverBassin?.(null)}
+            onClick={() => onClickBassin?.(poly.id)}
+          />
+        ))}
       </GoogleMap>
     </div>
   )
