@@ -73,7 +73,7 @@ export default function AdminBassinsPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
-  const [sortKey, setSortKey] = useState<'batiment' | 'client' | 'etat' | null>(null)
+  const [sortKey, setSortKey] = useState<'batiment' | 'client' | 'etat' | 'duree_vie' | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => {
@@ -223,6 +223,8 @@ export default function AdminBassinsPage() {
 
     const getEtatLabel = (b: BassinRow) => labelEtat(b.etat_id) ?? 'Non évalué'
 
+    const getDureeVieLabel = (b: BassinRow) => labelDuree(b) ?? 'Non définie'
+
     arr.sort((a, b) => {
       let av = ''
       let bv = ''
@@ -236,6 +238,9 @@ export default function AdminBassinsPage() {
       } else if (sortKey === 'etat') {
         av = getEtatLabel(a)
         bv = getEtatLabel(b)
+      } else if (sortKey === 'duree_vie') {
+        av = getDureeVieLabel(a)
+        bv = getDureeVieLabel(b)
       }
 
       const cmp = av.localeCompare(bv, 'fr', { sensitivity: 'base' })
@@ -245,7 +250,7 @@ export default function AdminBassinsPage() {
     return arr
   }, [filteredBassins, sortKey, sortDir, batimentById, etatsBassin])
 
-  const toggleSort = (key: 'batiment' | 'client' | 'etat') => {
+  const toggleSort = (key: 'batiment' | 'client' | 'etat' | 'duree_vie') => {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
     } else {
@@ -254,7 +259,7 @@ export default function AdminBassinsPage() {
     }
   }
 
-  const SortIcon = ({ col }: { col: 'batiment' | 'client' | 'etat' }) => {
+  const SortIcon = ({ col }: { col: 'batiment' | 'client' | 'etat' | 'duree_vie' }) => {
     const active = sortKey === col
     if (!active) return <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />
     return sortDir === 'asc' ? (
@@ -484,10 +489,14 @@ export default function AdminBassinsPage() {
                       </button>
                     </th>
                     <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Durée de vie
-                    </th>
-                    <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Action
+                      <button
+                        type="button"
+                        onClick={() => toggleSort('duree_vie')}
+                        className="inline-flex items-center gap-1 hover:text-[#1F4E79] transition-colors"
+                      >
+                        Durée de vie
+                        <SortIcon col="duree_vie" />
+                      </button>
                     </th>
                   </tr>
                 </thead>
@@ -574,19 +583,6 @@ export default function AdminBassinsPage() {
                           <span className="text-sm text-slate-600">
                             {dureeLibelle || 'Non définie'}
                           </span>
-                        </td>
-                        <td className="py-4 text-right">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              router.push(`/admin/bassins/${bassin.id}`)
-                            }}
-                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-[#1F4E79] transition-all hover:bg-[#1F4E79]/10"
-                          >
-                            Voir
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </button>
                         </td>
                       </tr>
                     )

@@ -377,9 +377,6 @@ export default function AdminClientsPage() {
                       <th className="pb-3 px-0 text-xs font-semibold uppercase tracking-wide text-slate-500">
                         <div className="flex justify-center">Bâtiments</div>
                       </th>
-                      <th className="pb-3 px-0 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        <div className="flex justify-center">Action</div>
-                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -414,18 +411,6 @@ export default function AdminClientsPage() {
                             >
                               {c.nb_batiments}
                             </span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-0">
-                          <div className="flex justify-center">
-                            <Link
-                              href={`/admin/clients/${c.id}`}
-                              className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-[#1F4E79] transition-all hover:bg-[#1F4E79]/10"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              Voir
-                              <ChevronRight className="h-3.5 w-3.5" />
-                            </Link>
                           </div>
                         </td>
                       </tr>

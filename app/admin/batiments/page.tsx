@@ -489,14 +489,8 @@ export default function AdminBatimentsPage() {
                       <th className="py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden lg:table-cell">
                         Localisation
                       </th>
-                      <th className="py-4 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
-                        État
-                      </th>
-                      <th className="py-4 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
-                        Bassins
-                      </th>
                       <th className="py-4 pr-6 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
-                        Action
+                        Bassins
                       </th>
                     </tr>
                   </thead>
@@ -548,15 +542,8 @@ export default function AdminBatimentsPage() {
                         </div>
                       </td>
 
-                      {/* État (centré) */}
-                      <td className="py-4">
-                        <div className="flex justify-center">
-                          <StateBadge state={DEFAULT_BATIMENT_STATE} />
-                        </div>
-                      </td>
-
                       {/* Nombre de bassins (centré) */}
-                      <td className="py-4">
+                      <td className="py-4 pr-6">
                         <div className="flex justify-center">
                           <span
                             className={`inline-flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold ${
@@ -567,20 +554,6 @@ export default function AdminBatimentsPage() {
                           >
                             {b.nb_bassins}
                           </span>
-                        </div>
-                      </td>
-
-                      {/* Action (centré) */}
-                      <td className="py-4 pr-6">
-                        <div className="flex justify-center">
-                          <Link
-                            href={`/admin/batiments/${b.id}`}
-                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-[#1F4E79] transition-all hover:bg-[#1F4E79]/10"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Voir
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </Link>
                         </div>
                       </td>
                     </tr>

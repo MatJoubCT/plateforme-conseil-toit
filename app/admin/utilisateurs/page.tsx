@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, ChangeEvent } from 'react'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import EditUserModal, { BatimentRow, ClientRow } from '@/components/admin/users/EditUserModal'
 import {
@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { Users, UserPlus, Shield, KeyRound, Ban, CheckCircle2, X } from 'lucide-react'
+import { Users, UserPlus, Shield, KeyRound, Ban, CheckCircle2, X, Search, SlidersHorizontal } from 'lucide-react'
 
 type UserProfileRow = {
   id: string
@@ -49,6 +49,9 @@ export default function AdminUtilisateursPage() {
   const [users, setUsers] = useState<EditableUser[]>([])
   const [clients, setClients] = useState<ClientRow[]>([])
   const [batiments, setBatiments] = useState<BatimentRow[]>([])
+
+  // Recherche
+  const [search, setSearch] = useState('')
 
   // Toast (UI pro)
   const [toast, setToast] = useState<ToastState>(null)
@@ -194,34 +197,40 @@ export default function AdminUtilisateursPage() {
     return m
   }, [clients])
 
-  // --- MODAL ÉDITION ---
-  const openEditModal = async (user: EditableUser) => {
-    setErrorMsg(null)
-    setSuccessMsg(null)
+  const toggleClient = (clientId: string) => {
+    setSelectedClientIds((prev) =>
+      prev.includes(clientId) ? prev.filter((cid) => cid !== clientId) : [...prev, clientId],
+    )
+  }
 
+  const toggleBatiment = (batimentId: string) => {
+    setSelectedBatimentIds((prev) =>
+      prev.includes(batimentId) ? prev.filter((bid) => bid !== batimentId) : [...prev, batimentId],
+    )
+  }
+
+  const openEditModal = (user: UserProfileRow) => {
     setEditingUser(user)
     setEditFullName(user.full_name || '')
     setEditRole(user.role || 'client')
+    setErrorMsg(null)
+    setSuccessMsg(null)
 
-    const [ucRes, ubaRes] = await Promise.all([
-      supabaseBrowser.from('user_clients').select('user_id, client_id').eq('user_id', user.user_id),
-      supabaseBrowser.from('user_batiments_access').select('user_id, batiment_id').eq('user_id', user.user_id),
-    ])
+    const ucs = users.find((u) => u.user_id === user.user_id)?.clientsLabels || []
+    const ubas = users.find((u) => u.user_id === user.user_id)?.batimentsLabels || []
 
-    if (ucRes.error) {
-      setErrorMsg(ucRes.error.message)
-      return
-    }
-    if (ubaRes.error) {
-      setErrorMsg(ubaRes.error.message)
-      return
-    }
+    const linkedClientIds = clients.filter((c) => ucs.includes(c.name || '')).map((c) => c.id)
 
-    const ucRows = (ucRes.data || []) as UserClientRow[]
-    const ubaRows = (ubaRes.data || []) as UserBatimentAccessRow[]
+    const linkedBatIds = batiments
+      .filter((b) => {
+        const label1 = b.name && b.city ? `${b.name} — ${b.city}` : null
+        const label2 = b.name ? b.name : null
+        return label1 ? ubas.includes(label1) : label2 ? ubas.includes(label2) : false
+      })
+      .map((b) => b.id)
 
-    setSelectedClientIds(ucRows.map((x) => x.client_id))
-    setSelectedBatimentIds(ubaRows.map((x) => x.batiment_id))
+    setSelectedClientIds(linkedClientIds)
+    setSelectedBatimentIds(linkedBatIds)
     setShowModal(true)
   }
 
@@ -229,103 +238,293 @@ export default function AdminUtilisateursPage() {
     if (saving) return
     setShowModal(false)
     setEditingUser(null)
-    setSelectedClientIds([])
-    setSelectedBatimentIds([])
-    setEditFullName('')
-    setEditRole('client')
-    setErrorMsg(null)
-    setSuccessMsg(null)
-  }
-
-  const toggleClient = (id: string) => {
-    setSelectedClientIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
-  }
-
-  const toggleBatiment = (id: string) => {
-    setSelectedBatimentIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
 
   const handleSave = async () => {
     if (!editingUser) return
-
     setSaving(true)
     setErrorMsg(null)
     setSuccessMsg(null)
 
-    // 1) Session + token (pour appeler l’API)
-    const { data: sessionRes, error: sessionErr } = await supabaseBrowser.auth.getSession()
-    if (sessionErr) {
-      setErrorMsg(`Auth.getSession() a échoué : ${sessionErr.message}`)
-      setSaving(false)
-      return
-    }
-    const accessToken = sessionRes?.session?.access_token ?? ''
-    if (!accessToken) {
-      setErrorMsg('Session absente ou access_token manquant. Reconnecte-toi.')
-      setSaving(false)
-      return
-    }
-
-    const targetUserId = editingUser.user_id
-
-    // 2) Mettre à jour le profil
-    const { data: updatedProfile, error: upError } = await supabaseBrowser
-      .from('user_profiles')
-      .update({
-        full_name: editFullName || null,
-        role: editRole || null,
-      })
-      .eq('id', editingUser.id)
-      .select('id, user_id, full_name, role, client_id, is_active')
-      .maybeSingle()
-
-    if (upError) {
-      setErrorMsg(`user_profiles.update() refusé : ${upError.message}`)
-      setSaving(false)
-      return
-    }
-
-    if (!updatedProfile) {
-      setErrorMsg("0 ligne mise à jour dans user_profiles. Policy RLS ou filtre qui ne matche pas.")
-      setSaving(false)
-      return
-    }
-
-    // 3) Accès via API (bypass RLS)
     try {
-      const res = await fetch('/api/admin/users/update-access', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          userId: targetUserId,
-          selectedClientIds,
-          selectedBatimentIds,
-        }),
-      })
+      const { error: updateError } = await supabaseBrowser
+        .from('user_profiles')
+        .update({
+          full_name: editFullName.trim() || null,
+          role: editRole,
+        })
+        .eq('id', editingUser.id)
 
-      const json = await res.json()
-      if (!res.ok) throw new Error(json?.error || 'Erreur update-access (API).')
-    } catch (e: any) {
-      setErrorMsg(e?.message || 'Erreur lors de la mise à jour des accès (API).')
+      if (updateError) {
+        console.error('Erreur update profile:', updateError)
+        setErrorMsg(updateError.message)
+        setSaving(false)
+        return
+      }
+
+      const { error: deleteClientsError } = await supabaseBrowser
+        .from('user_clients')
+        .delete()
+        .eq('user_id', editingUser.user_id)
+
+      if (deleteClientsError) {
+        console.error('Erreur delete user_clients:', deleteClientsError)
+        setErrorMsg(deleteClientsError.message)
+        setSaving(false)
+        return
+      }
+
+      if (selectedClientIds.length > 0) {
+        const inserts = selectedClientIds.map((cid) => ({
+          user_id: editingUser.user_id,
+          client_id: cid,
+        }))
+        const { error: insertClientsError } = await supabaseBrowser.from('user_clients').insert(inserts)
+
+        if (insertClientsError) {
+          console.error('Erreur insert user_clients:', insertClientsError)
+          setErrorMsg(insertClientsError.message)
+          setSaving(false)
+          return
+        }
+      }
+
+      const { error: deleteBatError } = await supabaseBrowser
+        .from('user_batiments_access')
+        .delete()
+        .eq('user_id', editingUser.user_id)
+
+      if (deleteBatError) {
+        console.error('Erreur delete user_batiments_access:', deleteBatError)
+        setErrorMsg(deleteBatError.message)
+        setSaving(false)
+        return
+      }
+
+      if (selectedBatimentIds.length > 0) {
+        const insertsBat = selectedBatimentIds.map((bid) => ({
+          user_id: editingUser.user_id,
+          batiment_id: bid,
+        }))
+        const { error: insertBatError } = await supabaseBrowser.from('user_batiments_access').insert(insertsBat)
+
+        if (insertBatError) {
+          console.error('Erreur insert user_batiments_access:', insertBatError)
+          setErrorMsg(insertBatError.message)
+          setSaving(false)
+          return
+        }
+      }
+
+      setSuccessMsg('Modifications enregistrées.')
       setSaving(false)
+
+      const load = async () => {
+        setLoading(true)
+        setErrorMsg(null)
+
+        const { data: profilesData, error: profilesError } = await supabaseBrowser
+          .from('user_profiles')
+          .select('id, user_id, full_name, role, client_id, is_active')
+          .order('full_name', { ascending: true })
+
+        if (profilesError) {
+          setErrorMsg(profilesError.message)
+          setLoading(false)
+          return
+        }
+
+        const profiles = (profilesData || []) as UserProfileRow[]
+
+        const { data: clientsData, error: clientsError } = await supabaseBrowser
+          .from('clients')
+          .select('id, name')
+          .order('name', { ascending: true })
+
+        if (clientsError) {
+          setErrorMsg(clientsError.message)
+          setLoading(false)
+          return
+        }
+
+        const allClients = (clientsData || []) as ClientRow[]
+
+        const { data: batData, error: batError } = await supabaseBrowser
+          .from('batiments')
+          .select('id, client_id, name, address, city, postal_code')
+          .order('name', { ascending: true })
+
+        if (batError) {
+          setErrorMsg(batError.message)
+          setLoading(false)
+          return
+        }
+
+        const allBatiments = (batData || []) as BatimentRow[]
+
+        const { data: ucData, error: ucError } = await supabaseBrowser.from('user_clients').select('user_id, client_id')
+
+        if (ucError) {
+          setErrorMsg(ucError.message)
+          setLoading(false)
+          return
+        }
+
+        const userClients = (ucData || []) as UserClientRow[]
+
+        const { data: ubaData, error: ubaError } = await supabaseBrowser
+          .from('user_batiments_access')
+          .select('user_id, batiment_id')
+
+        if (ubaError) {
+          setErrorMsg(ubaError.message)
+          setLoading(false)
+          return
+        }
+
+        const userBatiments = (ubaData || []) as UserBatimentAccessRow[]
+
+        const clientsByIdMap = new Map<string, ClientRow>()
+        allClients.forEach((c) => clientsByIdMap.set(c.id, c))
+
+        const batById = new Map<string, BatimentRow>()
+        allBatiments.forEach((b) => batById.set(b.id, b))
+
+        const editable: EditableUser[] = profiles.map((p) => {
+          const uc = userClients.filter((x) => x.user_id === p.user_id)
+          const uba = userBatiments.filter((x) => x.user_id === p.user_id)
+
+          const clientsLabels = uc
+            .map((x) => clientsByIdMap.get(x.client_id)?.name || null)
+            .filter((x): x is string => !!x)
+
+          const batimentsLabels = uba
+            .map((x) => {
+              const b = batById.get(x.batiment_id)
+              if (!b) return null
+              if (b.name && b.city) return `${b.name} — ${b.city}`
+              if (b.name) return b.name
+              return null
+            })
+            .filter((x): x is string => !!x)
+
+          return { ...p, clientsLabels, batimentsLabels }
+        })
+
+        setUsers(editable)
+        setClients(allClients)
+        setBatiments(allBatiments)
+        setLoading(false)
+      }
+
+      await load()
+
+      window.setTimeout(() => {
+        setShowModal(false)
+        setEditingUser(null)
+      }, 1500)
+    } catch (err: any) {
+      console.error('Erreur inattendue save:', err)
+      setErrorMsg(err.message || 'Erreur inattendue.')
+      setSaving(false)
+    }
+  }
+
+  const toggleUserActive = async (profileId: string, userId: string, currentState: boolean | null) => {
+    const { error } = await supabaseBrowser
+      .from('user_profiles')
+      .update({ is_active: !currentState })
+      .eq('id', profileId)
+
+    if (error) {
+      pushToast('error', `Erreur: ${error.message}`)
       return
     }
 
-    // 4) Mettre à jour l’UI
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id !== editingUser.id) return u
+    pushToast('success', currentState ? 'Utilisateur suspendu.' : 'Utilisateur réactivé.')
 
-        const clientsLabels = selectedClientIds
-          .map((id) => clientsById.get(id)?.name || null)
+    const load = async () => {
+      setLoading(true)
+      setErrorMsg(null)
+
+      const { data: profilesData, error: profilesError } = await supabaseBrowser
+        .from('user_profiles')
+        .select('id, user_id, full_name, role, client_id, is_active')
+        .order('full_name', { ascending: true })
+
+      if (profilesError) {
+        setErrorMsg(profilesError.message)
+        setLoading(false)
+        return
+      }
+
+      const profiles = (profilesData || []) as UserProfileRow[]
+
+      const { data: clientsData, error: clientsError } = await supabaseBrowser
+        .from('clients')
+        .select('id, name')
+        .order('name', { ascending: true })
+
+      if (clientsError) {
+        setErrorMsg(clientsError.message)
+        setLoading(false)
+        return
+      }
+
+      const allClients = (clientsData || []) as ClientRow[]
+
+      const { data: batData, error: batError } = await supabaseBrowser
+        .from('batiments')
+        .select('id, client_id, name, address, city, postal_code')
+        .order('name', { ascending: true })
+
+      if (batError) {
+        setErrorMsg(batError.message)
+        setLoading(false)
+        return
+      }
+
+      const allBatiments = (batData || []) as BatimentRow[]
+
+      const { data: ucData, error: ucError } = await supabaseBrowser.from('user_clients').select('user_id, client_id')
+
+      if (ucError) {
+        setErrorMsg(ucError.message)
+        setLoading(false)
+        return
+      }
+
+      const userClients = (ucData || []) as UserClientRow[]
+
+      const { data: ubaData, error: ubaError } = await supabaseBrowser
+        .from('user_batiments_access')
+        .select('user_id, batiment_id')
+
+      if (ubaError) {
+        setErrorMsg(ubaError.message)
+        setLoading(false)
+        return
+      }
+
+      const userBatiments = (ubaData || []) as UserBatimentAccessRow[]
+
+      const clientsByIdMap = new Map<string, ClientRow>()
+      allClients.forEach((c) => clientsByIdMap.set(c.id, c))
+
+      const batById = new Map<string, BatimentRow>()
+      allBatiments.forEach((b) => batById.set(b.id, b))
+
+      const editable: EditableUser[] = profiles.map((p) => {
+        const uc = userClients.filter((x) => x.user_id === p.user_id)
+        const uba = userBatiments.filter((x) => x.user_id === p.user_id)
+
+        const clientsLabels = uc
+          .map((x) => clientsByIdMap.get(x.client_id)?.name || null)
           .filter((x): x is string => !!x)
 
-        const batimentsLabels = selectedBatimentIds
-          .map((id) => {
-            const b = batiments.find((bb) => bb.id === id)
+        const batimentsLabels = uba
+          .map((x) => {
+            const b = batById.get(x.batiment_id)
             if (!b) return null
             if (b.name && b.city) return `${b.name} — ${b.city}`
             if (b.name) return b.name
@@ -333,116 +532,71 @@ export default function AdminUtilisateursPage() {
           })
           .filter((x): x is string => !!x)
 
-        return {
-          ...u,
-          full_name: updatedProfile.full_name,
-          role: updatedProfile.role,
-          client_id: updatedProfile.client_id,
-          is_active: (updatedProfile as any).is_active ?? u.is_active,
-          clientsLabels,
-          batimentsLabels,
-        }
-      }),
-    )
-
-    setSaving(false)
-    closeModal()
-  }
-
-  // --- SUSPENDRE / RÉACTIVER ---
-  const toggleUserActive = async (profileId: string, _userId: string, currentActive: boolean | null) => {
-    const nextActive = currentActive === false ? true : false
-    try {
-      const res = await fetch('/api/admin/users/toggle-active', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileId, isActive: nextActive }),
+        return { ...p, clientsLabels, batimentsLabels }
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json?.error || 'Erreur API toggle-active')
 
-      setUsers((prev) => prev.map((u) => (u.id === profileId ? { ...u, is_active: nextActive } : u)))
-      pushToast('success', nextActive ? 'Utilisateur réactivé.' : 'Utilisateur suspendu.')
-    } catch (err: any) {
-      pushToast('error', err?.message ?? "Erreur lors de la mise à jour du statut de l'utilisateur.")
+      setUsers(editable)
+      setClients(allClients)
+      setBatiments(allBatiments)
+      setLoading(false)
     }
+
+    await load()
   }
 
-  // --- RESET PASSWORD (Dialog confirm) ---
-  const requestResetPassword = (targetUserId: string) => {
-    if (!targetUserId) return
-    setConfirmResetUserId(targetUserId)
+  const requestResetPassword = (userId: string) => {
+    setConfirmResetUserId(userId)
     setConfirmResetOpen(true)
   }
 
-  const doResetPassword = async (targetUserId: string) => {
-    if (!targetUserId) return
+  const handleConfirmResetPassword = async () => {
+    const userId = confirmResetUserId
+    if (!userId) return
 
-    // token (admin)
-    const { data: sessionRes, error: sessionErr } = await supabaseBrowser.auth.getSession()
-    if (sessionErr) {
-      pushToast('error', `Auth.getSession() a échoué : ${sessionErr.message}`)
-      return
-    }
-    const accessToken = sessionRes?.session?.access_token ?? ''
-    if (!accessToken) {
-      pushToast('error', 'Session absente ou access_token manquant. Reconnecte-toi.')
-      return
-    }
-
-    setResetLoadingByUserId((prev) => ({ ...prev, [targetUserId]: true }))
-
-    try {
-      const res = await fetch('/api/admin/users/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ userId: targetUserId }),
-      })
-
-      const json = await res.json()
-      if (!res.ok) throw new Error(json?.error || 'Erreur reset-password (API).')
-
-      pushToast('success', 'Courriel de réinitialisation envoyé.')
-    } catch (e: any) {
-      pushToast('error', e?.message || 'Erreur lors de la réinitialisation.')
-    } finally {
-      setResetLoadingByUserId((prev) => ({ ...prev, [targetUserId]: false }))
-    }
-  }
-
-  const confirmResetPassword = async () => {
-    if (!confirmResetUserId) return
-    const uid = confirmResetUserId
+    setResetLoadingByUserId((prev) => ({ ...prev, [userId]: true }))
     setConfirmResetOpen(false)
     setConfirmResetUserId(null)
-    await doResetPassword(uid)
+
+    try {
+      const res = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        pushToast('error', data.error || 'Erreur inconnue.')
+        setResetLoadingByUserId((prev) => ({ ...prev, [userId]: false }))
+        return
+      }
+
+      pushToast('success', 'Courriel de réinitialisation envoyé!')
+    } catch (err: any) {
+      pushToast('error', err.message || 'Erreur réseau.')
+    } finally {
+      setResetLoadingByUserId((prev) => ({ ...prev, [userId]: false }))
+    }
   }
 
-  // --- MODAL CRÉATION (inline) ---
   const openCreateModal = () => {
-    setCreateErrorMsg(null)
     setCreateEmail('')
     setCreateFullName('')
     setCreateRole('client')
     setCreateClientId('')
+    setCreateErrorMsg(null)
     setShowCreateModal(true)
   }
 
   const closeCreateModal = () => {
     if (createSaving) return
     setShowCreateModal(false)
-    setCreateErrorMsg(null)
   }
 
   const handleCreateUser = async () => {
-    const email = createEmail.trim().toLowerCase()
-    const fullName = createFullName.trim()
-
-    if (!email) {
-      setCreateErrorMsg('Le courriel est obligatoire pour créer un utilisateur.')
+    if (!createEmail.trim()) {
+      setCreateErrorMsg('Le courriel est obligatoire.')
       return
     }
 
@@ -450,201 +604,211 @@ export default function AdminUtilisateursPage() {
     setCreateErrorMsg(null)
 
     try {
-      const res = await fetch('/api/admin/users/create', {
+      const res = await fetch('/api/admin/create-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email,
-          fullName: fullName || null,
+          email: createEmail.trim(),
+          fullName: createFullName.trim() || null,
           role: createRole,
           clientId: createClientId || null,
         }),
       })
 
-      const json = await res.json()
-      if (!res.ok) throw new Error(json?.error || "Erreur lors de la création de l'utilisateur.")
+      const data = await res.json()
 
-      const profile = json.profile as UserProfileRow
-
-      const clientLabel = createClientId ? clientsById.get(createClientId)?.name || 'Client' : null
-
-      const newUser: EditableUser = {
-        ...profile,
-        clientsLabels: clientLabel ? [clientLabel] : [],
-        batimentsLabels: [],
+      if (!res.ok) {
+        setCreateErrorMsg(data.error || 'Erreur lors de la création.')
+        setCreateSaving(false)
+        return
       }
 
-      setUsers((prev) => [...prev, newUser])
-
+      pushToast('success', 'Utilisateur créé. Invitation envoyée par courriel.')
+      setCreateSaving(false)
       setShowCreateModal(false)
-      setCreateEmail('')
-      setCreateFullName('')
-      setCreateRole('client')
-      setCreateClientId('')
-      pushToast('success', "Utilisateur créé et invitation envoyée.")
+
+      const load = async () => {
+        setLoading(true)
+        setErrorMsg(null)
+
+        const { data: profilesData, error: profilesError } = await supabaseBrowser
+          .from('user_profiles')
+          .select('id, user_id, full_name, role, client_id, is_active')
+          .order('full_name', { ascending: true })
+
+        if (profilesError) {
+          setErrorMsg(profilesError.message)
+          setLoading(false)
+          return
+        }
+
+        const profiles = (profilesData || []) as UserProfileRow[]
+
+        const { data: clientsData, error: clientsError } = await supabaseBrowser
+          .from('clients')
+          .select('id, name')
+          .order('name', { ascending: true })
+
+        if (clientsError) {
+          setErrorMsg(clientsError.message)
+          setLoading(false)
+          return
+        }
+
+        const allClients = (clientsData || []) as ClientRow[]
+
+        const { data: batData, error: batError } = await supabaseBrowser
+          .from('batiments')
+          .select('id, client_id, name, address, city, postal_code')
+          .order('name', { ascending: true })
+
+        if (batError) {
+          setErrorMsg(batError.message)
+          setLoading(false)
+          return
+        }
+
+        const allBatiments = (batData || []) as BatimentRow[]
+
+        const { data: ucData, error: ucError } = await supabaseBrowser.from('user_clients').select('user_id, client_id')
+
+        if (ucError) {
+          setErrorMsg(ucError.message)
+          setLoading(false)
+          return
+        }
+
+        const userClients = (ucData || []) as UserClientRow[]
+
+        const { data: ubaData, error: ubaError } = await supabaseBrowser
+          .from('user_batiments_access')
+          .select('user_id, batiment_id')
+
+        if (ubaError) {
+          setErrorMsg(ubaError.message)
+          setLoading(false)
+          return
+        }
+
+        const userBatiments = (ubaData || []) as UserBatimentAccessRow[]
+
+        const clientsByIdMap = new Map<string, ClientRow>()
+        allClients.forEach((c) => clientsByIdMap.set(c.id, c))
+
+        const batById = new Map<string, BatimentRow>()
+        allBatiments.forEach((b) => batById.set(b.id, b))
+
+        const editable: EditableUser[] = profiles.map((p) => {
+          const uc = userClients.filter((x) => x.user_id === p.user_id)
+          const uba = userBatiments.filter((x) => x.user_id === p.user_id)
+
+          const clientsLabels = uc
+            .map((x) => clientsByIdMap.get(x.client_id)?.name || null)
+            .filter((x): x is string => !!x)
+
+          const batimentsLabels = uba
+            .map((x) => {
+              const b = batById.get(x.batiment_id)
+              if (!b) return null
+              if (b.name && b.city) return `${b.name} — ${b.city}`
+              if (b.name) return b.name
+              return null
+            })
+            .filter((x): x is string => !!x)
+
+          return { ...p, clientsLabels, batimentsLabels }
+        })
+
+        setUsers(editable)
+        setClients(allClients)
+        setBatiments(allBatiments)
+        setLoading(false)
+      }
+
+      await load()
     } catch (err: any) {
-      setCreateErrorMsg(err?.message ?? 'Erreur inconnue')
-    } finally {
+      console.error('Erreur inattendue création:', err)
+      setCreateErrorMsg(err.message || 'Erreur inattendue.')
       setCreateSaving(false)
     }
   }
 
-  if (loading) {
-    return (
-      <section className="space-y-6">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
-            <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
-          </div>
-          <div className="relative z-10 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
-              <Users className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Utilisateurs</h1>
-              <p className="mt-0.5 text-sm text-white/70">Chargement des utilisateurs…</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-          <div className="p-6">
-            <div className="h-10 w-10 rounded-xl bg-slate-100 animate-pulse" />
-            <div className="mt-4 h-4 w-1/3 rounded bg-slate-100 animate-pulse" />
-            <div className="mt-2 h-4 w-1/2 rounded bg-slate-100 animate-pulse" />
-          </div>
-        </div>
-      </section>
-    )
+  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setSearch(e.target.value)
   }
 
-  if (errorMsg && !showModal && !showCreateModal) {
-    return (
-      <section className="space-y-6">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
-            <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
-          </div>
-          <div className="relative z-10 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
-              <Users className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Utilisateurs</h1>
-              <p className="mt-0.5 text-sm text-white/70">
-                Gestion des comptes, rôles, statut et accès clients / bâtiments.
-              </p>
-            </div>
-          </div>
-        </div>
+  // Filtre des utilisateurs par nom
+  const filteredUsers = users.filter((u) =>
+    (u.full_name ?? '').toLowerCase().includes(search.trim().toLowerCase())
+  )
 
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-5 shadow-sm">
-          <div className="text-sm font-semibold text-red-700">Erreur</div>
-          <div className="mt-1 text-sm text-red-700">{errorMsg}</div>
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">Chargement des utilisateurs…</p>
         </div>
-      </section>
+      </div>
     )
   }
 
   return (
     <section className="space-y-6">
-      {/* TOAST */}
-      {toast && (
-        <div className="fixed right-4 top-4 z-50 w-[min(420px,calc(100%-2rem))]">
-          <div
-            className={
-              toast.type === 'success'
-                ? 'rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-lg'
-                : 'rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-lg'
-            }
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="font-medium">{toast.message}</div>
-              <button
-                type="button"
-                className="rounded-lg px-2 py-1 text-xs hover:bg-black/5"
-                onClick={() => setToast(null)}
-              >
-                Fermer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CONFIRM DIALOG - RESET PASSWORD */}
-      <Dialog
-        open={confirmResetOpen}
-        onOpenChange={(open) => {
-          setConfirmResetOpen(open)
-          if (!open) setConfirmResetUserId(null)
-        }}
-      >
-        <DialogContent className="sm:max-w-lg rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>Réinitialiser le mot de passe</DialogTitle>
-            <DialogDescription>
-              Cela envoie un courriel Supabase contenant un lien de réinitialisation.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="mt-2 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
-            <div className="font-medium text-slate-800">
-              Utilisateur : {confirmResetUser?.full_name || '(Sans nom)'}
-            </div>
-            <div className="mt-1 text-slate-500">Rôle : {confirmResetUser?.role || '—'}</div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-2">
-            <button
-              type="button"
-              className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-              onClick={() => {
-                setConfirmResetOpen(false)
-                setConfirmResetUserId(null)
-              }}
-            >
-              Annuler
-            </button>
-            <button
-              type="button"
-              className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
-              onClick={confirmResetPassword}
-            >
-              Envoyer le courriel
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* HEADER */}
+       {/* HEADER */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+        {/* Décoration background */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
           <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
         </div>
 
-        <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
-              <Users className="h-6 w-6 text-white" />
-            </div>
-            <div className="max-w-3xl">
-              <h1 className="text-2xl font-bold text-white">Utilisateurs</h1>
-              <p className="mt-0.5 text-sm text-white/70">
-                Gestion des comptes, rôles, statut actif/suspendu et accès aux clients / bâtiments pour le portail
-                client.
-              </p>
-            </div>
-          </div>
+        <div className="relative z-10">
+          {/* Titre + actions */}
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
+                  <Users className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-white">Utilisateurs</h1>
+                  <p className="mt-0.5 text-sm text-white/70">
+                    Gérez les comptes et permissions de vos utilisateurs
+                  </p>
+                </div>
+              </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+              {/* Stats rapides */}
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                  <Users className="h-4 w-4 text-white/70" />
+                  <span className="text-sm text-white/90">
+                    {users.length} utilisateur{users.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                  <CheckCircle2 className="h-4 w-4 text-white/70" />
+                  <span className="text-sm text-white/90">
+                    {users.filter((u) => u.is_active === true).length} actif{users.filter((u) => u.is_active === true).length > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                  <Ban className="h-4 w-4 text-white/70" />
+                  <span className="text-sm text-white/90">
+                    {users.filter((u) => u.is_active === false).length} suspendu{users.filter((u) => u.is_active === false).length > 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bouton d'action */}
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#1F4E79] shadow-lg transition-all hover:bg-white/90 hover:shadow-xl"
               onClick={openCreateModal}
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#1F4E79] shadow-lg transition-all hover:bg-white/90 hover:shadow-xl"
             >
               <UserPlus className="h-4 w-4" />
               Ajouter un utilisateur
@@ -653,117 +817,239 @@ export default function AdminUtilisateursPage() {
         </div>
       </div>
 
-      {/* TABLE */}
+      {/* RECHERCHE */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
+              <SlidersHorizontal className="h-5 w-5 text-[#1F4E79]" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Recherche</h2>
+              <p className="text-xs text-slate-500">Filtrez la liste des utilisateurs</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5">
+          <div className="space-y-1.5">
+            <label className="block text-sm font-semibold text-slate-700">Rechercher un utilisateur</label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={handleSearchChange}
+                placeholder="Nom complet de l'utilisateur..."
+                className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pr-10 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                style={{ paddingLeft: '3rem' }}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* LISTE DES UTILISATEURS */}
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
+              <Users className="h-5 w-5 text-[#1F4E79]" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Liste des utilisateurs</h2>
+              <p className="text-xs text-slate-500">
+                {filteredUsers.length} utilisateur{filteredUsers.length > 1 ? 's' : ''} trouvé
+                {filteredUsers.length > 1 ? 's' : ''}.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse text-sm">
+          <table className="w-full">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-white text-left">
-                <th className="border-b border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
-                  Nom complet
+              <tr className="border-b border-slate-200 bg-slate-50/50">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Utilisateur
                 </th>
-                <th className="border-b border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Rôle
                 </th>
-                <th className="border-b border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
-                  Clients associés
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Clients
                 </th>
-                <th className="border-b border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
-                  Bâtiments autorisés
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Bâtiments
                 </th>
-                <th className="border-b border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Statut
                 </th>
-                <th className="border-b border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-600">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Actions
                 </th>
               </tr>
             </thead>
-
             <tbody>
-              {users.map((u) => {
-                const isActive = u.is_active !== false
-                const resetLoading = !!resetLoadingByUserId[u.user_id]
+              {filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 mb-4">
+                        <Users className="h-8 w-8 text-slate-400" />
+                      </div>
+                      <p className="text-sm font-medium text-slate-600">Aucun utilisateur trouvé</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {search ? 'Modifiez votre recherche pour voir plus de résultats.' : 'Aucun utilisateur enregistré.'}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredUsers.map((u) => {
+                  const isActive = u.is_active ?? true
+                  const resetLoading = resetLoadingByUserId[u.user_id] ?? false
 
-                return (
-                  <tr key={u.id} className="transition-colors hover:bg-slate-50/70">
-                    <td className="border-b border-slate-100 px-4 py-3 text-slate-800">
-                      {u.full_name || '(Sans nom)'}
-                    </td>
+                  return (
+                    <tr key={u.id} className="group transition-colors hover:bg-slate-50">
+                      <td className="border-b border-slate-100 px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-sm font-semibold text-white shadow-sm">
+                            {(u.full_name ?? 'U')[0].toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="block truncate font-semibold text-slate-800">
+                              {u.full_name || '(Sans nom)'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
 
-                    <td className="border-b border-slate-100 px-4 py-3">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                        <Shield className="h-3.5 w-3.5 text-slate-500" />
-                        {u.role || '—'}
-                      </span>
-                    </td>
+                      <td className="border-b border-slate-100 px-4 py-3">
+                        <span
+                          className={
+                            u.role === 'admin'
+                              ? 'inline-flex items-center gap-1.5 rounded-full bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-700'
+                              : 'inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700'
+                          }
+                        >
+                          <Shield
+                            className={u.role === 'admin' ? 'h-3.5 w-3.5 text-purple-600' : 'h-3.5 w-3.5 text-blue-600'}
+                          />
+                          {u.role === 'admin' ? 'Admin' : 'Client'}
+                        </span>
+                      </td>
 
-                    <td className="border-b border-slate-100 px-4 py-3 text-slate-600">
-                      {u.clientsLabels.length > 0 ? u.clientsLabels.join(', ') : 'Aucun'}
-                    </td>
-
-                    <td className="border-b border-slate-100 px-4 py-3 text-slate-600">
-                      {u.batimentsLabels.length > 0
-                        ? u.batimentsLabels.join(', ')
-                        : 'Tous les bâtiments des clients associés'}
-                    </td>
-
-                    <td className="border-b border-slate-100 px-4 py-3">
-                      <span
-                        className={
-                          isActive
-                            ? 'inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700'
-                            : 'inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700'
-                        }
-                      >
-                        {isActive ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      <td className="border-b border-slate-100 px-4 py-3">
+                        {u.clientsLabels.length === 0 ? (
+                          <span className="text-sm text-slate-400">Aucun</span>
                         ) : (
-                          <Ban className="h-3.5 w-3.5 text-rose-600" />
+                          <div className="flex flex-wrap gap-1.5">
+                            {u.clientsLabels.slice(0, 2).map((c, idx) => (
+                              <span
+                                key={idx}
+                                className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700"
+                              >
+                                {c}
+                              </span>
+                            ))}
+                            {u.clientsLabels.length > 2 && (
+                              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">
+                                +{u.clientsLabels.length - 2}
+                              </span>
+                            )}
+                          </div>
                         )}
-                        {isActive ? 'Actif' : 'Suspendu'}
-                      </span>
-                    </td>
+                      </td>
 
-                    <td className="border-b border-slate-100 px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                          onClick={() => openEditModal(u)}
-                        >
-                          <Shield className="h-4 w-4 text-slate-500" />
-                          Modifier
-                        </button>
+                      <td className="border-b border-slate-100 px-4 py-3">
+                        {u.batimentsLabels.length === 0 ? (
+                          <span className="text-sm text-slate-400">Aucun</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {u.batimentsLabels.slice(0, 1).map((b, idx) => (
+                              <span
+                                key={idx}
+                                className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700"
+                              >
+                                {b}
+                              </span>
+                            ))}
+                            {u.batimentsLabels.length > 1 && (
+                              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">
+                                +{u.batimentsLabels.length - 1}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
 
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
-                          onClick={() => requestResetPassword(u.user_id)}
-                          disabled={resetLoading}
-                          title="Envoie un courriel Supabase de réinitialisation"
-                        >
-                          <KeyRound className="h-4 w-4 text-slate-500" />
-                          {resetLoading ? 'Envoi…' : 'Réinitialiser MDP'}
-                        </button>
-
-                        <button
-                          type="button"
+                      <td className="border-b border-slate-100 px-4 py-3">
+                        <span
                           className={
                             isActive
-                              ? 'inline-flex items-center gap-2 rounded-xl border border-red-300/60 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-500/15'
-                              : 'inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50'
+                              ? 'inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700'
+                              : 'inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700'
                           }
-                          onClick={() => toggleUserActive(u.id, u.user_id, u.is_active)}
                         >
-                          {isActive ? <Ban className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                          {isActive ? 'Suspendre' : 'Réactiver'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+                          {isActive ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                          ) : (
+                            <Ban className="h-3.5 w-3.5 text-rose-600" />
+                          )}
+                          {isActive ? 'Actif' : 'Suspendu'}
+                        </span>
+                      </td>
+
+                      <td className="border-b border-slate-100 px-4 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                            onClick={() => openEditModal(u)}
+                          >
+                            <Shield className="h-4 w-4 text-slate-500" />
+                            Modifier
+                          </button>
+
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                            onClick={() => requestResetPassword(u.user_id)}
+                            disabled={resetLoading}
+                            title="Envoie un courriel Supabase de réinitialisation"
+                          >
+                            <KeyRound className="h-4 w-4 text-slate-500" />
+                            {resetLoading ? 'Envoi…' : 'Réinitialiser MDP'}
+                          </button>
+
+                          <button
+                            type="button"
+                            className={
+                              isActive
+                                ? 'inline-flex items-center gap-2 rounded-xl border border-red-300/60 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-500/15'
+                                : 'inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50'
+                            }
+                            onClick={() => toggleUserActive(u.id, u.user_id, u.is_active)}
+                          >
+                            {isActive ? <Ban className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                            {isActive ? 'Suspendre' : 'Réactiver'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -897,6 +1183,53 @@ export default function AdminUtilisateursPage() {
           successMsg={successMsg}
           debugLabel={process.env.NODE_ENV === 'development' ? 'CT-MODAL-UTILISATEUR-TRACE-V2' : undefined}
         />
+      )}
+
+      {/* Dialog: Confirmation reset password */}
+      <Dialog open={confirmResetOpen} onOpenChange={(open) => !open && setConfirmResetOpen(false)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Réinitialiser le mot de passe</DialogTitle>
+            <DialogDescription>
+              Un courriel de réinitialisation sera envoyé à{' '}
+              <strong>{confirmResetUser?.full_name || 'cet utilisateur'}</strong>. Continuer ?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              type="button"
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+              onClick={() => setConfirmResetOpen(false)}
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-4 py-2 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
+              onClick={handleConfirmResetPassword}
+            >
+              Confirmer
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Toast notifications */}
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl px-5 py-4 shadow-2xl backdrop-blur-sm transition-all ${
+            toast.type === 'success'
+              ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border border-rose-200 bg-rose-50 text-rose-800'
+          }`}
+        >
+          {toast.type === 'success' ? (
+            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+          ) : (
+            <Ban className="h-5 w-5 text-rose-600" />
+          )}
+          <span className="text-sm font-semibold">{toast.message}</span>
+        </div>
       )}
     </section>
   )

@@ -176,6 +176,7 @@ export default function AdminBassinDetailPage() {
   const [rapports, setRapports] = useState<RapportRow[]>([])
   const [interventions, setInterventions] = useState<InterventionWithFiles[]>([])
   const [selectedInterventionId, setSelectedInterventionId] = useState<string | null>(null)
+  const [garantieProche, setGarantieProche] = useState<GarantieRow | null>(null)
 
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -301,6 +302,25 @@ export default function AdminBassinDetailPage() {
         setErrorMsg(garantiesError.message)
         setLoading(false)
         return
+      }
+
+      // Trouver la garantie avec date de fin la plus proche
+      if (garantiesData && garantiesData.length > 0) {
+        // Filtrer les garanties qui ont une date de fin
+        const garantiesAvecDate = (garantiesData as GarantieRow[])
+          .filter(g => g.date_fin)
+          .sort((a, b) => {
+            if (!a.date_fin || !b.date_fin) return 0
+            return new Date(a.date_fin).getTime() - new Date(b.date_fin).getTime()
+          })
+        
+        if (garantiesAvecDate.length > 0) {
+          setGarantieProche(garantiesAvecDate[0])
+        } else {
+          setGarantieProche(null)
+        }
+      } else {
+        setGarantieProche(null)
       }
 
       // 5) Rapports du bassin
@@ -694,6 +714,25 @@ export default function AdminBassinDetailPage() {
       } else {
         setGaranties((prev) => [...prev, data])
       }
+      
+      // Mettre à jour la garantie proche pour le badge
+      const newGaranties = editingGarantie
+        ? garanties.map((g) => (g.id === data.id ? data : g))
+        : [...garanties, data]
+      
+      const garantiesAvecDate = newGaranties
+        .filter(g => g.date_fin)
+        .sort((a, b) => {
+          if (!a.date_fin || !b.date_fin) return 0
+          return new Date(a.date_fin).getTime() - new Date(b.date_fin).getTime()
+        })
+      
+      if (garantiesAvecDate.length > 0) {
+        setGarantieProche(garantiesAvecDate[0])
+      } else {
+        setGarantieProche(null)
+      }
+      
       closeModal()
     }
   }
@@ -712,7 +751,22 @@ export default function AdminBassinDetailPage() {
       return
     }
 
-    setGaranties((prev) => prev.filter((g) => g.id !== garantie.id))
+    const newGaranties = garanties.filter((g) => g.id !== garantie.id)
+    setGaranties(newGaranties)
+    
+    // Mettre à jour la garantie proche pour le badge
+    const garantiesAvecDate = newGaranties
+      .filter(g => g.date_fin)
+      .sort((a, b) => {
+        if (!a.date_fin || !b.date_fin) return 0
+        return new Date(a.date_fin).getTime() - new Date(b.date_fin).getTime()
+      })
+    
+    if (garantiesAvecDate.length > 0) {
+      setGarantieProche(garantiesAvecDate[0])
+    } else {
+      setGarantieProche(null)
+    }
   }
 
   const handleSubmitRapport = async (e: FormEvent) => {
@@ -1284,6 +1338,33 @@ export default function AdminBassinDetailPage() {
   // RENDER
   // =====================================================
 
+
+  // Fonctions pour le badge de garantie
+  const formatDateEcheance = (dateStr: string | null): string => {
+    if (!dateStr) return 'Non définie'
+    // Utiliser UTC pour éviter les problèmes de fuseau horaire
+    const date = new Date(dateStr + 'T00:00:00')
+    const options: Intl.DateTimeFormatOptions = { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      timeZone: 'America/Toronto'
+    }
+    return date.toLocaleDateString('fr-CA', options)
+  }
+
+  const getBadgeColorGarantie = (dateStr: string | null): string => {
+    if (!dateStr) return 'bg-slate-100/90 text-slate-600 border-slate-200'
+    const dateFin = new Date(dateStr)
+    const aujourdhui = new Date()
+    const diffTime = dateFin.getTime() - aujourdhui.getTime()
+    const diffJours = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    if (diffJours < 0) return 'bg-red-100/90 text-red-700 border-red-200'
+    if (diffJours <= 90) return 'bg-orange-100/90 text-orange-700 border-orange-200'
+    if (diffJours <= 180) return 'bg-yellow-100/90 text-yellow-700 border-yellow-200'
+    return 'bg-green-100/90 text-green-700 border-green-200'
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -1406,6 +1487,27 @@ export default function AdminBassinDetailPage() {
                     Réfection : {bassin.date_derniere_refection ?? 'N/D'}
                   </span>
                 </div>
+                
+                {/* Badge d'échéance de garantie */}
+                {garantieProche && garantieProche.date_fin && (
+                  <div className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 backdrop-blur-sm ${getBadgeColorGarantie(garantieProche.date_fin)}`}>
+                    <Shield className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-sm font-medium">
+                      {(() => {
+                        const dateFin = new Date(garantieProche.date_fin + 'T00:00:00')
+                        const aujourdhui = new Date()
+                        const diffTime = dateFin.getTime() - aujourdhui.getTime()
+                        const diffJours = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+                        
+                        if (diffJours < 0) {
+                          return `Garantie échue: ${formatDateEcheance(garantieProche.date_fin)}`
+                        } else {
+                          return `Échéance de la garantie: ${formatDateEcheance(garantieProche.date_fin)}`
+                        }
+                      })()}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
