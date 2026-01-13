@@ -19,6 +19,7 @@ import {
   Menu,
   X,
   BriefcaseBusiness,
+  Boxes,
 } from 'lucide-react'
 
 type NavItem = {
@@ -67,6 +68,12 @@ const secondaryNav: NavItem[] = [
     description: 'Répertoire des entreprises',
     href: '/admin/entreprises',
     icon: BriefcaseBusiness,
+  },
+  {
+  label: 'Matériaux',
+  description: 'Catalogue de composition',
+  href: '/admin/materiaux',
+  icon: Boxes,
   },
   {
     label: 'Listes de choix',

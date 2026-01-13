@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import BassinMap, { InterventionMarker } from '@/components/maps/BassinMap'
+import BassinCompositionCard from '@/components/bassins/BassinCompositionCard'
 import {
   Info,
   Wrench,
@@ -2002,7 +2003,7 @@ export default function AdminBassinDetailPage() {
         </div>
 
         {/* ===== COLONNE DROITE : CARTE ===== */}
-        <div className="lg:sticky lg:top-6">
+        <div className="lg:sticky lg:top-6 space-y-6">
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
             <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
               <div className="flex items-center gap-3">
@@ -2010,8 +2011,12 @@ export default function AdminBassinDetailPage() {
                   <MapPin className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Polygone de toiture</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Visualisation du bassin et des interventions</p>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                    Polygone de toiture
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Visualisation du bassin et des interventions
+                  </p>
                 </div>
               </div>
             </div>
@@ -2034,6 +2039,7 @@ export default function AdminBassinDetailPage() {
                 />
               </div>
 
+              {/* Légende */}
               <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-slate-500">
                 <div className="flex items-center gap-1.5">
                   <span className="h-3 w-3 rounded-full" style={{ backgroundColor: couleurEtat || '#6C757D' }} />
@@ -2052,6 +2058,9 @@ export default function AdminBassinDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* NOUVELLE CARD — Composition */}
+          <BassinCompositionCard bassinId={bassin.id} />
         </div>
       </div>
 
