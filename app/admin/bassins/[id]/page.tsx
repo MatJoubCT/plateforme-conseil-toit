@@ -20,7 +20,6 @@ import {
   Clock,
   Shield,
   FileCheck,
-  Download,
   X,
   AlertTriangle,
   Building2,
@@ -49,6 +48,7 @@ type BassinRow = {
   surface_m2: number | null
   annee_installation: number | null
   date_derniere_refection: string | null
+  couvreur_id: string | null
   etat_id: string | null
   duree_vie_id: string | null
   duree_vie_text: string | null
@@ -87,6 +87,12 @@ type GarantieRow = {
   couverture: string | null
   commentaire: string | null
   fichier_pdf_url: string | null
+}
+
+type EntrepriseRow = {
+  id: string
+  type: string | null
+  nom: string | null
 }
 
 type RapportRow = {
@@ -153,11 +159,11 @@ function toGeoJSONPoint(pos: { lat: number; lng: number } | null): GeoJSONPoint 
 
 function sanitizeStorageKey(name: string) {
   const n = (name || 'fichier')
-    .normalize('NFD') // sépare accents
-    .replace(/[\u0300-\u036f]/g, '') // enlève accents
-    .replace(/[/\\]/g, '_') // enlève slash/backslash
-    .replace(/\s+/g, '_') // espaces -> _
-    .replace(/[^A-Za-z0-9._-]/g, '_') // garde seulement safe
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[/\\]/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/[^A-Za-z0-9._-]/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '')
 
@@ -173,6 +179,7 @@ export default function AdminBassinDetailPage() {
   const [batiment, setBatiment] = useState<BatimentRow | null>(null)
   const [listes, setListes] = useState<ListeChoix[]>([])
   const [garanties, setGaranties] = useState<GarantieRow[]>([])
+  const [couvreurs, setCouvreurs] = useState<EntrepriseRow[]>([])
   const [rapports, setRapports] = useState<RapportRow[]>([])
   const [interventions, setInterventions] = useState<InterventionWithFiles[]>([])
   const [selectedInterventionId, setSelectedInterventionId] = useState<string | null>(null)
@@ -182,16 +189,12 @@ export default function AdminBassinDetailPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   // Onglets documents
-  const [activeDocTab, setActiveDocTab] = useState<'garanties' | 'rapports'>(
-    'garanties'
-  )
+  const [activeDocTab, setActiveDocTab] = useState<'garanties' | 'rapports'>('garanties')
 
   // Modal ajout/modif garantie
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [editingGarantie, setEditingGarantie] = useState<GarantieRow | null>(
-    null
-  )
+  const [editingGarantie, setEditingGarantie] = useState<GarantieRow | null>(null)
   const [modalTitle, setModalTitle] = useState('Nouvelle garantie')
   const [formTypeGarantieId, setFormTypeGarantieId] = useState('')
   const [formFournisseur, setFormFournisseur] = useState('')
@@ -219,6 +222,7 @@ export default function AdminBassinDetailPage() {
   const [savingBassin, setSavingBassin] = useState(false)
   const [editName, setEditName] = useState('')
   const [editMembraneId, setEditMembraneId] = useState('')
+  const [editCouvreurId, setEditCouvreurId] = useState('')
   const [editAnnee, setEditAnnee] = useState('')
   const [editDateDerniere, setEditDateDerniere] = useState('')
   const [editEtatId, setEditEtatId] = useState('')
@@ -231,10 +235,12 @@ export default function AdminBassinDetailPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deletingBassin, setDeletingBassin] = useState(false)
 
-  // Interventions — éditeur inline (pour garder la carte cliquable)
+  // Interventions — éditeur inline
   const [showInterventionEditor, setShowInterventionEditor] = useState(false)
   const [savingIntervention, setSavingIntervention] = useState(false)
-  const [editingIntervention, setEditingIntervention] = useState<InterventionWithFiles | null>(null)
+  const [editingIntervention, setEditingIntervention] = useState<InterventionWithFiles | null>(
+    null
+  )
   const [intDate, setIntDate] = useState('')
   const [intTypeId, setIntTypeId] = useState('')
   const [intCommentaire, setIntCommentaire] = useState('')
@@ -254,7 +260,7 @@ export default function AdminBassinDetailPage() {
       const { data: bassinData, error: bassinError } = await supabaseBrowser
         .from('bassins')
         .select(
-          'id, batiment_id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
+          'id, batiment_id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson, couvreur_id'
         )
         .eq('id', bassinId)
         .single()
@@ -289,6 +295,19 @@ export default function AdminBassinDetailPage() {
         return
       }
 
+      // 3.1) Entreprises (couvreurs)
+      const { data: couvreursData, error: couvreursError } = await supabaseBrowser
+        .from('entreprises')
+        .select('id, type, nom')
+        .eq('type', 'couvreur')
+        .order('nom', { ascending: true })
+
+      if (couvreursError) {
+        setErrorMsg(couvreursError.message)
+        setLoading(false)
+        return
+      }
+
       // 4) Garanties du bassin
       const { data: garantiesData, error: garantiesError } = await supabaseBrowser
         .from('garanties')
@@ -306,19 +325,17 @@ export default function AdminBassinDetailPage() {
 
       // Trouver la garantie avec date de fin la plus proche
       if (garantiesData && garantiesData.length > 0) {
-        // Filtrer les garanties qui ont une date de fin
         const garantiesAvecDate = (garantiesData as GarantieRow[])
-          .filter(g => g.date_fin)
+          .filter((g) => g.date_fin)
           .sort((a, b) => {
             if (!a.date_fin || !b.date_fin) return 0
-            return new Date(a.date_fin).getTime() - new Date(b.date_fin).getTime()
+            return (
+              new Date(a.date_fin + 'T00:00:00').getTime() -
+              new Date(b.date_fin + 'T00:00:00').getTime()
+            )
           })
-        
-        if (garantiesAvecDate.length > 0) {
-          setGarantieProche(garantiesAvecDate[0])
-        } else {
-          setGarantieProche(null)
-        }
+
+        setGarantieProche(garantiesAvecDate.length > 0 ? garantiesAvecDate[0] : null)
       } else {
         setGarantieProche(null)
       }
@@ -326,9 +343,7 @@ export default function AdminBassinDetailPage() {
       // 5) Rapports du bassin
       const { data: rapportsData, error: rapportsError } = await supabaseBrowser
         .from('rapports')
-        .select(
-          'id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url'
-        )
+        .select('id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url')
         .eq('bassin_id', bassinId)
         .order('date_rapport', { ascending: false })
 
@@ -386,6 +401,7 @@ export default function AdminBassinDetailPage() {
       setBassin(bassinData as BassinRow)
       setBatiment(batData)
       setListes((listesData || []) as ListeChoix[])
+      setCouvreurs((couvreursData || []) as EntrepriseRow[])
       setGaranties((garantiesData || []) as GarantieRow[])
       setRapports((rapportsData || []) as RapportRow[])
       setInterventions(combined)
@@ -424,9 +440,7 @@ export default function AdminBassinDetailPage() {
   }
 
   // Listes de choix pour état / durée de vie du bassin
-  const etatsBassin = listes.filter((l) =>
-    ['etat_bassin', 'etat_toiture', 'etat'].includes(l.categorie)
-  )
+  const etatsBassin = listes.filter((l) => ['etat_bassin', 'etat_toiture', 'etat'].includes(l.categorie))
   const dureesBassin = listes.filter((l) =>
     ['duree_vie_bassin', 'duree_vie_toiture', 'duree_vie'].includes(l.categorie)
   )
@@ -440,26 +454,20 @@ export default function AdminBassinDetailPage() {
     const dureeId = bassin.duree_vie_id
 
     const preferEtatCategories = ['etat_bassin', 'etat_toiture', 'etat']
-    const preferDureeCategories = [
-      'duree_vie_bassin',
-      'duree_vie_toiture',
-      'duree_vie',
-    ]
+    const preferDureeCategories = ['duree_vie_bassin', 'duree_vie_toiture', 'duree_vie']
 
     if (etatId) {
       const match =
-        listes.find(
-          (l) => l.id === etatId && preferEtatCategories.includes(l.categorie)
-        ) || listes.find((l) => l.id === etatId)
+        listes.find((l) => l.id === etatId && preferEtatCategories.includes(l.categorie)) ||
+        listes.find((l) => l.id === etatId)
 
       if (match?.couleur) return match.couleur
     }
 
     if (dureeId) {
       const match =
-        listes.find(
-          (l) => l.id === dureeId && preferDureeCategories.includes(l.categorie)
-        ) || listes.find((l) => l.id === dureeId)
+        listes.find((l) => l.id === dureeId && preferDureeCategories.includes(l.categorie)) ||
+        listes.find((l) => l.id === dureeId)
 
       if (match?.couleur) return match.couleur
     }
@@ -467,7 +475,7 @@ export default function AdminBassinDetailPage() {
     return undefined
   })()
 
-  // Centre de la carte : priorité au centre du polygone, puis coords du bâtiment, puis fallback
+  // Centre de la carte
   const mapCenter = (() => {
     if (
       bassin?.polygone_geojson &&
@@ -503,11 +511,7 @@ export default function AdminBassinDetailPage() {
         if (!pos) return null
         const typeLabel = typeInterventionLabel(i.type_intervention_id)
         const title = `${i.date_intervention}${typeLabel ? ' — ' + typeLabel : ''}`
-        return {
-          id: i.id,
-          position: pos,
-          title,
-        } as InterventionMarker
+        return { id: i.id, position: pos, title } as InterventionMarker
       })
       .filter(Boolean) as InterventionMarker[]
   }, [interventions, typesInterventions])
@@ -524,7 +528,6 @@ export default function AdminBassinDetailPage() {
 
   const openModal = (garantie?: GarantieRow) => {
     if (garantie) {
-      // MODE ÉDITION
       setEditingGarantie(garantie)
       setModalTitle('Modifier la garantie')
 
@@ -538,7 +541,6 @@ export default function AdminBassinDetailPage() {
       setFormCommentaire(garantie.commentaire || '')
       setPdfFile(null)
     } else {
-      // MODE CRÉATION
       setEditingGarantie(null)
       setModalTitle('Nouvelle garantie')
 
@@ -607,13 +609,12 @@ export default function AdminBassinDetailPage() {
 
     if (pdfFile) {
       const ext = pdfFile.name.split('.').pop() || 'pdf'
-      const path = `${bassin.id}/${crypto.randomUUID()}.${ext}`
+      const safeName = sanitizeStorageKey(pdfFile.name)
+      const path = `${bassin.id}/${crypto.randomUUID()}-${safeName}.${ext}`
 
-      const { error: uploadError } = await supabaseBrowser.storage
-        .from('garanties')
-        .upload(path, pdfFile, {
-          upsert: false,
-        })
+      const { error: uploadError } = await supabaseBrowser.storage.from('garanties').upload(path, pdfFile, {
+        upsert: false,
+      })
 
       if (uploadError) {
         setSaving(false)
@@ -621,21 +622,13 @@ export default function AdminBassinDetailPage() {
         return
       }
 
-      const { data: publicData } = supabaseBrowser.storage
-        .from('garanties')
-        .getPublicUrl(path)
-
+      const { data: publicData } = supabaseBrowser.storage.from('garanties').getPublicUrl(path)
       fichierUrl = publicData?.publicUrl ?? null
     }
 
     // 2) Champs UUID sécurisés
-    const safeTypeGarantieId =
-      formTypeGarantieId && formTypeGarantieId.trim() !== ''
-        ? formTypeGarantieId
-        : null
-
-    const safeStatutId =
-      formStatutId && formStatutId.trim() !== '' ? formStatutId : null
+    const safeTypeGarantieId = formTypeGarantieId && formTypeGarantieId.trim() !== '' ? formTypeGarantieId : null
+    const safeStatutId = formStatutId && formStatutId.trim() !== '' ? formStatutId : null
 
     // 3) Payload
     const payload = {
@@ -652,18 +645,12 @@ export default function AdminBassinDetailPage() {
     }
 
     const badUuidFields: string[] = []
-    if ((payload.bassin_id as any) === 'undefined')
-      badUuidFields.push('bassin_id')
-    if ((payload.type_garantie_id as any) === 'undefined')
-      badUuidFields.push('type_garantie_id')
-    if ((payload.statut_id as any) === 'undefined')
-      badUuidFields.push('statut_id')
+    if ((payload.bassin_id as any) === 'undefined') badUuidFields.push('bassin_id')
+    if ((payload.type_garantie_id as any) === 'undefined') badUuidFields.push('type_garantie_id')
+    if ((payload.statut_id as any) === 'undefined') badUuidFields.push('statut_id')
 
     if (badUuidFields.length > 0) {
-      console.error('BUG: champs uuid = "undefined" dans payload', {
-        payload,
-        badUuidFields,
-      })
+      console.error('BUG: champs uuid = "undefined" dans payload', { payload, badUuidFields })
       alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
       setSaving(false)
       return
@@ -702,8 +689,7 @@ export default function AdminBassinDetailPage() {
     if (error) {
       console.error('Erreur Supabase insert/update garantie', error)
       alert(
-        'Erreur lors de l\'enregistrement de la garantie : ' +
-          ((error as any)?.message ?? 'Erreur inconnue')
+        "Erreur lors de l'enregistrement de la garantie : " + ((error as any)?.message ?? 'Erreur inconnue')
       )
       return
     }
@@ -714,25 +700,23 @@ export default function AdminBassinDetailPage() {
       } else {
         setGaranties((prev) => [...prev, data])
       }
-      
-      // Mettre à jour la garantie proche pour le badge
+
       const newGaranties = editingGarantie
         ? garanties.map((g) => (g.id === data.id ? data : g))
         : [...garanties, data]
-      
+
       const garantiesAvecDate = newGaranties
-        .filter(g => g.date_fin)
+        .filter((g) => g.date_fin)
         .sort((a, b) => {
           if (!a.date_fin || !b.date_fin) return 0
-          return new Date(a.date_fin).getTime() - new Date(b.date_fin).getTime()
+          return (
+            new Date(a.date_fin + 'T00:00:00').getTime() -
+            new Date(b.date_fin + 'T00:00:00').getTime()
+          )
         })
-      
-      if (garantiesAvecDate.length > 0) {
-        setGarantieProche(garantiesAvecDate[0])
-      } else {
-        setGarantieProche(null)
-      }
-      
+
+      setGarantieProche(garantiesAvecDate.length > 0 ? garantiesAvecDate[0] : null)
+
       closeModal()
     }
   }
@@ -741,10 +725,7 @@ export default function AdminBassinDetailPage() {
     const ok = window.confirm('Voulez-vous vraiment supprimer cette garantie ?')
     if (!ok) return
 
-    const { error } = await supabaseBrowser
-      .from('garanties')
-      .delete()
-      .eq('id', garantie.id)
+    const { error } = await supabaseBrowser.from('garanties').delete().eq('id', garantie.id)
 
     if (error) {
       alert('Erreur lors de la suppression : ' + error.message)
@@ -753,20 +734,18 @@ export default function AdminBassinDetailPage() {
 
     const newGaranties = garanties.filter((g) => g.id !== garantie.id)
     setGaranties(newGaranties)
-    
-    // Mettre à jour la garantie proche pour le badge
+
     const garantiesAvecDate = newGaranties
-      .filter(g => g.date_fin)
+      .filter((g) => g.date_fin)
       .sort((a, b) => {
         if (!a.date_fin || !b.date_fin) return 0
-        return new Date(a.date_fin).getTime() - new Date(b.date_fin).getTime()
+        return (
+          new Date(a.date_fin + 'T00:00:00').getTime() -
+          new Date(b.date_fin + 'T00:00:00').getTime()
+        )
       })
-    
-    if (garantiesAvecDate.length > 0) {
-      setGarantieProche(garantiesAvecDate[0])
-    } else {
-      setGarantieProche(null)
-    }
+
+    setGarantieProche(garantiesAvecDate.length > 0 ? garantiesAvecDate[0] : null)
   }
 
   const handleSubmitRapport = async (e: FormEvent) => {
@@ -785,16 +764,13 @@ export default function AdminBassinDetailPage() {
     if (rapportPdfFile) {
       const ext = rapportPdfFile.name.split('.').pop() || 'pdf'
       const baseNumero =
-        formNumeroRapport && formNumeroRapport.trim() !== ''
-          ? formNumeroRapport.trim()
-          : 'rapport'
-      const path = `${bassin.id}/${baseNumero}-${crypto.randomUUID()}.${ext}`
+        formNumeroRapport && formNumeroRapport.trim() !== '' ? formNumeroRapport.trim() : 'rapport'
+      const safeName = sanitizeStorageKey(rapportPdfFile.name)
+      const path = `${bassin.id}/${baseNumero}-${crypto.randomUUID()}-${safeName}.${ext}`
 
-      const { error: uploadError } = await supabaseBrowser.storage
-        .from('rapports')
-        .upload(path, rapportPdfFile, {
-          upsert: false,
-        })
+      const { error: uploadError } = await supabaseBrowser.storage.from('rapports').upload(path, rapportPdfFile, {
+        upsert: false,
+      })
 
       if (uploadError) {
         setSavingRapport(false)
@@ -802,17 +778,11 @@ export default function AdminBassinDetailPage() {
         return
       }
 
-      const { data: publicData } = supabaseBrowser.storage
-        .from('rapports')
-        .getPublicUrl(path)
-
+      const { data: publicData } = supabaseBrowser.storage.from('rapports').getPublicUrl(path)
       fichierUrl = publicData?.publicUrl ?? null
     }
 
-    const safeTypeRapportId =
-      formTypeRapportId && formTypeRapportId.trim() !== ''
-        ? formTypeRapportId
-        : null
+    const safeTypeRapportId = formTypeRapportId && formTypeRapportId.trim() !== '' ? formTypeRapportId : null
 
     const payload = {
       bassin_id: bassin.id,
@@ -828,10 +798,7 @@ export default function AdminBassinDetailPage() {
     if ((payload.type_id as any) === 'undefined') badUuidFields.push('type_id')
 
     if (badUuidFields.length > 0) {
-      console.error('BUG: champs uuid = "undefined" dans payload rapport', {
-        payload,
-        badUuidFields,
-      })
+      console.error('BUG: champs uuid = "undefined" dans payload rapport', { payload, badUuidFields })
       alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
       setSavingRapport(false)
       return
@@ -845,9 +812,7 @@ export default function AdminBassinDetailPage() {
         .from('rapports')
         .update(payload)
         .eq('id', editingRapport.id)
-        .select(
-          'id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url'
-        )
+        .select('id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url')
         .single()
 
       data = res.data as RapportRow | null
@@ -856,9 +821,7 @@ export default function AdminBassinDetailPage() {
       const res = await supabaseBrowser
         .from('rapports')
         .insert(payload)
-        .select(
-          'id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url'
-        )
+        .select('id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url')
         .single()
 
       data = res.data as RapportRow | null
@@ -869,10 +832,7 @@ export default function AdminBassinDetailPage() {
 
     if (error) {
       console.error('Erreur Supabase insert/update rapport', error)
-      alert(
-        'Erreur lors de l\'enregistrement du rapport : ' +
-          ((error as any)?.message ?? 'Erreur inconnue')
-      )
+      alert("Erreur lors de l'enregistrement du rapport : " + ((error as any)?.message ?? 'Erreur inconnue'))
       return
     }
 
@@ -890,10 +850,7 @@ export default function AdminBassinDetailPage() {
     const ok = window.confirm('Voulez-vous vraiment supprimer ce rapport ?')
     if (!ok) return
 
-    const { error } = await supabaseBrowser
-      .from('rapports')
-      .delete()
-      .eq('id', rapport.id)
+    const { error } = await supabaseBrowser.from('rapports').delete().eq('id', rapport.id)
 
     if (error) {
       alert('Erreur lors de la suppression : ' + error.message)
@@ -903,19 +860,17 @@ export default function AdminBassinDetailPage() {
     setRapports((prev) => prev.filter((r) => r.id !== rapport.id))
   }
 
-  // Ouverture du modal d'édition de bassin
   const openEditBassinModal = () => {
     if (!bassin) return
     setEditName(bassin.name || '')
     setEditMembraneId(bassin.membrane_type_id || '')
-    setEditAnnee(
-      bassin.annee_installation != null ? String(bassin.annee_installation) : ''
-    )
+    setEditAnnee(bassin.annee_installation != null ? String(bassin.annee_installation) : '')
     setEditDateDerniere(bassin.date_derniere_refection || '')
     setEditEtatId(bassin.etat_id || '')
     setEditDureeId(bassin.duree_vie_id || '')
     setEditReference(bassin.reference_interne || '')
     setEditNotes(bassin.notes || '')
+    setEditCouvreurId(bassin.couvreur_id || '')
     setShowEditBassinModal(true)
   }
 
@@ -941,31 +896,25 @@ export default function AdminBassinDetailPage() {
     setSavingBassin(true)
 
     const safeEtatId = editEtatId && editEtatId.trim() !== '' ? editEtatId : null
-    const safeDureeId =
-      editDureeId && editDureeId.trim() !== '' ? editDureeId : null
-    const safeMembraneId =
-      editMembraneId && editMembraneId.trim() !== '' ? editMembraneId : null
+    const safeDureeId = editDureeId && editDureeId.trim() !== '' ? editDureeId : null
+    const safeMembraneId = editMembraneId && editMembraneId.trim() !== '' ? editMembraneId : null
 
-    const annee =
-      editAnnee && editAnnee.trim() !== '' ? Number(editAnnee.trim()) : null
+    const annee = editAnnee && editAnnee.trim() !== '' ? Number(editAnnee.trim()) : null
 
-    const selectedDuree =
-      safeDureeId != null
-        ? dureesBassin.find((d) => d.id === safeDureeId)
-        : undefined
+    const selectedDuree = safeDureeId != null ? dureesBassin.find((d) => d.id === safeDureeId) : undefined
     const dureeText = selectedDuree?.label ?? null
+    const safeCouvreurId = editCouvreurId && editCouvreurId.trim() !== '' ? editCouvreurId : null
 
     const payload = {
       name: editName || null,
       membrane_type_id: safeMembraneId,
       annee_installation: annee,
-      date_derniere_refection:
-        editDateDerniere && editDateDerniere.trim() !== '' ? editDateDerniere : null,
+      date_derniere_refection: editDateDerniere && editDateDerniere.trim() !== '' ? editDateDerniere : null,
+      couvreur_id: safeCouvreurId,
       etat_id: safeEtatId,
       duree_vie_id: safeDureeId,
       duree_vie_text: dureeText,
-      reference_interne:
-        editReference && editReference.trim() !== '' ? editReference : null,
+      reference_interne: editReference && editReference.trim() !== '' ? editReference : null,
       notes: editNotes && editNotes.trim() !== '' ? editNotes : null,
     }
 
@@ -974,7 +923,7 @@ export default function AdminBassinDetailPage() {
       .update(payload)
       .eq('id', bassin.id)
       .select(
-        'id, batiment_id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
+        'id, batiment_id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson, couvreur_id'
       )
       .single()
 
@@ -982,10 +931,7 @@ export default function AdminBassinDetailPage() {
 
     if (error) {
       console.error('Erreur Supabase update bassin', error)
-      alert(
-        'Erreur lors de la mise à jour du bassin : ' +
-          (error.message ?? 'Erreur inconnue')
-      )
+      alert("Erreur lors de la mise à jour du bassin : " + (error.message ?? 'Erreur inconnue'))
       return
     }
 
@@ -1006,20 +952,14 @@ export default function AdminBassinDetailPage() {
 
     if (error) {
       console.error('Erreur Supabase delete bassin', error)
-      alert(
-        'Erreur lors de la suppression du bassin : ' +
-          (error.message ?? 'Erreur inconnue')
-      )
+      alert("Erreur lors de la suppression du bassin : " + (error.message ?? 'Erreur inconnue'))
       return
     }
 
     setShowDeleteBassinModal(false)
 
-    if (batiment?.id) {
-      router.push(`/admin/batiments/${batiment.id}`)
-    } else {
-      router.push('/admin/bassins')
-    }
+    if (batiment?.id) router.push(`/admin/batiments/${batiment.id}`)
+    else router.push('/admin/bassins')
   }
 
   // -----------------------------
@@ -1111,12 +1051,10 @@ export default function AdminBassinDetailPage() {
 
     setInterventions(next)
 
-    // si l'éditeur est ouvert sur une intervention, on garde l'objet à jour (fichiers, etc.)
     setEditingIntervention((cur) => {
       if (!cur) return cur
       return next.find((x) => x.id === cur.id) ?? cur
     })
-
   }
 
   const handleSaveIntervention = async () => {
@@ -1126,14 +1064,13 @@ export default function AdminBassinDetailPage() {
     }
 
     if (!intDate || intDate.trim() === '') {
-      alert('La date de l\'intervention est obligatoire.')
+      alert("La date de l'intervention est obligatoire.")
       return
     }
 
     setSavingIntervention(true)
 
-    const safeTypeId =
-      intTypeId && intTypeId.trim() !== '' ? intTypeId : null
+    const safeTypeId = intTypeId && intTypeId.trim() !== '' ? intTypeId : null
 
     const payload = {
       bassin_id: bassin.id,
@@ -1177,28 +1114,23 @@ export default function AdminBassinDetailPage() {
     // Upload fichiers (si ajoutés)
     if (saved && intNewFiles.length > 0) {
       for (const f of intNewFiles) {
-        const safeName = sanitizeStorageKey(f.name || 'fichier.pdf')
+        const safeName = sanitizeStorageKey(f.name || 'fichier')
         const filePath = `${bassin.id}/${saved.id}/${crypto.randomUUID()}-${safeName}`
 
-        const { error: upErr } = await supabaseBrowser.storage
-          .from('interventions')
-          .upload(filePath, f, { upsert: false })
+        const { error: upErr } = await supabaseBrowser.storage.from('interventions').upload(filePath, f, { upsert: false })
 
         if (upErr) {
           console.error('Erreur upload fichier intervention', upErr)
           alert('Erreur upload fichier : ' + upErr.message)
-          // on continue avec les autres fichiers
           continue
         }
 
-        const { error: insErr } = await supabaseBrowser
-          .from('intervention_fichiers')
-          .insert({
-            intervention_id: saved.id,
-            file_path: filePath,
-            file_name: f.name || null,
-            mime_type: f.type || null,
-          })
+        const { error: insErr } = await supabaseBrowser.from('intervention_fichiers').insert({
+          intervention_id: saved.id,
+          file_path: filePath,
+          file_name: f.name || null,
+          mime_type: f.type || null,
+        })
 
         if (insErr) {
           console.error('Erreur insert intervention_fichiers', insErr)
@@ -1225,9 +1157,7 @@ export default function AdminBassinDetailPage() {
     if (it.files && it.files.length > 0) {
       const paths = it.files.map((f) => f.file_path).filter(Boolean)
       if (paths.length > 0) {
-        const { error: rmErr } = await supabaseBrowser.storage
-          .from('interventions')
-          .remove(paths)
+        const { error: rmErr } = await supabaseBrowser.storage.from('interventions').remove(paths)
 
         if (rmErr) {
           console.error('Erreur suppression storage interventions', rmErr)
@@ -1249,10 +1179,7 @@ export default function AdminBassinDetailPage() {
     }
 
     // 2) supprimer l'intervention
-    const { error: delErr } = await supabaseBrowser
-      .from('interventions')
-      .delete()
-      .eq('id', it.id)
+    const { error: delErr } = await supabaseBrowser.from('interventions').delete().eq('id', it.id)
 
     if (delErr) {
       console.error('Erreur suppression intervention', delErr)
@@ -1262,17 +1189,13 @@ export default function AdminBassinDetailPage() {
 
     setInterventions((prev) => prev.filter((x) => x.id !== it.id))
     if (selectedInterventionId === it.id) setSelectedInterventionId(null)
-    if (editingIntervention?.id === it.id) {
-      closeInterventionEditor()
-    }
+    if (editingIntervention?.id === it.id) closeInterventionEditor()
   }
 
   const openFileSignedUrl = async (file: InterventionFichierRow) => {
     try {
       setBusyFileIds((p) => ({ ...p, [file.id]: true }))
-      const { data, error } = await supabaseBrowser.storage
-        .from('interventions')
-        .createSignedUrl(file.file_path, 60 * 10)
+      const { data, error } = await supabaseBrowser.storage.from('interventions').createSignedUrl(file.file_path, 60 * 10)
 
       if (error) {
         console.error('Erreur signed url', error)
@@ -1280,9 +1203,7 @@ export default function AdminBassinDetailPage() {
         return
       }
 
-      if (data?.signedUrl) {
-        window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
-      }
+      if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
     } finally {
       setBusyFileIds((p) => ({ ...p, [file.id]: false }))
     }
@@ -1294,9 +1215,7 @@ export default function AdminBassinDetailPage() {
 
     setBusyFileIds((p) => ({ ...p, [file.id]: true }))
 
-    const { error: rmErr } = await supabaseBrowser.storage
-      .from('interventions')
-      .remove([file.file_path])
+    const { error: rmErr } = await supabaseBrowser.storage.from('interventions').remove([file.file_path])
 
     if (rmErr) {
       setBusyFileIds((p) => ({ ...p, [file.id]: false }))
@@ -1305,10 +1224,7 @@ export default function AdminBassinDetailPage() {
       return
     }
 
-    const { error: delErr } = await supabaseBrowser
-      .from('intervention_fichiers')
-      .delete()
-      .eq('id', file.id)
+    const { error: delErr } = await supabaseBrowser.from('intervention_fichiers').delete().eq('id', file.id)
 
     setBusyFileIds((p) => ({ ...p, [file.id]: false }))
 
@@ -1318,7 +1234,6 @@ export default function AdminBassinDetailPage() {
       return
     }
 
-    // update state
     setInterventions((prev) =>
       prev.map((it) => {
         if (it.id !== file.intervention_id) return it
@@ -1327,35 +1242,28 @@ export default function AdminBassinDetailPage() {
     )
 
     setEditingIntervention((cur) => {
-  if (!cur) return cur
-  if (cur.id !== file.intervention_id) return cur
-  return { ...cur, files: cur.files.filter((f) => f.id !== file.id) }
+      if (!cur) return cur
+      if (cur.id !== file.intervention_id) return cur
+      return { ...cur, files: cur.files.filter((f) => f.id !== file.id) }
     })
-
   }
-
-  // =====================================================
-  // RENDER
-  // =====================================================
-
 
   // Fonctions pour le badge de garantie
   const formatDateEcheance = (dateStr: string | null): string => {
     if (!dateStr) return 'Non définie'
-    // Utiliser UTC pour éviter les problèmes de fuseau horaire
     const date = new Date(dateStr + 'T00:00:00')
-    const options: Intl.DateTimeFormatOptions = { 
-      year: 'numeric', 
-      month: 'long', 
+    const options: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: 'long',
       day: 'numeric',
-      timeZone: 'America/Toronto'
+      timeZone: 'America/Toronto',
     }
     return date.toLocaleDateString('fr-CA', options)
   }
 
   const getBadgeColorGarantie = (dateStr: string | null): string => {
     if (!dateStr) return 'bg-slate-100/90 text-slate-600 border-slate-200'
-    const dateFin = new Date(dateStr)
+    const dateFin = new Date(dateStr + 'T00:00:00')
     const aujourdhui = new Date()
     const diffTime = dateFin.getTime() - aujourdhui.getTime()
     const diffJours = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
@@ -1400,30 +1308,24 @@ export default function AdminBassinDetailPage() {
     )
   }
 
-  // Surface affichée en pi² (BD reste en m²)
-  const surfaceFt2 =
-    bassin.surface_m2 != null ? Math.round(bassin.surface_m2 * 10.7639) : null
-
-  const typeDuree =
-    dureesBassin.find((l) => l.id === bassin.duree_vie_id)?.label ?? null
-
+  const surfaceFt2 = bassin.surface_m2 != null ? Math.round(bassin.surface_m2 * 10.7639) : null
+  const typeDuree = dureesBassin.find((l) => l.id === bassin.duree_vie_id)?.label ?? null
   const etatLabel = etatsBassin.find((l) => l.id === bassin.etat_id)?.label || null
-
-  const membraneLabel =
-    membranesBassin.find((l) => l.id === bassin.membrane_type_id)?.label ?? null
+  const couvreurNom = bassin.couvreur_id
+  ? (couvreurs.find((c) => c.id === bassin.couvreur_id)?.nom ?? null)
+  : null
+  const membraneLabel = membranesBassin.find((l) => l.id === bassin.membrane_type_id)?.label ?? null
 
   return (
     <section className="space-y-6">
       {/* ========== HEADER ========== */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
-        {/* Décoration background */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
           <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
         </div>
 
         <div className="relative z-10">
-          {/* Breadcrumb */}
           <div className="mb-4 flex items-center gap-2 text-sm">
             <Link
               href="/admin/bassins"
@@ -1448,7 +1350,6 @@ export default function AdminBassinDetailPage() {
             <span className="font-medium text-white">{bassin.name || 'Sans nom'}</span>
           </div>
 
-          {/* Titre + actions */}
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3">
@@ -1456,24 +1357,20 @@ export default function AdminBassinDetailPage() {
                   <Layers className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-white">
-                    {bassin.name || '(Sans nom)'}
-                  </h1>
+                  <h1 className="text-2xl font-bold text-white">{bassin.name || '(Sans nom)'}</h1>
                   {batiment && (
                     <p className="mt-0.5 text-sm text-white/70">
-                      {batiment.address}{batiment.city ? `, ${batiment.city}` : ''}
+                      {batiment.address}
+                      {batiment.city ? `, ${batiment.city}` : ''}
                     </p>
                   )}
                 </div>
               </div>
 
-              {/* Stats rapides */}
               <div className="mt-4 flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
                   <Calendar className="h-4 w-4 text-white/70" />
-                  <span className="text-sm text-white/90">
-                    {bassin.annee_installation ?? 'N/D'}
-                  </span>
+                  <span className="text-sm text-white/90">{bassin.annee_installation ?? 'N/D'}</span>
                 </div>
                 <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
                   <Layers className="h-4 w-4 text-white/70" />
@@ -1484,13 +1381,17 @@ export default function AdminBassinDetailPage() {
                 <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
                   <Clock className="h-4 w-4 text-white/70" />
                   <span className="text-sm text-white/90">
-                    Réfection : {bassin.date_derniere_refection ?? 'N/D'}
+                    Dernière réfection : {bassin.date_derniere_refection ?? 'N/D'}
+                    {bassin.date_derniere_refection && couvreurNom ? ` par ${couvreurNom}` : ''}
                   </span>
                 </div>
-                
-                {/* Badge d'échéance de garantie */}
+
                 {garantieProche && garantieProche.date_fin && (
-                  <div className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 backdrop-blur-sm ${getBadgeColorGarantie(garantieProche.date_fin)}`}>
+                  <div
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 backdrop-blur-sm ${getBadgeColorGarantie(
+                      garantieProche.date_fin
+                    )}`}
+                  >
                     <Shield className="h-4 w-4 flex-shrink-0" />
                     <span className="text-sm font-medium">
                       {(() => {
@@ -1498,12 +1399,11 @@ export default function AdminBassinDetailPage() {
                         const aujourdhui = new Date()
                         const diffTime = dateFin.getTime() - aujourdhui.getTime()
                         const diffJours = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-                        
+
                         if (diffJours < 0) {
                           return `Garantie échue: ${formatDateEcheance(garantieProche.date_fin)}`
-                        } else {
-                          return `Échéance de la garantie: ${formatDateEcheance(garantieProche.date_fin)}`
                         }
+                        return `Échéance de la garantie: ${formatDateEcheance(garantieProche.date_fin)}`
                       })()}
                     </span>
                   </div>
@@ -1511,7 +1411,6 @@ export default function AdminBassinDetailPage() {
               </div>
             </div>
 
-            {/* Boutons d'action */}
             <div className="flex flex-wrap items-center gap-2">
               {batiment && (
                 <Link
@@ -1545,10 +1444,8 @@ export default function AdminBassinDetailPage() {
 
       {/* ========== LAYOUT 2 COLONNES ========== */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] lg:items-start">
-        
         {/* ===== COLONNE GAUCHE ===== */}
         <div className="space-y-6">
-          
           {/* ----- RÉSUMÉ DU BASSIN ----- */}
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
             <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
@@ -1556,20 +1453,16 @@ export default function AdminBassinDetailPage() {
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
                   <Info className="h-5 w-5 text-[#1F4E79]" />
                 </div>
-                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
-                  Résumé du bassin
-                </h2>
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Résumé du bassin</h2>
               </div>
             </div>
 
             <div className="p-5 space-y-4">
-              {/* État global */}
               <div className="flex items-center justify-between gap-4 rounded-xl bg-slate-50/80 px-4 py-3">
                 <span className="text-sm font-medium text-slate-600">État global</span>
                 <StateBadge state={mapEtatToStateBadge(etatLabel)} />
               </div>
 
-              {/* Autres infos */}
               <div className="grid gap-3">
                 <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -1596,7 +1489,6 @@ export default function AdminBassinDetailPage() {
                 </div>
               </div>
 
-              {/* Notes */}
               <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
                 <div className="mb-2 flex items-center gap-2">
                   <StickyNote className="h-4 w-4 text-slate-400" />
@@ -1618,11 +1510,10 @@ export default function AdminBassinDetailPage() {
                     <Wrench className="h-5 w-5 text-amber-600" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
-                      Interventions
-                    </h2>
+                    <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Interventions</h2>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      {interventions.length} intervention{interventions.length !== 1 ? 's' : ''} enregistrée{interventions.length !== 1 ? 's' : ''}
+                      {interventions.length} intervention{interventions.length !== 1 ? 's' : ''} enregistrée
+                      {interventions.length !== 1 ? 's' : ''}
                     </p>
                   </div>
                 </div>
@@ -1671,25 +1562,25 @@ export default function AdminBassinDetailPage() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className={`text-sm font-semibold ${selected ? 'text-[#1F4E79]' : 'text-slate-800'}`}>
+                              <span
+                                className={`text-sm font-semibold ${
+                                  selected ? 'text-[#1F4E79]' : 'text-slate-800'
+                                }`}
+                              >
                                 {it.date_intervention}
                               </span>
                               <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
                                 {typeLabel}
                               </span>
-                              {hasLoc && (
-                                <MapPin className="h-3.5 w-3.5 text-green-500" />
-                              )}
+                              {hasLoc && <MapPin className="h-3.5 w-3.5 text-green-500" />}
                             </div>
-                            {it.commentaire && (
-                              <p className="text-sm text-slate-500 truncate">
-                                {it.commentaire}
-                              </p>
-                            )}
+                            {it.commentaire && <p className="text-sm text-slate-500 truncate">{it.commentaire}</p>}
                             {it.files && it.files.length > 0 && (
                               <div className="mt-2 flex items-center gap-1 text-xs text-slate-400">
                                 <FileText className="h-3.5 w-3.5" />
-                                <span>{it.files.length} fichier{it.files.length !== 1 ? 's' : ''}</span>
+                                <span>
+                                  {it.files.length} fichier{it.files.length !== 1 ? 's' : ''}
+                                </span>
                               </div>
                             )}
                           </div>
@@ -1723,13 +1614,12 @@ export default function AdminBassinDetailPage() {
                 </div>
               )}
 
-              {/* Éditeur inline intervention */}
               {showInterventionEditor && (
                 <div className="mt-4 rounded-xl border-2 border-[#1F4E79]/30 bg-[#1F4E79]/5 p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
                     <div>
                       <h3 className="text-sm font-bold text-slate-800">
-                        {editingIntervention ? 'Modifier l\'intervention' : 'Nouvelle intervention'}
+                        {editingIntervention ? "Modifier l'intervention" : 'Nouvelle intervention'}
                       </h3>
                       <p className="text-xs text-slate-500 mt-0.5">
                         Activez « Choisir sur la carte » pour localiser l'intervention
@@ -1771,9 +1661,7 @@ export default function AdminBassinDetailPage() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="block text-xs font-semibold text-slate-600">
-                        Type d'intervention
-                      </label>
+                      <label className="block text-xs font-semibold text-slate-600">Type d'intervention</label>
                       <select
                         value={intTypeId}
                         onChange={(e) => setIntTypeId(e.target.value)}
@@ -1789,9 +1677,7 @@ export default function AdminBassinDetailPage() {
                     </div>
 
                     <div className="md:col-span-2 space-y-1.5">
-                      <label className="block text-xs font-semibold text-slate-600">
-                        Commentaire
-                      </label>
+                      <label className="block text-xs font-semibold text-slate-600">Commentaire</label>
                       <textarea
                         rows={3}
                         value={intCommentaire}
@@ -1805,9 +1691,7 @@ export default function AdminBassinDetailPage() {
                         type="button"
                         onClick={() => setIntPickEnabled((v) => !v)}
                         className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                          intPickEnabled
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          intPickEnabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
                         <MapPin className="h-4 w-4" />
@@ -1837,9 +1721,7 @@ export default function AdminBassinDetailPage() {
                     </div>
 
                     <div className="md:col-span-2 space-y-1.5">
-                      <label className="block text-xs font-semibold text-slate-600">
-                        Ajouter des fichiers / photos
-                      </label>
+                      <label className="block text-xs font-semibold text-slate-600">Ajouter des fichiers / photos</label>
                       <div className="relative">
                         <input
                           type="file"
@@ -1849,24 +1731,17 @@ export default function AdminBassinDetailPage() {
                         />
                         <div className="flex items-center gap-3 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-center transition-colors hover:border-[#1F4E79]/50 hover:bg-[#1F4E79]/5">
                           <Upload className="h-5 w-5 text-slate-400" />
-                          <span className="text-sm text-slate-600">
-                            Cliquez ou glissez des fichiers ici
-                          </span>
+                          <span className="text-sm text-slate-600">Cliquez ou glissez des fichiers ici</span>
                         </div>
                       </div>
                       {intNewFiles.length > 0 && (
-                        <p className="text-xs text-green-600 mt-1">
-                          {intNewFiles.length} fichier(s) prêt(s) à téléverser
-                        </p>
+                        <p className="text-xs text-green-600 mt-1">{intNewFiles.length} fichier(s) prêt(s) à téléverser</p>
                       )}
                     </div>
 
-                    {/* Fichiers existants */}
                     {editingIntervention && editingIntervention.files.length > 0 && (
                       <div className="md:col-span-2 space-y-2">
-                        <p className="text-xs font-semibold text-slate-600">
-                          Fichiers existants
-                        </p>
+                        <p className="text-xs font-semibold text-slate-600">Fichiers existants</p>
                         <div className="space-y-2">
                           {editingIntervention.files.map((f) => (
                             <div
@@ -1878,9 +1753,7 @@ export default function AdminBassinDetailPage() {
                                 <span className="truncate font-medium">
                                   {f.file_name || f.file_path.split('/').pop() || 'Fichier'}
                                 </span>
-                                {f.mime_type && (
-                                  <span className="text-xs text-slate-400">({f.mime_type})</span>
-                                )}
+                                {f.mime_type && <span className="text-xs text-slate-400">({f.mime_type})</span>}
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
                                 <button
@@ -1920,16 +1793,11 @@ export default function AdminBassinDetailPage() {
                     <FileText className="h-5 w-5 text-emerald-600" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
-                      Documents
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Garanties et rapports associés
-                    </p>
+                    <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Documents</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">Garanties et rapports associés</p>
                   </div>
                 </div>
 
-                {/* Tabs */}
                 <div className="flex items-center rounded-lg bg-slate-100 p-1">
                   <button
                     type="button"
@@ -1942,9 +1810,7 @@ export default function AdminBassinDetailPage() {
                   >
                     <Shield className="h-4 w-4" />
                     Garanties
-                    <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-xs">
-                      {garanties.length}
-                    </span>
+                    <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-xs">{garanties.length}</span>
                   </button>
                   <button
                     type="button"
@@ -1957,16 +1823,13 @@ export default function AdminBassinDetailPage() {
                   >
                     <FileCheck className="h-4 w-4" />
                     Rapports
-                    <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-xs">
-                      {rapports.length}
-                    </span>
+                    <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-xs">{rapports.length}</span>
                   </button>
                 </div>
               </div>
             </div>
 
             <div className="p-5">
-              {/* ONGLET GARANTIES */}
               {activeDocTab === 'garanties' && (
                 <>
                   <div className="flex justify-end mb-4">
@@ -2054,7 +1917,6 @@ export default function AdminBassinDetailPage() {
                 </>
               )}
 
-              {/* ONGLET RAPPORTS */}
               {activeDocTab === 'rapports' && (
                 <>
                   <div className="flex justify-end mb-4">
@@ -2148,12 +2010,8 @@ export default function AdminBassinDetailPage() {
                   <MapPin className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
-                    Polygone de toiture
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Visualisation du bassin et des interventions
-                  </p>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Polygone de toiture</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Visualisation du bassin et des interventions</p>
                 </div>
               </div>
             </div>
@@ -2176,7 +2034,6 @@ export default function AdminBassinDetailPage() {
                 />
               </div>
 
-              {/* Légende */}
               <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-slate-500">
                 <div className="flex items-center gap-1.5">
                   <span className="h-3 w-3 rounded-full" style={{ backgroundColor: couleurEtat || '#6C757D' }} />
@@ -2199,7 +2056,6 @@ export default function AdminBassinDetailPage() {
       </div>
 
       {/* ========== MODALS ========== */}
-
       {/* Modal édition bassin */}
       {showEditBassinModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -2207,9 +2063,7 @@ export default function AdminBassinDetailPage() {
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">Modifier le bassin</h3>
-                <p className="text-sm text-slate-500 mt-0.5">
-                  Ajustez les informations de ce bassin
-                </p>
+                <p className="text-sm text-slate-500 mt-0.5">Ajustez les informations de ce bassin</p>
               </div>
               <button
                 type="button"
@@ -2223,9 +2077,7 @@ export default function AdminBassinDetailPage() {
 
             <form onSubmit={handleSubmitBassin} className="p-6 space-y-5">
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Nom du bassin
-                </label>
+                <label className="block text-sm font-semibold text-slate-700">Nom du bassin</label>
                 <input
                   type="text"
                   value={editName}
@@ -2236,9 +2088,7 @@ export default function AdminBassinDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Type de membrane
-                </label>
+                <label className="block text-sm font-semibold text-slate-700">Type de membrane</label>
                 <select
                   value={editMembraneId}
                   onChange={(e) => setEditMembraneId(e.target.value)}
@@ -2255,9 +2105,7 @@ export default function AdminBassinDetailPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Année d'installation
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700">Année d'installation</label>
                   <input
                     type="number"
                     value={editAnnee}
@@ -2266,9 +2114,7 @@ export default function AdminBassinDetailPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Date dernière réfection
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700">Date dernière réfection</label>
                   <input
                     type="date"
                     value={editDateDerniere}
@@ -2280,9 +2126,25 @@ export default function AdminBassinDetailPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    État du bassin
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700">Réfection par</label>
+                  <select
+                    value={editCouvreurId}
+                    onChange={(e) => setEditCouvreurId(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  >
+                    <option value="">Non défini</option>
+                    {couvreurs.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nom || '(Sans nom)'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">État du bassin</label>
                   <select
                     value={editEtatId}
                     onChange={(e) => setEditEtatId(e.target.value)}
@@ -2297,9 +2159,7 @@ export default function AdminBassinDetailPage() {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Durée de vie
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700">Durée de vie</label>
                   <select
                     value={editDureeId}
                     onChange={(e) => setEditDureeId(e.target.value)}
@@ -2316,9 +2176,7 @@ export default function AdminBassinDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Référence interne
-                </label>
+                <label className="block text-sm font-semibold text-slate-700">Référence interne</label>
                 <input
                   type="text"
                   value={editReference}
@@ -2328,9 +2186,7 @@ export default function AdminBassinDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Notes internes
-                </label>
+                <label className="block text-sm font-semibold text-slate-700">Notes internes</label>
                 <textarea
                   rows={3}
                   value={editNotes}
@@ -2368,9 +2224,7 @@ export default function AdminBassinDetailPage() {
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">{modalTitle}</h3>
-                <p className="text-sm text-slate-500 mt-0.5">
-                  Bassin : {bassin.name || '(Sans nom)'}
-                </p>
+                <p className="text-sm text-slate-500 mt-0.5">Bassin : {bassin.name || '(Sans nom)'}</p>
               </div>
               <button
                 type="button"
@@ -2403,9 +2257,7 @@ export default function AdminBassinDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Fournisseur
-                </label>
+                <label className="block text-sm font-semibold text-slate-700">Fournisseur</label>
                 <input
                   type="text"
                   value={formFournisseur}
@@ -2415,9 +2267,7 @@ export default function AdminBassinDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Numéro de garantie
-                </label>
+                <label className="block text-sm font-semibold text-slate-700">Numéro de garantie</label>
                 <input
                   type="text"
                   value={formNumero}
@@ -2428,9 +2278,7 @@ export default function AdminBassinDetailPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Date de début
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700">Date de début</label>
                   <input
                     type="date"
                     value={formDateDebut}
@@ -2439,9 +2287,7 @@ export default function AdminBassinDetailPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Date de fin
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700">Date de fin</label>
                   <input
                     type="date"
                     value={formDateFin}
@@ -2452,9 +2298,7 @@ export default function AdminBassinDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Statut
-                </label>
+                <label className="block text-sm font-semibold text-slate-700">Statut</label>
                 <select
                   value={formStatutId}
                   onChange={(e) => setFormStatutId(e.target.value)}
@@ -2470,9 +2314,7 @@ export default function AdminBassinDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Couverture (résumé)
-                </label>
+                <label className="block text-sm font-semibold text-slate-700">Couverture (résumé)</label>
                 <input
                   type="text"
                   value={formCouverture}
@@ -2482,9 +2324,7 @@ export default function AdminBassinDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Commentaire
-                </label>
+                <label className="block text-sm font-semibold text-slate-700">Commentaire</label>
                 <textarea
                   rows={3}
                   value={formCommentaire}
@@ -2494,9 +2334,7 @@ export default function AdminBassinDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Fichier PDF de la garantie
-                </label>
+                <label className="block text-sm font-semibold text-slate-700">Fichier PDF de la garantie</label>
                 <div className="relative">
                   <input
                     type="file"
@@ -2506,9 +2344,7 @@ export default function AdminBassinDetailPage() {
                   />
                   <div className="flex items-center gap-3 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-center transition-colors hover:border-[#1F4E79]/50 hover:bg-[#1F4E79]/5">
                     <Upload className="h-5 w-5 text-slate-400" />
-                    <span className="text-sm text-slate-600">
-                      {pdfFile ? pdfFile.name : 'Cliquez pour sélectionner un PDF'}
-                    </span>
+                    <span className="text-sm text-slate-600">{pdfFile ? pdfFile.name : 'Cliquez pour sélectionner un PDF'}</span>
                   </div>
                 </div>
               </div>
@@ -2542,9 +2378,7 @@ export default function AdminBassinDetailPage() {
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">{rapportModalTitle}</h3>
-                <p className="text-sm text-slate-500 mt-0.5">
-                  Bassin : {bassin.name || '(Sans nom)'}
-                </p>
+                <p className="text-sm text-slate-500 mt-0.5">Bassin : {bassin.name || '(Sans nom)'}</p>
               </div>
               <button
                 type="button"
@@ -2578,9 +2412,7 @@ export default function AdminBassinDetailPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Date du rapport
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700">Date du rapport</label>
                   <input
                     type="date"
                     value={formDateRapport}
@@ -2589,9 +2421,7 @@ export default function AdminBassinDetailPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Numéro de rapport (CT)
-                  </label>
+                  <label className="block text-sm font-semibold text-slate-700">Numéro de rapport (CT)</label>
                   <input
                     type="text"
                     value={formNumeroRapport}
@@ -2603,9 +2433,7 @@ export default function AdminBassinDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Commentaire
-                </label>
+                <label className="block text-sm font-semibold text-slate-700">Commentaire</label>
                 <textarea
                   rows={3}
                   value={formCommentaireRapport}
@@ -2615,9 +2443,7 @@ export default function AdminBassinDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Fichier PDF du rapport
-                </label>
+                <label className="block text-sm font-semibold text-slate-700">Fichier PDF du rapport</label>
                 <div className="relative">
                   <input
                     type="file"
@@ -2673,8 +2499,8 @@ export default function AdminBassinDetailPage() {
 
               <div className="rounded-xl bg-red-50 border border-red-200 p-4 mb-4">
                 <p className="text-sm text-red-700">
-                  Toutes les données associées à ce bassin seront définitivement supprimées :
-                  interventions, garanties, rapports et fichiers.
+                  Toutes les données associées à ce bassin seront définitivement supprimées : interventions, garanties,
+                  rapports et fichiers.
                 </p>
               </div>
 

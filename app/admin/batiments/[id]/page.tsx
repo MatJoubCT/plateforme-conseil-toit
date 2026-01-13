@@ -10,6 +10,7 @@ import {
   Building2,
   ChevronLeft,
   Pencil,
+  Trash2,
   Plus,
   Layers,
   MapPin,
@@ -130,6 +131,12 @@ export default function AdminBatimentDetailPage() {
     useState('')
   const [addBassinNotes, setAddBassinNotes] = useState('')
 
+  // Modal suppression bâtiment
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteSaving, setDeleteSaving] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+
   useEffect(() => {
     if (!batimentId) return
 
@@ -219,7 +226,9 @@ export default function AdminBatimentDetailPage() {
       <div className="flex min-h-[40vh] items-center justify-center">
         <div className="rounded-2xl border border-red-200 bg-red-50 px-8 py-6 text-center shadow-sm">
           <AlertTriangle className="mx-auto h-10 w-10 text-red-500 mb-3" />
-          <p className="text-sm font-medium text-red-700">Identifiant du bâtiment manquant dans l'URL.</p>
+          <p className="text-sm font-medium text-red-700">
+            Identifiant du bâtiment manquant dans l'URL.
+          </p>
         </div>
       </div>
     )
@@ -241,7 +250,9 @@ export default function AdminBatimentDetailPage() {
           <div className="relative">
             <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
           </div>
-          <p className="text-sm font-medium text-slate-600">Chargement du bâtiment…</p>
+          <p className="text-sm font-medium text-slate-600">
+            Chargement du bâtiment…
+          </p>
         </div>
       </div>
     )
@@ -252,7 +263,9 @@ export default function AdminBatimentDetailPage() {
       <div className="flex min-h-[40vh] items-center justify-center">
         <div className="rounded-2xl border border-red-200 bg-red-50 px-8 py-6 text-center shadow-sm">
           <AlertTriangle className="mx-auto h-10 w-10 text-red-500 mb-3" />
-          <p className="text-sm font-medium text-red-700 mb-4">Erreur : {errorMsg}</p>
+          <p className="text-sm font-medium text-red-700 mb-4">
+            Erreur : {errorMsg}
+          </p>
           <button
             onClick={() => router.push('/admin/batiments')}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
@@ -270,7 +283,9 @@ export default function AdminBatimentDetailPage() {
       <div className="flex min-h-[40vh] items-center justify-center">
         <div className="rounded-2xl border border-slate-200 bg-white px-8 py-6 text-center shadow-sm">
           <Building2 className="mx-auto h-10 w-10 text-slate-400 mb-3" />
-          <p className="text-sm font-medium text-slate-600 mb-4">Le bâtiment demandé est introuvable.</p>
+          <p className="text-sm font-medium text-slate-600 mb-4">
+            Le bâtiment demandé est introuvable.
+          </p>
           <button
             onClick={() => router.push('/admin/batiments')}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
@@ -366,6 +381,77 @@ export default function AdminBatimentDetailPage() {
     if (!addBassinSaving) setAddBassinOpen(false)
   }
 
+  const openDeleteModal = () => {
+    setDeleteError(null)
+    setDeleteConfirmText('')
+    setDeleteOpen(true)
+  }
+
+  const closeDeleteModal = () => {
+    if (!deleteSaving) setDeleteOpen(false)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!batimentId) return
+
+    setDeleteError(null)
+
+    // 1) Bloquer si des bassins sont encore liés (UI + sécurité)
+    if (bassins.length > 0) {
+      setDeleteError(
+        'Suppression impossible : des bassins sont encore reliés à ce bâtiment. Supprimez ou déplacez les bassins avant de supprimer le bâtiment.'
+      )
+      return
+    }
+
+    // 2) Confirmation texte
+    if (deleteConfirmText.trim().toUpperCase() !== 'SUPPRIMER') {
+      setDeleteError('Pour confirmer, vous devez écrire SUPPRIMER.')
+      return
+    }
+
+    setDeleteSaving(true)
+
+    // 3) Re-vérification côté BD pour éviter tout contournement
+    const { count, error: countError } = await supabaseBrowser
+      .from('bassins')
+      .select('id', { count: 'exact', head: true })
+      .eq('batiment_id', batimentId)
+
+    if (countError) {
+      setDeleteSaving(false)
+      setDeleteError(
+        countError.message ?? 'Erreur lors de la vérification des bassins.'
+      )
+      return
+    }
+
+    if ((count ?? 0) > 0) {
+      setDeleteSaving(false)
+      setDeleteError(
+        'Suppression impossible : un ou plusieurs bassins sont maintenant reliés à ce bâtiment. Rafraîchissez la page et réessayez.'
+      )
+      return
+    }
+
+    const { error: deleteDbError } = await supabaseBrowser
+      .from('batiments')
+      .delete()
+      .eq('id', batimentId)
+
+    setDeleteSaving(false)
+
+    if (deleteDbError) {
+      setDeleteError(
+        deleteDbError.message ?? 'Erreur lors de la suppression du bâtiment.'
+      )
+      return
+    }
+
+    setDeleteOpen(false)
+    router.push('/admin/batiments')
+  }
+
   const handleAddBassinSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!batimentId) return
@@ -439,7 +525,10 @@ export default function AdminBatimentDetailPage() {
   }, 0)
 
   const bassinsAvecPolygone = bassins.filter(
-    (b) => b.polygone_geojson && b.polygone_geojson.coordinates && b.polygone_geojson.coordinates[0]?.length > 0
+    (b) =>
+      b.polygone_geojson &&
+      b.polygone_geojson.coordinates &&
+      b.polygone_geojson.coordinates[0]?.length > 0
   ).length
 
   return (
@@ -463,7 +552,9 @@ export default function AdminBatimentDetailPage() {
               <span>Bâtiments</span>
             </Link>
             <span className="text-white/40">/</span>
-            <span className="font-medium text-white">{batiment.name || 'Sans nom'}</span>
+            <span className="font-medium text-white">
+              {batiment.name || 'Sans nom'}
+            </span>
           </div>
 
           {/* Titre + actions */}
@@ -500,7 +591,9 @@ export default function AdminBatimentDetailPage() {
                 <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
                   <Ruler className="h-4 w-4 text-white/70" />
                   <span className="text-sm text-white/90">
-                    {totalSurface > 0 ? `${totalSurface.toLocaleString('fr-CA')} pi²` : 'N/D'}
+                    {totalSurface > 0
+                      ? `${totalSurface.toLocaleString('fr-CA')} pi²`
+                      : 'N/D'}
                   </span>
                 </div>
               </div>
@@ -523,6 +616,20 @@ export default function AdminBatimentDetailPage() {
                 <Pencil className="h-4 w-4" />
                 Modifier
               </button>
+              <button
+                type="button"
+                onClick={openDeleteModal}
+                disabled={deleteSaving}
+                className="inline-flex items-center gap-2 rounded-xl border border-red-400/50 bg-red-500/20 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-red-500/30 disabled:opacity-60"
+                title={
+                  bassins.length > 0
+                    ? 'Impossible de supprimer : des bassins sont reliés à ce bâtiment.'
+                    : 'Supprimer ce bâtiment'
+                }
+              >
+                <Trash2 className="h-4 w-4 text-white" />
+                Supprimer
+              </button>
             </div>
           </div>
         </div>
@@ -530,7 +637,6 @@ export default function AdminBatimentDetailPage() {
 
       {/* ========== LAYOUT 2 COLONNES ========== */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)] lg:items-start">
-        
         {/* ===== COLONNE GAUCHE : LISTE DES BASSINS ===== */}
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
           <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
@@ -544,7 +650,8 @@ export default function AdminBatimentDetailPage() {
                     Bassins de toiture
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {bassins.length} bassin{bassins.length !== 1 ? 's' : ''} associé{bassins.length !== 1 ? 's' : ''}
+                    {bassins.length} bassin{bassins.length !== 1 ? 's' : ''}{' '}
+                    associé{bassins.length !== 1 ? 's' : ''}
                   </p>
                 </div>
               </div>
@@ -582,7 +689,8 @@ export default function AdminBatimentDetailPage() {
               <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
                 {bassins.map((b) => {
                   const membraneLabel =
-                    membranes.find((m) => m.id === b.membrane_type_id)?.label ?? 'N/D'
+                    membranes.find((m) => m.id === b.membrane_type_id)?.label ??
+                    'N/D'
 
                   const etatLabel =
                     etats.find((e) => e.id === b.etat_id)?.label ?? 'Non évalué'
@@ -599,7 +707,10 @@ export default function AdminBatimentDetailPage() {
 
                   const stateBadge = mapEtatToStateBadge(etatLabel)
                   const isHovered = hoveredBassinId === b.id
-                  const hasPolygon = b.polygone_geojson && b.polygone_geojson.coordinates && b.polygone_geojson.coordinates[0]?.length > 0
+                  const hasPolygon =
+                    b.polygone_geojson &&
+                    b.polygone_geojson.coordinates &&
+                    b.polygone_geojson.coordinates[0]?.length > 0
 
                   return (
                     <div
@@ -617,7 +728,13 @@ export default function AdminBatimentDetailPage() {
                         <div className="flex-1 min-w-0">
                           {/* Nom + état */}
                           <div className="flex items-center gap-2 mb-2">
-                            <span className={`text-sm font-semibold ${isHovered ? 'text-[#1F4E79]' : 'text-slate-800'}`}>
+                            <span
+                              className={`text-sm font-semibold ${
+                                isHovered
+                                  ? 'text-[#1F4E79]'
+                                  : 'text-slate-800'
+                              }`}
+                            >
                               {b.name || 'Bassin sans nom'}
                             </span>
                             <StateBadge state={stateBadge} />
@@ -631,7 +748,13 @@ export default function AdminBatimentDetailPage() {
                             </div>
                             <div className="flex items-center gap-1.5">
                               <Ruler className="h-3.5 w-3.5 text-slate-400" />
-                              <span>{surfaceFt2 != null ? `${surfaceFt2.toLocaleString('fr-CA')} pi²` : 'N/D'}</span>
+                              <span>
+                                {surfaceFt2 != null
+                                  ? `${surfaceFt2.toLocaleString(
+                                      'fr-CA'
+                                    )} pi²`
+                                  : 'N/D'}
+                              </span>
                             </div>
                             <div className="flex items-center gap-1.5">
                               <Clock className="h-3.5 w-3.5 text-slate-400" />
@@ -653,11 +776,13 @@ export default function AdminBatimentDetailPage() {
                         </div>
 
                         {/* Indicateur polygone */}
-                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
-                          hasPolygon
-                            ? 'bg-green-100 text-green-600'
-                            : 'bg-slate-100 text-slate-400'
-                        }`}>
+                        <div
+                          className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                            hasPolygon
+                              ? 'bg-green-100 text-green-600'
+                              : 'bg-slate-100 text-slate-400'
+                          }`}
+                        >
                           <MapPin className="h-4 w-4" />
                         </div>
                       </div>
@@ -682,7 +807,9 @@ export default function AdminBatimentDetailPage() {
                     Carte Google Maps
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {bassinsAvecPolygone} polygone{bassinsAvecPolygone !== 1 ? 's' : ''} visible{bassinsAvecPolygone !== 1 ? 's' : ''}
+                    {bassinsAvecPolygone} polygone
+                    {bassinsAvecPolygone !== 1 ? 's' : ''} visible
+                    {bassinsAvecPolygone !== 1 ? 's' : ''}
                   </p>
                 </div>
               </div>
@@ -733,13 +860,110 @@ export default function AdminBatimentDetailPage() {
 
       {/* ========== MODALS ========== */}
 
+      {/* Modal suppression bâtiment */}
+      {deleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+                  <AlertTriangle className="h-6 w-6 text-red-500" />
+                </div>
+
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-slate-900">
+                    Supprimer ce bâtiment ?
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    Cette action est irréversible
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeDeleteModal}
+                  disabled={deleteSaving}
+                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-60"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                {bassins.length > 0 ? (
+                  <p className="text-sm text-red-700">
+                    Suppression impossible : ce bâtiment contient encore{' '}
+                    <span className="font-semibold">
+                      {bassins.length} bassin{bassins.length !== 1 ? 's' : ''}
+                    </span>
+                    . Vous devez d'abord supprimer ou déplacer les bassins.
+                  </p>
+                ) : (
+                  <p className="text-sm text-red-700">
+                    Le bâtiment sera définitivement supprimé.
+                  </p>
+                )}
+              </div>
+
+              {deleteError && (
+                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                  <p className="text-sm text-red-700">{deleteError}</p>
+                </div>
+              )}
+
+              {bassins.length === 0 && (
+                <>
+                  <p className="mt-5 text-sm font-medium text-slate-700">
+                    Pour confirmer, écrivez{' '}
+                    <span className="font-bold text-red-600">SUPPRIMER</span>
+                  </p>
+
+                  <input
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="SUPPRIMER"
+                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm uppercase tracking-wide transition-colors focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                  />
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50/60 px-6 py-4">
+              <button
+                type="button"
+                onClick={closeDeleteModal}
+                disabled={deleteSaving}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={
+                  deleteSaving ||
+                  bassins.length > 0 ||
+                  deleteConfirmText.trim().toUpperCase() !== 'SUPPRIMER'
+                }
+                className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-red-600 hover:shadow-lg disabled:opacity-50"
+              >
+                {deleteSaving ? 'Suppression…' : 'Confirmer la suppression'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal édition bâtiment */}
       {editOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
-                <h3 className="text-lg font-bold text-slate-800">Modifier le bâtiment</h3>
+                <h3 className="text-lg font-bold text-slate-800">
+                  Modifier le bâtiment
+                </h3>
                 <p className="text-sm text-slate-500 mt-0.5">
                   Mettez à jour les informations générales et le client associé
                 </p>
@@ -896,7 +1120,9 @@ export default function AdminBatimentDetailPage() {
           <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
-                <h3 className="text-lg font-bold text-slate-800">Ajouter un bassin</h3>
+                <h3 className="text-lg font-bold text-slate-800">
+                  Ajouter un bassin
+                </h3>
                 <p className="text-sm text-slate-500 mt-0.5">
                   Le polygone sera dessiné par la suite dans la fiche du bassin
                 </p>
@@ -1167,7 +1393,8 @@ function BatimentBasinsMap({
           Aucun polygone à afficher
         </p>
         <p className="text-xs text-slate-500 text-center max-w-xs">
-          Les polygones seront visibles une fois dessinés dans les fiches des bassins
+          Les polygones seront visibles une fois dessinés dans les fiches des
+          bassins
         </p>
       </div>
     )

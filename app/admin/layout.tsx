@@ -18,6 +18,7 @@ import {
   LogOut,
   Menu,
   X,
+  BriefcaseBusiness,
 } from 'lucide-react'
 
 type NavItem = {
@@ -60,6 +61,12 @@ const secondaryNav: NavItem[] = [
     description: 'Accès et rôles',
     href: '/admin/utilisateurs',
     icon: UserCog,
+  },
+  {
+    label: 'Entreprises',
+    description: 'Répertoire des entreprises',
+    href: '/admin/entreprises',
+    icon: BriefcaseBusiness,
   },
   {
     label: 'Listes de choix',
@@ -184,25 +191,31 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         {active && (
           <div className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-white shadow-lg" />
         )}
-        
+
         <span
           className={[
             'flex items-center gap-3 text-sm font-semibold tracking-wide transition-colors',
             active ? 'text-white' : 'text-slate-100 group-hover:text-white',
           ].join(' ')}
         >
-          <Icon className={[
-            'h-[18px] w-[18px] transition-transform',
-            active ? 'scale-110' : 'group-hover:scale-105'
-          ].join(' ')} />
+          <Icon
+            className={[
+              'h-[18px] w-[18px] transition-transform',
+              active ? 'scale-110' : 'group-hover:scale-105',
+            ].join(' ')}
+          />
           {item.label}
         </span>
 
         {item.description && (
-          <span className={[
-            'text-[11px] font-normal transition-colors pl-[30px]',
-            active ? 'text-slate-100/90' : 'text-slate-200/70 group-hover:text-slate-100/80'
-          ].join(' ')}>
+          <span
+            className={[
+              'text-[11px] font-normal transition-colors pl-[30px]',
+              active
+                ? 'text-slate-100/90'
+                : 'text-slate-200/70 group-hover:text-slate-100/80',
+            ].join(' ')}
+          >
             {item.description}
           </span>
         )}
@@ -292,9 +305,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <span className="text-xs font-semibold text-white truncate">
                 {userFullName || 'Administrateur'}
               </span>
-              <span className="text-[11px] text-slate-200/75">
-                Accès complet
-              </span>
+              <span className="text-[11px] text-slate-200/75">Accès complet</span>
             </div>
           </div>
 
@@ -348,7 +359,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 Bienvenue dans votre espace d'administration
               </p>
             </div>
-            
+
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-sm font-bold text-white shadow-lg ring-2 ring-slate-200">
               {getInitials(userFullName)}
             </div>
