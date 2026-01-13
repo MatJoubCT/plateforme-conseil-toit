@@ -150,6 +150,26 @@ plateforme-conseil-toit/
 4. **Set Password:** User clicks link → `/auth/set-password` → sets password
 5. **Redirect:** Based on role (admin → `/admin`, client → `/client`)
 
+### User Invitation Process (Detailed)
+The user invitation system handles both new users and re-invitations:
+
+1. **Initial Invitation:**
+   - Admin calls `/api/admin/users/create` with email, fullName, role, clientId
+   - System calls `supabaseAdmin.auth.admin.inviteUserByEmail(email, { redirectTo })`
+   - Supabase sends invitation email to user
+   - User ID is captured from the response
+
+2. **Re-invitation (User Already Exists):**
+   - If user already exists in auth.users, the standard invitation fails
+   - System searches for existing user by email using `listUsers()`
+   - Calls `generateLink({ type: 'invite', email })` to create new invitation link
+   - User receives new invitation email
+
+3. **Profile Creation:**
+   - After successful invitation, upsert into `user_profiles` table
+   - If clientId provided, also insert into `user_clients` junction table
+   - All operations use `supabaseAdmin` for bypassing RLS
+
 ### Authorization Model
 - **Roles:** `admin` and `client` (stored in `user_profiles.role`)
 - **Admin Access:** Full CRUD on all entities
@@ -158,9 +178,39 @@ plateforme-conseil-toit/
 - **API Protection:** Server-side routes verify session and role
 
 ### Supabase Client Instances
-- **`supabaseBrowser.ts`:** Client-side operations (browser context)
-- **`supabaseAdmin.ts`:** Server-side operations with service role key
-- **`supabaseClient.ts`:** Alternative client instance (legacy)
+
+**supabaseBrowser.ts** (Client-side)
+```typescript
+'use client'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+export const supabaseBrowser = createClient(supabaseUrl, supabaseAnonKey)
+```
+- Use in client components (with `'use client'` directive)
+- Uses anonymous key (safe for browser)
+- Respects Row Level Security policies
+
+**supabaseAdmin.ts** (Server-side)
+```typescript
+import { createClient } from '@supabase/supabase-js'
+
+export const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      persistSession: false,  // Important for server context
+    },
+  }
+)
+```
+- Use in API routes and server components ONLY
+- Uses service role key (bypasses RLS)
+- Never expose in browser code
+- persistSession: false prevents session management overhead
 
 **IMPORTANT:** Always use `supabaseAdmin` in API routes and server components for privileged operations. Use `supabaseBrowser` in client components.
 
@@ -341,6 +391,111 @@ The system uses five states for roof basins:
 
 ---
 
+## API Endpoints Reference
+
+All API routes are located in `app/api/` and require authentication unless otherwise noted.
+
+### User Management Endpoints (`/api/admin/users/`)
+
+#### POST `/api/admin/users/create`
+Creates a new user with Supabase Auth invitation.
+
+**Request Body:**
+```typescript
+{
+  email: string          // User's email (required)
+  fullName: string       // Full name (optional)
+  role: 'admin' | 'client'  // Default: 'client'
+  clientId?: string      // UUID of client (for client role)
+}
+```
+
+**Response:**
+```typescript
+{
+  ok: true,
+  profile: {
+    id: string,
+    user_id: string,
+    full_name: string,
+    role: string,
+    client_id: string | null,
+    is_active: boolean
+  }
+}
+```
+
+**Error Responses:**
+- 400: Missing email or validation error
+- 500: Profile creation failed
+
+**Implementation Notes:**
+- Handles both new users and re-invitations
+- For existing users, uses `generateLink()` instead of `inviteUserByEmail()`
+- Automatically creates entry in `user_clients` if clientId provided
+- Determines origin for redirectTo URL from request headers
+
+#### POST `/api/admin/users/update`
+Updates user profile, role, and access permissions.
+
+**Request Body:**
+```typescript
+{
+  profileId: string      // UUID of user_profile
+  userId: string         // UUID of auth user
+  fullName: string
+  role: 'admin' | 'client'
+  selectedClientIds: string[]     // Array of client UUIDs
+  selectedBatimentIds: string[]   // Array of building UUIDs
+}
+```
+
+#### POST `/api/admin/users/toggle-active`
+Activates or deactivates a user account.
+
+**Request Body:**
+```typescript
+{
+  profileId: string
+  isActive: boolean
+}
+```
+
+#### POST `/api/admin/users/reset-password`
+Initiates password reset flow for a user.
+
+**Request Body:**
+```typescript
+{
+  userId: string
+}
+```
+
+**Authentication:** Requires Bearer token in Authorization header
+
+#### POST `/api/admin/users/update-access`
+Updates user's access to clients and buildings.
+
+**Request Body:**
+```typescript
+{
+  userId: string
+  selectedClientIds: string[]
+  selectedBatimentIds: string[]
+}
+```
+
+**Response:**
+```typescript
+{
+  ok: true,
+  clientCount: number,
+  batimentCount: number
+}
+```
+
+---
+
 ## Map Integration
 
 ### GeoJSON Format
@@ -359,6 +514,11 @@ Basins are stored as GeoJSON Polygon objects in `polygon_geojson` field:
 }
 ```
 
+**Important:**
+- Coordinates are in `[longitude, latitude]` order (NOT lat, lng)
+- First and last coordinate must be identical to close the polygon
+- Minimum 3 unique points required (4 coordinates including closing point)
+
 ### Map Utilities (`lib/utils/map-utils.ts`)
 Key functions for working with maps:
 - `geoJsonToLatLngPath()` - Convert GeoJSON to Google Maps path
@@ -367,6 +527,68 @@ Key functions for working with maps:
 - `isPointInPolygon()` - Ray casting for click detection
 - `calculateBounds()` - Get bounding box for multiple polygons
 - `simplifyPolygon()` - Douglas-Peucker simplification
+
+### Map Constants (`lib/constants/map-colors.ts`)
+
+**State Colors:**
+```typescript
+export const ETAT_COLORS = {
+  bon: '#28A745',           // Green
+  surveiller: '#FFC107',    // Yellow
+  planifier: '#FD7E14',     // Orange
+  urgent: '#DC3545',        // Red
+  non_evalue: '#6C757D',    // Gray
+}
+
+export const ETAT_LABELS = {
+  bon: 'Bon',
+  surveiller: 'À surveiller',
+  planifier: 'Réfection à planifier',
+  urgent: 'Urgent',
+  non_evalue: 'Non évalué',
+}
+```
+
+**Polygon Configuration:**
+```typescript
+export const DEFAULT_POLYGON_CONFIG = {
+  fillOpacity: 0.4,
+  strokeOpacity: 1,
+  strokeWeight: 2,
+  clickable: true,
+  editable: false,
+  draggable: false,
+}
+
+export const POLYGON_OPACITY = {
+  default: 0.4,
+  hover: 0.6,      // Hover effect
+  selected: 0.7,   // Selected state
+  dimmed: 0.2,     // Non-selected when another is selected
+}
+```
+
+**Map Options:**
+```typescript
+export const MAP_DEFAULT_OPTIONS = {
+  mapTypeId: 'satellite',
+  streetViewControl: false,
+  fullscreenControl: true,
+  zoomControl: true,
+  mapTypeControl: true,
+  rotateControl: false,
+  tilt: 0,                  // Disable 3D buildings
+  heading: 0,
+  gestureHandling: 'greedy', // No Ctrl+scroll requirement
+}
+
+export const MAP_ZOOM_LEVELS = {
+  building: 18,    // Single building view
+  bassin: 19,      // Single basin detail
+  overview: 15,    // Multiple buildings
+  city: 12,        // City-wide view
+}
+```
 
 ### Google Maps Configuration
 ```typescript
@@ -377,8 +599,139 @@ const mapOptions = {
   mapTypeControl: false,
   streetViewControl: false,
   fullscreenControl: true,
-  tilt: 0,  // Disable 3D buildings
+  tilt: 0,  // Disable 3D buildings for flat roofs
   styles: [/* Custom styles */]
+}
+```
+
+---
+
+## TypeScript Types & Interfaces
+
+### Common Database Types
+
+```typescript
+// User Profile
+interface UserProfile {
+  id: string
+  user_id: string
+  full_name: string | null
+  role: 'admin' | 'client'
+  client_id: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+// Client
+interface Client {
+  id: string
+  name: string
+  created_at: string
+  updated_at: string
+}
+
+// Building (Batiment)
+interface Batiment {
+  id: string
+  client_id: string
+  name: string
+  address: string | null
+  city: string | null
+  postal_code: string | null
+  latitude: number | null
+  longitude: number | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+// Basin (Bassin)
+interface Bassin {
+  id: string
+  batiment_id: string
+  name: string
+  surface_m2: number | null
+  etat_id: string | null
+  duree_vie_id: string | null
+  duree_vie_text: string | null
+  polygon_geojson: GeoJSONPolygon | null
+  created_at: string
+  updated_at: string
+}
+
+// Configuration List Item
+interface ListeChoix {
+  id: string
+  categorie: string
+  code: string
+  label: string
+  couleur: string | null
+  ordre: number
+  actif: boolean
+}
+
+// GeoJSON Types
+interface GeoJSONPolygon {
+  type: 'Polygon'
+  coordinates: number[][][]  // [[[lng, lat], [lng, lat], ...]]
+}
+
+interface GeoJSONPoint {
+  type: 'Point'
+  coordinates: [number, number]  // [lng, lat]
+}
+```
+
+### Component Props Types
+
+```typescript
+// Map component props
+interface BatimentBassinsMapProps {
+  batimentId: string
+  bassins: Bassin[]
+  selectedBassinId?: string | null
+  onBassinClick?: (bassinId: string) => void
+  hoveredBassinId?: string | null
+}
+
+// Badge component props
+interface StateBadgeProps {
+  code: string      // État code (bon, surveiller, planifier, urgent, non_evalue)
+  label?: string    // Optional custom label
+  size?: 'sm' | 'md' | 'lg'
+}
+
+// Modal component props
+interface CreateUserModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onSuccess: () => void
+  clients: Client[]
+}
+```
+
+### API Response Types
+
+```typescript
+// Standard success response
+interface ApiSuccessResponse<T = any> {
+  ok: true
+  data?: T
+  profile?: UserProfile
+  clientCount?: number
+  batimentCount?: number
+}
+
+// Standard error response
+interface ApiErrorResponse {
+  error: string
+  details?: any
+}
+
+// Type guard for error responses
+function isErrorResponse(response: any): response is ApiErrorResponse {
+  return 'error' in response
 }
 ```
 
@@ -392,19 +745,22 @@ const mapOptions = {
    - Identify affected files (pages, components, API routes)
    - Determine database changes if needed
    - Check authorization requirements
+   - Define TypeScript interfaces for new data structures
 
 2. **Make changes systematically:**
    - Start with database/types if schema changes
+   - Define TypeScript interfaces for new entities
    - Update API routes if new endpoints needed
-   - Build UI components
+   - Build UI components with proper typing
    - Update layouts/pages
-   - Test thoroughly
+   - Test thoroughly (admin and client roles)
 
 3. **Follow conventions:**
    - Use existing patterns from similar features
    - Maintain consistent error handling
    - Add loading states
    - Include proper TypeScript types
+   - Keep UI text in French
 
 ### Modifying the Database
 
@@ -615,24 +971,333 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=xxx
 - Database fields: French naming acceptable
 - Comments: Either language, but be consistent
 
+### 8. API Origin Detection
+**Problem:** redirectTo URL doesn't work in different environments
+**Solution:**
+- Use `getOrigin()` helper to detect origin from request headers
+- Check in order: origin header, x-forwarded-proto + host, env variable, localhost fallback
+- Example implementation in `/api/admin/users/create/route.ts`
+
+### 9. Duplicate Key Errors
+**Problem:** Inserting into junction tables (user_clients, user_batiments_access) fails on re-invite
+**Solution:**
+- Check error message for 'duplicate' keyword
+- Ignore duplicate key errors for junction table inserts
+- Use upsert with onConflict when appropriate
+
+### 10. Environment Variables Missing
+**Problem:** Supabase clients fail to initialize
+**Solution:**
+- Ensure all required env vars are set in `.env.local`
+- Use non-null assertions (!) only after validation
+- Add helpful error messages in supabaseAdmin.ts for missing vars
+
+---
+
+## Supabase Best Practices
+
+### Query Optimization
+
+**Select Specific Columns:**
+```typescript
+// ❌ Avoid - fetches all columns
+const { data } = await supabase.from('batiments').select('*')
+
+// ✅ Better - only fetch what you need
+const { data } = await supabase
+  .from('batiments')
+  .select('id, name, address, city, client_id')
+```
+
+**Use Joins Instead of Multiple Queries:**
+```typescript
+// ❌ Avoid - multiple round trips
+const { data: batiments } = await supabase.from('batiments').select('*')
+const { data: clients } = await supabase.from('clients').select('*')
+
+// ✅ Better - single query with join
+const { data } = await supabase
+  .from('batiments')
+  .select(`
+    *,
+    clients:client_id (
+      id,
+      name
+    )
+  `)
+```
+
+**Filter on Database Side:**
+```typescript
+// ❌ Avoid - filtering in JavaScript
+const { data } = await supabase.from('bassins').select('*')
+const urgent = data?.filter(b => b.etat_id === 'urgent-uuid')
+
+// ✅ Better - filter in database
+const { data: urgent } = await supabase
+  .from('bassins')
+  .select('*')
+  .eq('etat_id', 'urgent-uuid')
+```
+
+### Error Handling Pattern
+
+```typescript
+const fetchData = async () => {
+  try {
+    setLoading(true)
+    setError(null)
+
+    const { data, error } = await supabase
+      .from('table')
+      .select('*')
+
+    if (error) {
+      console.error('Supabase error:', error)
+      throw new Error(error.message)
+    }
+
+    if (!data) {
+      throw new Error('Aucune donnée retournée')
+    }
+
+    setData(data)
+  } catch (err) {
+    const message = err instanceof Error
+      ? err.message
+      : 'Une erreur est survenue'
+    setError(message)
+    console.error('Error fetching data:', err)
+  } finally {
+    setLoading(false)
+  }
+}
+```
+
+### Using Promise.all for Parallel Queries
+
+```typescript
+// ✅ Fetch multiple independent resources in parallel
+const fetchDashboardData = async () => {
+  setLoading(true)
+
+  try {
+    const [clientsRes, batimentsRes, bassinsRes, listesRes] = await Promise.all([
+      supabase.from('clients').select('id, name'),
+      supabase.from('batiments').select('id, name, client_id'),
+      supabase.from('bassins').select('id, name, surface_m2, etat_id'),
+      supabase.from('listes_choix').select('*').eq('categorie', 'etat'),
+    ])
+
+    // Check each result for errors
+    if (clientsRes.error) throw clientsRes.error
+    if (batimentsRes.error) throw batimentsRes.error
+    if (bassinsRes.error) throw bassinsRes.error
+    if (listesRes.error) throw listesRes.error
+
+    setClients(clientsRes.data)
+    setBatiments(batimentsRes.data)
+    setBassins(bassinsRes.data)
+    setListesChoix(listesRes.data)
+  } catch (error) {
+    console.error('Error loading dashboard:', error)
+    setError('Erreur lors du chargement des données')
+  } finally {
+    setLoading(false)
+  }
+}
+```
+
+### Real-time Subscriptions (If Needed)
+
+```typescript
+useEffect(() => {
+  // Subscribe to changes
+  const channel = supabase
+    .channel('bassins-changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'bassins',
+      },
+      (payload) => {
+        console.log('Change received!', payload)
+        // Refetch data or update state
+        fetchBassins()
+      }
+    )
+    .subscribe()
+
+  // Cleanup subscription
+  return () => {
+    supabase.removeChannel(channel)
+  }
+}, [])
+```
+
+---
+
+## Modal & Form Patterns
+
+### Standard Modal Pattern
+
+```typescript
+'use client'
+
+import { useState } from 'react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+
+interface CreateModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onSuccess: () => void
+}
+
+export default function CreateModal({ isOpen, onClose, onSuccess }: CreateModalProps) {
+  const [formData, setFormData] = useState({ name: '', description: '' })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    try {
+      const response = await fetch('/api/endpoint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || result.error) {
+        throw new Error(result.error || 'Erreur lors de la création')
+      }
+
+      // Success
+      setFormData({ name: '', description: '' })
+      onSuccess()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Une erreur est survenue')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Créer un nouvel élément</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Nom <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md"
+              required
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md"
+              disabled={loading}
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? 'Création...' : 'Créer'}
+            </button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+```
+
+### Using the Modal
+
+```typescript
+'use client'
+
+import { useState } from 'react'
+import CreateModal from './CreateModal'
+
+export default function MyPage() {
+  const [modalOpen, setModalOpen] = useState(false)
+
+  const handleSuccess = () => {
+    // Refetch data
+    fetchData()
+    // Show success toast (if you have a toast system)
+  }
+
+  return (
+    <div>
+      <button onClick={() => setModalOpen(true)}>
+        Créer
+      </button>
+
+      <CreateModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSuccess={handleSuccess}
+      />
+    </div>
+  )
+}
+```
+
 ---
 
 ## Performance Considerations
 
 ### Data Fetching
-- Use `select()` to limit columns (avoid `select('*')` if possible)
-- Add pagination for large lists
+- Use `select()` to limit columns (avoid `select('*')` when not needed)
+- Filter data on database side with `.eq()`, `.in()`, etc.
+- Use joins instead of multiple queries
+- Add pagination for large lists with `.range()`
 - Consider caching with React Query or SWR for production
+- Use Promise.all for parallel independent queries
 
 ### Map Rendering
 - Simplify complex polygons with `simplifyPolygon()`
 - Limit number of polygons rendered simultaneously
-- Use memoization for calculated values
+- Use memoization for calculated values (centers, areas)
+- Debounce map interactions (pan, zoom)
+- Load maps lazily with dynamic imports
 
 ### Component Optimization
 - Use `useMemo` for expensive calculations
 - Use `useCallback` for event handlers passed as props
 - Consider React.memo for pure components
+- Avoid inline object/array creation in render
+- Use key prop correctly for list rendering
 
 ---
 
@@ -719,12 +1384,26 @@ lib/                 # Utilities and helpers
 
 ## Version Information
 
-- **Last Updated:** 2026-01-13
+- **Last Updated:** 2026-01-13 (Enhanced with detailed API docs, TypeScript types, and best practices)
 - **Project Version:** 0.1.0
 - **Next.js:** 16.1.1
 - **React:** 19.2.0
 - **TypeScript:** 5
 - **Tailwind CSS:** 4
+
+## Changelog
+
+### 2026-01-13 - Enhanced Documentation
+- ✅ Added comprehensive API endpoints documentation with request/response examples
+- ✅ Added detailed TypeScript types and interfaces for all major entities
+- ✅ Added Supabase best practices section with query optimization
+- ✅ Added modal and form patterns with complete examples
+- ✅ Enhanced map constants documentation with all configuration options
+- ✅ Added user invitation flow details (new users and re-invitations)
+- ✅ Added 10 common pitfalls and solutions
+- ✅ Added real-time subscription examples
+- ✅ Added Promise.all patterns for parallel queries
+- ✅ Added performance considerations for data fetching and maps
 
 ---
 
