@@ -52,6 +52,7 @@ type ListeChoix = {
   categorie: string
   label: string
   couleur: string | null
+  ordre: number | null
 }
 
 type BassinRow = {
@@ -176,7 +177,7 @@ export default function AdminBatimentDetailPage() {
       // 2) Listes de choix
       const { data: listesData, error: listesError } = await supabaseBrowser
         .from('listes_choix')
-        .select('id, categorie, label, couleur')
+        .select('id, categorie, label, couleur, ordre')
 
       if (listesError) {
         setErrorMsg(listesError.message)
@@ -234,9 +235,32 @@ export default function AdminBatimentDetailPage() {
     )
   }
 
-  const membranes = listes.filter((l) => l.categorie === 'membrane')
-  const etats = listes.filter((l) => l.categorie === 'etat_bassin')
-  const durees = listes.filter((l) => l.categorie === 'duree_vie')
+  const membranes = listes
+    .filter((l) => l.categorie === 'membrane')
+    .slice()
+    .sort(
+      (a, b) =>
+        (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
+        (a.label || '').localeCompare(b.label || '', 'fr-CA')
+    )
+
+  const etats = listes
+    .filter((l) => l.categorie === 'etat_bassin')
+    .slice()
+    .sort(
+      (a, b) =>
+        (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
+        (a.label || '').localeCompare(b.label || '', 'fr-CA')
+    )
+
+  const durees = listes
+    .filter((l) => l.categorie === 'duree_vie')
+    .slice()
+    .sort(
+      (a, b) =>
+        (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
+        (a.label || '').localeCompare(b.label || '', 'fr-CA')
+    )
 
   const mapCenter =
     batiment && batiment.latitude != null && batiment.longitude != null

@@ -4,7 +4,13 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 
-export type BassinState = "bon" | "a_surveille" | "planifier" | "urgent" | "non_evalue";
+export type BassinState =
+  | "tres_bon"
+  | "bon"
+  | "a_surveille"
+  | "planifier"
+  | "urgent"
+  | "non_evalue";
 
 interface StateBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   state: BassinState;
@@ -14,6 +20,13 @@ const stateConfig: Record<
   BassinState,
   { label: string; bg: string; text: string; border: string }
 > = {
+  tres_bon: {
+    label: "Très bon",
+    // Vert différent de "Bon" (sans toucher à ta charte existante)
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    border: "border-emerald-200",
+  },
   bon: {
     label: "Bon",
     bg: "bg-ct-stateGood/10",
@@ -46,7 +59,11 @@ const stateConfig: Record<
   },
 };
 
-export const StateBadge: React.FC<StateBadgeProps> = ({ state, className, ...props }) => {
+export const StateBadge: React.FC<StateBadgeProps> = ({
+  state,
+  className,
+  ...props
+}) => {
   const cfg = stateConfig[state];
 
   return (
@@ -63,6 +80,7 @@ export const StateBadge: React.FC<StateBadgeProps> = ({ state, className, ...pro
       <span
         className={cn(
           "h-2 w-2 rounded-full",
+          state === "tres_bon" && "bg-emerald-600",
           state === "bon" && "bg-ct-stateGood",
           state === "a_surveille" && "bg-ct-stateWatch",
           state === "planifier" && "bg-ct-statePlan",

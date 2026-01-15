@@ -133,9 +133,16 @@ type InterventionWithFiles = InterventionRow & {
 /** mappe un libellé d'état en type pour StateBadge */
 function mapEtatToStateBadge(etat: string | null): BassinState {
   if (!etat) return 'non_evalue'
-  const v = etat.toLowerCase()
 
+  // Normaliser pour gérer accents (très -> tres)
+  const v = etat
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+  // IMPORTANT: traiter "tres bon" AVANT "bon"
   if (v.includes('urgent')) return 'urgent'
+  if (v.includes('tres bon') || v.includes('excellent')) return 'tres_bon'
   if (v.includes('bon')) return 'bon'
   if (v.includes('surveiller')) return 'a_surveille'
   if (v.includes('planifier') || v.includes('planification')) return 'planifier'
@@ -441,11 +448,28 @@ export default function AdminBassinDetailPage() {
   }
 
   // Listes de choix pour état / durée de vie du bassin
-  const etatsBassin = listes.filter((l) => ['etat_bassin', 'etat_toiture', 'etat'].includes(l.categorie))
-  const dureesBassin = listes.filter((l) =>
-    ['duree_vie_bassin', 'duree_vie_toiture', 'duree_vie'].includes(l.categorie)
-  )
-  const membranesBassin = listes.filter((l) => l.categorie === 'membrane')
+  const etatsBassin = useMemo(() => {
+    const arr = listes.filter((l) => ['etat_bassin', 'etat_toiture', 'etat'].includes(l.categorie))
+    return arr
+      .slice()
+      .sort((a, b) => (a.ordre ?? 999999) - (b.ordre ?? 999999) || (a.label || '').localeCompare(b.label || '', 'fr-CA'))
+  }, [listes])
+
+  const dureesBassin = useMemo(() => {
+    const arr = listes.filter((l) =>
+      ['duree_vie_bassin', 'duree_vie_toiture', 'duree_vie'].includes(l.categorie)
+    )
+    return arr
+      .slice()
+      .sort((a, b) => (a.ordre ?? 999999) - (b.ordre ?? 999999) || (a.label || '').localeCompare(b.label || '', 'fr-CA'))
+  }, [listes])
+
+  const membranesBassin = useMemo(() => {
+    const arr = listes.filter((l) => l.categorie === 'membrane')
+    return arr
+      .slice()
+      .sort((a, b) => (a.ordre ?? 999999) - (b.ordre ?? 999999) || (a.label || '').localeCompare(b.label || '', 'fr-CA'))
+  }, [listes])
 
   // Couleur du polygone selon l'état / durée de vie
   const couleurEtat: string | undefined = (() => {
@@ -2114,7 +2138,7 @@ export default function AdminBassinDetailPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">Année d'installation</label>
+                  <label className="block text-sm font-semibold text-slate-700">Année de construction</label>
                   <input
                     type="number"
                     value={editAnnee}

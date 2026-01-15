@@ -40,7 +40,7 @@ type RapportRef = { id: string }
 
 type ModalMode = 'create' | 'edit'
 
-const COLOR_REQUIRED_PREFIXES = ['etat', 'duree_vie']
+const COLOR_REQUIRED_PREFIXES = ['etat']
 
 function isColorRequired(categorie: string): boolean {
   return COLOR_REQUIRED_PREFIXES.some((prefix) =>
