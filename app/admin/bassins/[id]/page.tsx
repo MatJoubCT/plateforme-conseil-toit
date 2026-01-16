@@ -28,7 +28,6 @@ import {
   Eye,
   StickyNote,
   Hash,
-  ExternalLink,
 } from 'lucide-react'
 
 type GeoJSONPolygon = {
@@ -242,6 +241,17 @@ export default function AdminBassinDetailPage() {
   const [showDeleteBassinModal, setShowDeleteBassinModal] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deletingBassin, setDeletingBassin] = useState(false)
+
+  // Modals confirmation suppression (même pattern que page-materiaux.tsx)
+  const [confirmDeleteIntervention, setConfirmDeleteIntervention] =
+    useState<InterventionWithFiles | null>(null)
+  const [deletingIntervention, setDeletingIntervention] = useState(false)
+
+  const [confirmDeleteGarantie, setConfirmDeleteGarantie] = useState<GarantieRow | null>(null)
+  const [deletingGarantie, setDeletingGarantie] = useState(false)
+
+  const [confirmDeleteRapport, setConfirmDeleteRapport] = useState<RapportRow | null>(null)
+  const [deletingRapport, setDeletingRapport] = useState(false)
 
   // Interventions — éditeur inline
   const [showInterventionEditor, setShowInterventionEditor] = useState(false)
@@ -746,14 +756,19 @@ export default function AdminBassinDetailPage() {
     }
   }
 
-  const handleDeleteGarantie = async (garantie: GarantieRow) => {
-    const ok = window.confirm('Voulez-vous vraiment supprimer cette garantie ?')
-    if (!ok) return
+  const askDeleteGarantie = (g: GarantieRow) => setConfirmDeleteGarantie(g)
+
+  const doDeleteGarantie = async () => {
+    const garantie = confirmDeleteGarantie
+    if (!garantie) return
+
+    setDeletingGarantie(true)
 
     const { error } = await supabaseBrowser.from('garanties').delete().eq('id', garantie.id)
 
     if (error) {
       alert('Erreur lors de la suppression : ' + error.message)
+      setDeletingGarantie(false)
       return
     }
 
@@ -765,12 +780,14 @@ export default function AdminBassinDetailPage() {
       .sort((a, b) => {
         if (!a.date_fin || !b.date_fin) return 0
         return (
-          new Date(a.date_fin + 'T00:00:00').getTime() -
-          new Date(b.date_fin + 'T00:00:00').getTime()
+          new Date(a.date_fin + 'T00:00:00').getTime() - new Date(b.date_fin + 'T00:00:00').getTime()
         )
       })
 
     setGarantieProche(garantiesAvecDate.length > 0 ? garantiesAvecDate[0] : null)
+
+    setConfirmDeleteGarantie(null)
+    setDeletingGarantie(false)
   }
 
   const handleSubmitRapport = async (e: FormEvent) => {
@@ -871,18 +888,26 @@ export default function AdminBassinDetailPage() {
     }
   }
 
-  const handleDeleteRapport = async (rapport: RapportRow) => {
-    const ok = window.confirm('Voulez-vous vraiment supprimer ce rapport ?')
-    if (!ok) return
+  const askDeleteRapport = (r: RapportRow) => setConfirmDeleteRapport(r)
+
+  const doDeleteRapport = async () => {
+    const rapport = confirmDeleteRapport
+    if (!rapport) return
+
+    setDeletingRapport(true)
 
     const { error } = await supabaseBrowser.from('rapports').delete().eq('id', rapport.id)
 
     if (error) {
       alert('Erreur lors de la suppression : ' + error.message)
+      setDeletingRapport(false)
       return
     }
 
     setRapports((prev) => prev.filter((r) => r.id !== rapport.id))
+
+    setConfirmDeleteRapport(null)
+    setDeletingRapport(false)
   }
 
   const openEditBassinModal = () => {
@@ -1174,9 +1199,13 @@ export default function AdminBassinDetailPage() {
     setEditingIntervention(null)
   }
 
-  const handleDeleteIntervention = async (it: InterventionWithFiles) => {
-    const ok = window.confirm('Voulez-vous vraiment supprimer cette intervention ?')
-    if (!ok) return
+  const askDeleteIntervention = (it: InterventionWithFiles) => setConfirmDeleteIntervention(it)
+
+  const doDeleteIntervention = async () => {
+    const it = confirmDeleteIntervention
+    if (!it) return
+
+    setDeletingIntervention(true)
 
     // 1) supprimer fichiers storage + lignes
     if (it.files && it.files.length > 0) {
@@ -1187,6 +1216,7 @@ export default function AdminBassinDetailPage() {
         if (rmErr) {
           console.error('Erreur suppression storage interventions', rmErr)
           alert('Erreur suppression fichiers (storage) : ' + rmErr.message)
+          setDeletingIntervention(false)
           return
         }
       }
@@ -1199,6 +1229,7 @@ export default function AdminBassinDetailPage() {
       if (delFilesErr) {
         console.error('Erreur suppression intervention_fichiers', delFilesErr)
         alert('Erreur suppression fichiers (DB) : ' + delFilesErr.message)
+        setDeletingIntervention(false)
         return
       }
     }
@@ -1209,12 +1240,16 @@ export default function AdminBassinDetailPage() {
     if (delErr) {
       console.error('Erreur suppression intervention', delErr)
       alert('Erreur suppression intervention : ' + delErr.message)
+      setDeletingIntervention(false)
       return
     }
 
     setInterventions((prev) => prev.filter((x) => x.id !== it.id))
     if (selectedInterventionId === it.id) setSelectedInterventionId(null)
     if (editingIntervention?.id === it.id) closeInterventionEditor()
+
+    setConfirmDeleteIntervention(null)
+    setDeletingIntervention(false)
   }
 
   const openFileSignedUrl = async (file: InterventionFichierRow) => {
@@ -1335,10 +1370,14 @@ export default function AdminBassinDetailPage() {
 
   const surfaceFt2 = bassin.surface_m2 != null ? Math.round(bassin.surface_m2 * 10.7639) : null
   const typeDuree = dureesBassin.find((l) => l.id === bassin.duree_vie_id)?.label ?? null
-  const etatLabel = etatsBassin.find((l) => l.id === bassin.etat_id)?.label || null
+
+  const etatObj = etatsBassin.find((l) => l.id === bassin.etat_id) ?? null
+  const etatLabel = etatObj?.label ?? null
+
   const couvreurNom = bassin.couvreur_id
-  ? (couvreurs.find((c) => c.id === bassin.couvreur_id)?.nom ?? null)
-  : null
+    ? (couvreurs.find((c) => c.id === bassin.couvreur_id)?.nom ?? null)
+    : null
+
   const membraneLabel = membranesBassin.find((l) => l.id === bassin.membrane_type_id)?.label ?? null
 
   return (
@@ -1485,7 +1524,11 @@ export default function AdminBassinDetailPage() {
             <div className="p-5 space-y-4">
               <div className="flex items-center justify-between gap-4 rounded-xl bg-slate-50/80 px-4 py-3">
                 <span className="text-sm font-medium text-slate-600">État global</span>
-                <StateBadge state={mapEtatToStateBadge(etatLabel)} />
+                  <StateBadge
+                    state={mapEtatToStateBadge(etatLabel)}
+                    color={etatObj?.couleur ?? null}
+                    label={etatObj?.label ?? null}
+                  />
               </div>
 
               <div className="grid gap-3">
@@ -1623,10 +1666,10 @@ export default function AdminBassinDetailPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                void handleDeleteIntervention(it)
-                              }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  askDeleteIntervention(it)
+                                }}
                               className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1913,9 +1956,11 @@ export default function AdminBassinDetailPage() {
                                     href={g.fichier_pdf_url}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    title="Consulter le PDF"
                                     className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-[#1F4E79]"
                                   >
-                                    <ExternalLink className="h-4 w-4" />
+                                    <Eye className="h-4 w-4" />
+
                                   </a>
                                 )}
                                 <button
@@ -1927,7 +1972,8 @@ export default function AdminBassinDetailPage() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteGarantie(g)}
+                                  onClick={() => askDeleteGarantie(g)}
+                                  title="Modifier"
                                   className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500"
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -1994,9 +2040,11 @@ export default function AdminBassinDetailPage() {
                                     href={r.file_url}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    title="Consulter le PDF"
                                     className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-[#1F4E79]"
                                   >
-                                    <ExternalLink className="h-4 w-4" />
+                                    <Eye className="h-4 w-4" />
+
                                   </a>
                                 )}
                                 <button
@@ -2008,7 +2056,7 @@ export default function AdminBassinDetailPage() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteRapport(r)}
+                                  onClick={() => askDeleteRapport(r)}
                                   className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500"
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -2511,6 +2559,159 @@ export default function AdminBassinDetailPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal confirmation suppression intervention */}
+      {confirmDeleteIntervention && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => !deletingIntervention && setConfirmDeleteIntervention(null)}
+          />
+          <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/30 bg-white shadow-2xl">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-red-50 to-white px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10">
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800">
+                    Confirmer la suppression
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Cette action est irréversible.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <p className="text-sm text-slate-700">Supprimer cette intervention?</p>
+
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteIntervention(null)}
+                  disabled={deletingIntervention}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" />
+                  Annuler
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void doDeleteIntervention()}
+                  disabled={deletingIntervention}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-red-700 disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Supprimer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal confirmation suppression garantie */}
+      {confirmDeleteGarantie && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => !deletingGarantie && setConfirmDeleteGarantie(null)}
+          />
+          <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/30 bg-white shadow-2xl">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-red-50 to-white px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10">
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800">
+                    Confirmer la suppression
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Cette action est irréversible.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <p className="text-sm text-slate-700">Supprimer cette garantie?</p>
+
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteGarantie(null)}
+                  disabled={deletingGarantie}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" />
+                  Annuler
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void doDeleteGarantie()}
+                  disabled={deletingGarantie}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-red-700 disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Supprimer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal confirmation suppression rapport */}
+      {confirmDeleteRapport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => !deletingRapport && setConfirmDeleteRapport(null)}
+          />
+          <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/30 bg-white shadow-2xl">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-red-50 to-white px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10">
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800">
+                    Confirmer la suppression
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Cette action est irréversible.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <p className="text-sm text-slate-700">Supprimer ce rapport?</p>
+
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteRapport(null)}
+                  disabled={deletingRapport}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" />
+                  Annuler
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void doDeleteRapport()}
+                  disabled={deletingRapport}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-red-700 disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Supprimer
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

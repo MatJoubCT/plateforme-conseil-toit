@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, ChangeEvent, FormEvent } from 'react'
-import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import {
   Users,
@@ -9,7 +8,6 @@ import {
   Search,
   SlidersHorizontal,
   Building2,
-  ChevronRight,
   X,
   AlertTriangle,
 } from 'lucide-react'
@@ -20,7 +18,6 @@ type ClientRow = {
   nb_batiments: number
 }
 
-type SortKey = 'name' | 'nb_batiments'
 type SortDir = 'asc' | 'desc'
 
 export default function AdminClientsPage() {
@@ -29,7 +26,6 @@ export default function AdminClientsPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const [search, setSearch] = useState('')
-  const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   const [createOpen, setCreateOpen] = useState(false)
@@ -95,10 +91,6 @@ export default function AdminClientsPage() {
     setSearch(e.target.value)
   }
 
-  const handleSortKeyChange = (e: ChangeEvent<HTMLSelectElement>) => {
-    setSortKey(e.target.value as SortKey)
-  }
-
   const handleSortDirChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setSortDir(e.target.value as SortDir)
   }
@@ -153,16 +145,11 @@ export default function AdminClientsPage() {
       (c.name ?? '').toLowerCase().includes(search.trim().toLowerCase())
     )
     .sort((a, b) => {
-      if (sortKey === 'name') {
-        const aName = (a.name ?? '').toLowerCase()
-        const bName = (b.name ?? '').toLowerCase()
-        if (aName < bName) return sortDir === 'asc' ? -1 : 1
-        if (aName > bName) return sortDir === 'asc' ? 1 : -1
-        return 0
-      }
-      return sortDir === 'asc'
-        ? a.nb_batiments - b.nb_batiments
-        : b.nb_batiments - a.nb_batiments
+      const aName = (a.name ?? '').toLowerCase()
+      const bName = (b.name ?? '').toLowerCase()
+      if (aName < bName) return sortDir === 'asc' ? -1 : 1
+      if (aName > bName) return sortDir === 'asc' ? 1 : -1
+      return 0
     })
 
   const totalClients = clients.length
@@ -179,7 +166,9 @@ export default function AdminClientsPage() {
           <div className="relative">
             <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
           </div>
-          <p className="text-sm font-medium text-slate-600">Chargement des clients…</p>
+          <p className="text-sm font-medium text-slate-600">
+            Chargement des clients…
+          </p>
         </div>
       </div>
     )
@@ -190,7 +179,9 @@ export default function AdminClientsPage() {
       <div className="flex min-h-[40vh] items-center justify-center">
         <div className="rounded-2xl border border-red-200 bg-red-50 px-8 py-6 text-center shadow-sm">
           <AlertTriangle className="mx-auto h-10 w-10 text-red-500 mb-3" />
-          <p className="text-sm font-medium text-red-700">Erreur : {errorMsg}</p>
+          <p className="text-sm font-medium text-red-700">
+            Erreur : {errorMsg}
+          </p>
         </div>
       </div>
     )
@@ -218,7 +209,8 @@ export default function AdminClientsPage() {
                   <div>
                     <h1 className="text-2xl font-bold text-white">Clients</h1>
                     <p className="mt-0.5 text-sm text-white/70">
-                      Vue d'ensemble des clients, recherche, tri et accès rapide aux fiches.
+                      Vue d&apos;ensemble des clients, recherche et accès rapide
+                      aux fiches.
                     </p>
                   </div>
                 </div>
@@ -270,13 +262,15 @@ export default function AdminClientsPage() {
                 <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
                   Filtres
                 </h2>
-                <p className="text-xs text-slate-500">Affinez la liste grâce à la recherche et au tri.</p>
+                <p className="text-xs text-slate-500">
+                  Affinez la liste grâce à la recherche et à l’ordre.
+                </p>
               </div>
             </div>
           </div>
 
           <div className="p-5">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
               {/* Recherche */}
               <div className="space-y-1.5">
                 <label className="block text-sm font-semibold text-slate-700">
@@ -304,25 +298,10 @@ export default function AdminClientsPage() {
                 </div>
               </div>
 
-              {/* Trier par */}
-              <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Trier par
-                </label>
-                <select
-                  value={sortKey}
-                  onChange={handleSortKeyChange}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                >
-                  <option value="name">Nom du client</option>
-                  <option value="nb_batiments">Nombre de bâtiments</option>
-                </select>
-              </div>
-
               {/* Ordre */}
               <div className="space-y-1.5">
                 <label className="block text-sm font-semibold text-slate-700">
-                  Ordre
+                  Ordre (nom)
                 </label>
                 <select
                   value={sortDir}
@@ -363,8 +342,12 @@ export default function AdminClientsPage() {
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 mb-4">
                   <Users className="h-8 w-8 text-slate-400" />
                 </div>
-                <p className="text-sm font-medium text-slate-600">Aucun résultat</p>
-                <p className="mt-1 text-xs text-slate-500">Modifiez la recherche ou le tri.</p>
+                <p className="text-sm font-medium text-slate-600">
+                  Aucun résultat
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Modifiez la recherche ou l&apos;ordre.
+                </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -423,79 +406,80 @@ export default function AdminClientsPage() {
         </div>
       </section>
 
-        {/* Modal création client */}
-        {createOpen && (
+      {/* Modal création client */}
+      {createOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={closeCreateModal}
+        >
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={closeCreateModal}
+            className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div
-              className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">
+                  Nouveau client
+                </h2>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  Entrez un nom. Les détails pourront être complétés ensuite.
+                </p>
+              </div>
 
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-800">Nouveau client</h2>
-                  <p className="mt-0.5 text-sm text-slate-500">
-                    Entrez un nom. Les détails pourront être complétés ensuite.
-                  </p>
+              <button
+                type="button"
+                onClick={closeCreateModal}
+                disabled={createSaving}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Fermer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSubmit} className="p-6 space-y-5">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Nom du client <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  placeholder="Ex.: Ville de X, Immobilier ABC"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  autoFocus
+                />
+              </div>
+
+              {createError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                  <p className="text-sm text-red-700">{createError}</p>
                 </div>
+              )}
 
+              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
                 <button
                   type="button"
                   onClick={closeCreateModal}
                   disabled={createSaving}
-                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                  aria-label="Fermer"
+                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                 >
-                  <X className="h-5 w-5" />
+                  Annuler
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={createSaving}
+                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+                >
+                  {createSaving ? 'Enregistrement…' : 'Créer le client'}
                 </button>
               </div>
-
-              <form onSubmit={handleCreateSubmit} className="p-6 space-y-5">
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Nom du client <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={createName}
-                    onChange={(e) => setCreateName(e.target.value)}
-                    placeholder="Ex.: Ville de X, Immobilier ABC"
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                    autoFocus
-                  />
-                </div>
-
-                {createError && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-                    <p className="text-sm text-red-700">{createError}</p>
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
-                  <button
-                    type="button"
-                    onClick={closeCreateModal}
-                    disabled={createSaving}
-                    className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                  >
-                    Annuler
-                  </button>
-
-                  <button
-                    type="submit"
-                    disabled={createSaving}
-                    className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                  >
-                    {createSaving ? 'Enregistrement…' : 'Créer le client'}
-                  </button>
-                </div>
-              </form>
-            </div>
+            </form>
           </div>
-        )}
+        </div>
+      )}
     </>
   )
 }

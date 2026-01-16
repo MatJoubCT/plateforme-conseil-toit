@@ -53,9 +53,14 @@ type ListeChoix = {
 
 function mapEtatToStateBadge(etat: string | null): BassinState {
   if (!etat) return 'non_evalue'
-  const v = etat.toLowerCase()
+
+  const v = etat
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
 
   if (v.includes('urgent')) return 'urgent'
+  if (v.includes('tres bon') || v.includes('excellent')) return 'tres_bon'
   if (v.includes('bon')) return 'bon'
   if (v.includes('surveiller')) return 'a_surveille'
   if (v.includes('planifier') || v.includes('planification')) return 'planifier'
@@ -172,6 +177,11 @@ export default function AdminBassinsPage() {
   const labelEtat = (id: string | null) => {
     if (!id) return null
     return etatsBassin.find((e) => e.id === id)?.label ?? null
+  }
+
+  const couleurEtat = (id: string | null) => {
+    if (!id) return null
+    return etatsBassin.find((e) => e.id === id)?.couleur ?? null
   }
 
   const labelDuree = (bassin: BassinRow) => {
@@ -512,6 +522,7 @@ export default function AdminBassinsPage() {
                         : null
 
                     const etatLibelle = labelEtat(bassin.etat_id)
+                    const etatCouleur = couleurEtat(bassin.etat_id)
                     const dureeLibelle = labelDuree(bassin)
 
                     return (
@@ -572,13 +583,18 @@ export default function AdminBassinsPage() {
                         </td>
                         <td className="py-4">
                           {etatLibelle ? (
-                            <StateBadge state={mapEtatToStateBadge(etatLibelle)} />
+                            <StateBadge
+                              state={mapEtatToStateBadge(etatLibelle)}
+                              color={etatCouleur ?? null}
+                              label={etatLibelle ?? null}
+                            />
                           ) : (
                             <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">
                               Non évalué
                             </span>
                           )}
                         </td>
+
                         <td className="py-4">
                           <span className="text-sm text-slate-600">
                             {dureeLibelle || 'Non définie'}

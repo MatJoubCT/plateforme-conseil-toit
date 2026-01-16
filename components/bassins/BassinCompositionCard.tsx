@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import {
+  AlertTriangle,
   ChevronUp,
   ChevronDown,
   Plus,
@@ -43,6 +44,10 @@ export default function BassinCompositionCard(props: { bassinId: string }) {
   const [lignes, setLignes] = useState<CompositionJoined[]>([])
   const [materiauSearch, setMateriauSearch] = useState('')
   const [selectedMateriauId, setSelectedMateriauId] = useState('')
+
+  // Modal confirmation suppression (ligne de composition)
+  const [confirmDeleteLine, setConfirmDeleteLine] = useState<CompositionJoined | null>(null)
+  const [deletingLine, setDeletingLine] = useState(false)
 
   const catalogueActif = useMemo(
     () => (catalogue || []).filter((m) => m.actif),
@@ -125,19 +130,30 @@ export default function BassinCompositionCard(props: { bassinId: string }) {
     await loadAll()
   }
 
-  const handleDeleteLine = async (id: string) => {
+  // Au lieu de supprimer direct, on ouvre le modal
+  const askDeleteLine = (row: CompositionJoined) => setConfirmDeleteLine(row)
+
+  // Suppression réelle (appelée par le modal)
+  const doDeleteLine = async () => {
+    const row = confirmDeleteLine
+    if (!row) return
+
     setErrorMsg(null)
+    setDeletingLine(true)
 
     const del = await supabaseBrowser
       .from('bassin_composition_lignes')
       .delete()
-      .eq('id', id)
+      .eq('id', row.id)
 
     if (del.error) {
       setErrorMsg(del.error.message)
+      setDeletingLine(false)
       return
     }
 
+    setConfirmDeleteLine(null)
+    setDeletingLine(false)
     await loadAll()
   }
 
@@ -340,7 +356,7 @@ export default function BassinCompositionCard(props: { bassinId: string }) {
                       <div className="flex items-center justify-end">
                         <button
                           type="button"
-                          onClick={() => void handleDeleteLine(row.id)}
+                          onClick={() => askDeleteLine(row)}
                           className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500"
                           title="Supprimer la ligne"
                         >
@@ -359,6 +375,67 @@ export default function BassinCompositionCard(props: { bassinId: string }) {
           Quantité prévue au modèle (sera ajoutée à l’UI dans une étape suivante).
         </p>
       </div>
+
+      {/* Modal confirmation suppression (même pattern que les autres pages) */}
+      {confirmDeleteLine && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => !deletingLine && setConfirmDeleteLine(null)}
+          />
+          <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/30 bg-white shadow-2xl">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-red-50 to-white px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10">
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800">
+                    Confirmer la suppression
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Cette action est irréversible.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <p className="text-sm text-slate-700">
+                Supprimer ce matériau du bassin?
+                {confirmDeleteLine.materiau?.nom ? (
+                  <>
+                    {' '}
+                    <span className="font-semibold text-slate-900">
+                      {confirmDeleteLine.materiau.nom}
+                    </span>
+                  </>
+                ) : null}
+              </p>
+
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteLine(null)}
+                  disabled={deletingLine}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" />
+                  Annuler
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void doDeleteLine()}
+                  disabled={deletingLine}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-red-700 disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {deletingLine ? 'Suppression…' : 'Supprimer'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

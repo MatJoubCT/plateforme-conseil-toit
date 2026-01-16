@@ -40,11 +40,13 @@ type BassinRow = {
 type ListeChoix = {
   id: string
   categorie: string
+  code: string | null
   label: string | null
   couleur: string | null
 }
 
 type DashboardStateCounts = {
+  tres_bon: number
   bon: number
   a_surveille: number
   planifier: number
@@ -54,9 +56,14 @@ type DashboardStateCounts = {
 
 function mapEtatToStateBadge(etat: string | null): BassinState {
   if (!etat) return 'non_evalue'
-  const v = etat.toLowerCase()
+
+  const v = etat
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
 
   if (v.includes('urgent')) return 'urgent'
+  if (v.includes('tres bon') || v.includes('excellent')) return 'tres_bon'
   if (v.includes('bon')) return 'bon'
   if (v.includes('surveiller')) return 'a_surveille'
   if (v.includes('planifier') || v.includes('planification')) return 'planifier'
@@ -90,7 +97,7 @@ export default function AdminDashboardPage() {
             ),
           supabaseBrowser
             .from('listes_choix')
-            .select('id, categorie, label, couleur'),
+            .select('id, categorie, code, label, couleur'),
         ])
 
       if (clientsRes.error) {
@@ -163,6 +170,43 @@ export default function AdminDashboardPage() {
     return etatsBassin.find((e) => e.id === id)?.label ?? null
   }
 
+  const etatCouleurFromId = (id: string | null) => {
+    if (!id) return null
+    return etatsBassin.find((e) => e.id === id)?.couleur ?? null
+    }
+
+  const etatCouleurFromCode = (code: BassinState) => {
+    if (code === 'tres_bon') {
+      // en BD c'est généralement "tres_bon"
+      return etatsBassin.find((e) => e.code === 'tres_bon')?.couleur ?? null
+    }
+    if (code === 'a_surveille') {
+      // en BD c'est généralement "surveiller"
+      return etatsBassin.find((e) => e.code === 'surveiller')?.couleur ?? null
+    }
+    if (code === 'non_evalue') {
+      // en BD c'est généralement "non_evalue"
+      return etatsBassin.find((e) => e.code === 'non_evalue')?.couleur ?? null
+    }
+
+    // urgent / planifier / bon correspondent 1:1
+    return etatsBassin.find((e) => e.code === code)?.couleur ?? null
+  }
+
+  const etatLabelFromCode = (code: BassinState) => {
+      if (code === 'tres_bon') {
+        return etatsBassin.find((e) => e.code === 'tres_bon')?.label ?? 'Très bon'
+      }
+      if (code === 'a_surveille') {
+        return etatsBassin.find((e) => e.code === 'surveiller')?.label ?? 'À surveiller'
+      }
+      if (code === 'non_evalue') {
+        return etatsBassin.find((e) => e.code === 'non_evalue')?.label ?? 'Non évalué'
+      }
+
+      return etatsBassin.find((e) => e.code === code)?.label ?? null
+    }
+
   const dureeLibelleFromBassin = (b: BassinRow) => {
     if (b.duree_vie_id) {
       const fromList =
@@ -188,6 +232,7 @@ export default function AdminDashboardPage() {
 
     let totalSurfaceM2 = 0
     const counts: DashboardStateCounts = {
+      tres_bon: 0,
       bon: 0,
       a_surveille: 0,
       planifier: 0,
@@ -220,7 +265,8 @@ export default function AdminDashboardPage() {
       planifier: 1,
       a_surveille: 2,
       bon: 3,
-      non_evalue: 4,
+      tres_bon: 4,
+      non_evalue: 5,
     }
 
     itemsRisque.sort((a, b) => {
@@ -246,9 +292,17 @@ export default function AdminDashboardPage() {
   }, [clients, batiments, bassins, etatsBassin, dureesBassin])
 
   // Calcul des pourcentages
-  const totalBassinsNonBon = stateCounts.urgent + stateCounts.planifier + stateCounts.a_surveille
-  const pourcentageRisque = nbBassins > 0 ? Math.round((totalBassinsNonBon / nbBassins) * 100) : 0
-  const pourcentageBon = nbBassins > 0 ? Math.round((stateCounts.bon / nbBassins) * 100) : 0
+  const totalBassinsNonBon =
+    stateCounts.urgent + stateCounts.planifier + stateCounts.a_surveille
+
+  const pourcentageRisque =
+    nbBassins > 0 ? Math.round((totalBassinsNonBon / nbBassins) * 100) : 0
+
+  const pourcentageBon =
+    nbBassins > 0 ? Math.round((stateCounts.bon / nbBassins) * 100) : 0
+
+  const pourcentageTresBon =
+    nbBassins > 0 ? Math.round((stateCounts.tres_bon / nbBassins) * 100) : 0
 
   if (loading) {
     return (
@@ -539,6 +593,7 @@ export default function AdminDashboardPage() {
                         bat?.client_id ? clientById.get(bat.client_id) : undefined
 
                       const etatLib = etatLibelleFromId(b.etat_id)
+                      const etatCouleur = etatCouleurFromId(b.etat_id)
                       const state = mapEtatToStateBadge(etatLib)
                       const dureeLib = dureeLibelleFromBassin(b)
 
@@ -564,7 +619,11 @@ export default function AdminDashboardPage() {
                             </div>
                           </td>
                           <td className="py-3.5 px-3">
-                            <StateBadge state={state} />
+                            <StateBadge
+                              state={state}
+                              color={etatCouleur}
+                              label={etatLib}
+                            />
                           </td>
                           <td className="hidden lg:table-cell py-3.5 px-3 text-sm text-slate-600">
                             {bat?.name || '—'}
@@ -616,7 +675,11 @@ export default function AdminDashboardPage() {
               <div className="group rounded-xl border border-red-200 bg-red-50/50 p-4 transition-all hover:shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <StateBadge state="urgent" />
+                    <StateBadge
+                      state="urgent"
+                      color={etatCouleurFromCode('urgent')}
+                      label={etatLabelFromCode('urgent')}
+                    />
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-red-700">{stateCounts.urgent}</p>
@@ -631,7 +694,11 @@ export default function AdminDashboardPage() {
               <div className="group rounded-xl border border-orange-200 bg-orange-50/50 p-4 transition-all hover:shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <StateBadge state="planifier" />
+                    <StateBadge
+                      state="planifier"
+                      color={etatCouleurFromCode('planifier')}
+                      label={etatLabelFromCode('planifier')}
+                    />
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-orange-700">{stateCounts.planifier}</p>
@@ -646,7 +713,11 @@ export default function AdminDashboardPage() {
               <div className="group rounded-xl border border-yellow-200 bg-yellow-50/50 p-4 transition-all hover:shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <StateBadge state="a_surveille" />
+                    <StateBadge
+                      state="a_surveille"
+                      color={etatCouleurFromCode('a_surveille')}
+                      label={etatLabelFromCode('a_surveille')}
+                    />
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-yellow-700">{stateCounts.a_surveille}</p>
@@ -661,7 +732,11 @@ export default function AdminDashboardPage() {
               <div className="group rounded-xl border border-green-200 bg-green-50/50 p-4 transition-all hover:shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <StateBadge state="bon" />
+                    <StateBadge
+                      state="bon"
+                      color={etatCouleurFromCode('bon')}
+                      label={etatLabelFromCode('bon')}
+                    />
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-green-700">{stateCounts.bon}</p>
@@ -672,11 +747,36 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
+              {/* Très bon */}
+              <div className="group rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 transition-all hover:shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <StateBadge
+                      state="tres_bon"
+                      color={etatCouleurFromCode('tres_bon')}
+                      label={etatLabelFromCode('tres_bon')}
+                    />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-emerald-700">
+                      {stateCounts.tres_bon}
+                    </p>
+                    <p className="text-xs font-medium text-emerald-600">
+                      {pourcentageTresBon}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Non évalué */}
               <div className="group rounded-xl border border-slate-200 bg-slate-50/50 p-4 transition-all hover:shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <StateBadge state="non_evalue" />
+                    <StateBadge
+                      state="non_evalue"
+                      color={etatCouleurFromCode('non_evalue')}
+                      label={etatLabelFromCode('non_evalue')}
+                    />
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-slate-700">{stateCounts.non_evalue}</p>

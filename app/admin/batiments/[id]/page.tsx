@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, FormEvent, useRef } from 'react'
+import { useEffect, useState, FormEvent, useRef, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
@@ -81,9 +81,16 @@ type BatimentBasinsMapProps = {
 /** mappe un libellé d'état en type pour StateBadge */
 function mapEtatToStateBadge(etat: string | null): BassinState {
   if (!etat) return 'non_evalue'
-  const v = etat.toLowerCase()
 
+  // Normaliser pour gérer accents (très -> tres)
+  const v = etat
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+  // IMPORTANT: traiter "tres bon" AVANT "bon"
   if (v.includes('urgent')) return 'urgent'
+  if (v.includes('tres bon') || v.includes('excellent')) return 'tres_bon'
   if (v.includes('bon')) return 'bon'
   if (v.includes('surveiller')) return 'a_surveille'
   if (v.includes('planifier') || v.includes('planification')) return 'planifier'
@@ -761,7 +768,11 @@ export default function AdminBatimentDetailPage() {
                             >
                               {b.name || 'Bassin sans nom'}
                             </span>
-                            <StateBadge state={stateBadge} />
+                            <StateBadge
+                              state={stateBadge}
+                              color={etats.find((e) => e.id === b.etat_id)?.couleur ?? null}
+                              label={etats.find((e) => e.id === b.etat_id)?.label ?? null}
+                            />
                           </div>
 
                           {/* Infos secondaires */}
@@ -1344,44 +1355,54 @@ function BatimentBasinsMap({
   })
 
   const [map, setMap] = useState<google.maps.Map | null>(null)
-  const polygonsCountRef = useRef(0)
 
-  const polygons = bassins
-    .filter(
-      (b) =>
-        b.polygone_geojson &&
-        b.polygone_geojson.coordinates &&
-        b.polygone_geojson.coordinates[0]?.length > 0
+  // IMPORTANT: garder le center initial pour éviter tout "recenter" sur re-render (hover, etc.)
+  const initialCenterRef = useRef(center)
+
+  // IMPORTANT: refaire fitBounds seulement si les polygones changent (ajout/modif/suppression)
+  const lastFitKeyRef = useRef<string>('')
+
+  const polygons = useMemo(() => {
+    return bassins
+      .filter(
+        (b) =>
+          b.polygone_geojson &&
+          b.polygone_geojson.coordinates &&
+          b.polygone_geojson.coordinates[0]?.length > 0
+      )
+      .map((b) => {
+        const coords = b.polygone_geojson!.coordinates[0]
+        const path = coords.map(([lng, lat]) => ({ lat, lng }))
+        const etat = etats.find((e) => e.id === b.etat_id)
+        const color = etat?.couleur || '#22c55e'
+        return { id: b.id, path, color }
+      })
+  }, [bassins, etats])
+
+  // "signature" stable des polygones pour savoir si on doit refit
+  const polygonsKey = useMemo(() => {
+    return JSON.stringify(
+      polygons.map((p) => ({
+        id: p.id,
+        path: p.path.map((pt) => [pt.lat, pt.lng]),
+      }))
     )
-    .map((b) => {
-      const coords = b.polygone_geojson!.coordinates[0]
-      const path = coords.map(([lng, lat]) => ({ lat, lng }))
-      const etat = etats.find((e) => e.id === b.etat_id)
-      const color = etat?.couleur || '#22c55e'
-      return { id: b.id, path, color }
-    })
+  }, [polygons])
 
   useEffect(() => {
     if (!isLoaded || !map) return
 
     if (polygons.length === 0) {
-      polygonsCountRef.current = 0
+      lastFitKeyRef.current = ''
       return
     }
 
-    if (
-      polygonsCountRef.current === polygons.length &&
-      polygonsCountRef.current !== 0
-    ) {
-      return
-    }
-
-    polygonsCountRef.current = polygons.length
+    // Ne refit pas si rien n'a changé (ex: hover)
+    if (lastFitKeyRef.current === polygonsKey) return
+    lastFitKeyRef.current = polygonsKey
 
     const bounds = new google.maps.LatLngBounds()
-    polygons.forEach((poly) => {
-      poly.path.forEach((p) => bounds.extend(p))
-    })
+    polygons.forEach((poly) => poly.path.forEach((p) => bounds.extend(p)))
 
     const padding: google.maps.Padding = {
       top: 60,
@@ -1396,7 +1417,7 @@ function BatimentBasinsMap({
       const z = map.getZoom()
       if (z && z > 21) map.setZoom(21)
     })
-  }, [isLoaded, map, polygons])
+  }, [isLoaded, map, polygons, polygonsKey])
 
   if (!isLoaded) {
     return (
@@ -1428,8 +1449,9 @@ function BatimentBasinsMap({
     <div className="relative h-[480px] w-full overflow-hidden rounded-xl border border-slate-200">
       <GoogleMap
         mapContainerStyle={{ width: '100%', height: '100%' }}
-        center={center}
-        zoom={18}
+        // IMPORTANT: defaultCenter/defaultZoom => la carte ne se recale PAS à chaque re-render
+        defaultCenter={initialCenterRef.current}
+        defaultZoom={18}
         options={{
           mapTypeId: 'satellite',
           streetViewControl: false,
@@ -1469,3 +1491,5 @@ function BatimentBasinsMap({
     </div>
   )
 }
+
+
