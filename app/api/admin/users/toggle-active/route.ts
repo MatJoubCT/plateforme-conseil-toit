@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { requireAdmin } from '@/lib/auth-middleware'
 
 export async function POST(req: Request) {
   try {
+    // Vérification d'authentification et de rôle admin
+    const { error: authError, user } = await requireAdmin(req)
+    if (authError) return authError
+
     const body = await req.json()
     const { profileId, isActive } = body as {
       profileId?: string

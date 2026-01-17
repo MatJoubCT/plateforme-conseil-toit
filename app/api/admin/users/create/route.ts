@@ -1,16 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-
-function getOrigin(req: Request) {
-  const origin = req.headers.get('origin')
-  if (origin) return origin
-
-  const proto = req.headers.get('x-forwarded-proto')
-  const host = req.headers.get('x-forwarded-host')
-  if (proto && host) return `${proto}://${host}`
-
-  return process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-}
+import { requireAdmin, getValidatedOrigin } from '@/lib/auth-middleware'
 
 async function findUserIdByEmail(email: string): Promise<string | null> {
   const { data, error } = await supabaseAdmin.auth.admin.listUsers()
@@ -21,6 +11,10 @@ async function findUserIdByEmail(email: string): Promise<string | null> {
 
 export async function POST(req: Request) {
   try {
+    // Vérification d'authentification et de rôle admin
+    const { error: authError, user } = await requireAdmin(req)
+    if (authError) return authError
+
     const body = await req.json()
 
     const email = String(body?.email || '').trim().toLowerCase()
@@ -33,7 +27,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Courriel manquant.' }, { status: 400 })
     }
 
-    const origin = getOrigin(req)
+    const origin = getValidatedOrigin(req)
     const redirectTo = `${origin}/auth/callback`
 
     // 1) Invitation standard
