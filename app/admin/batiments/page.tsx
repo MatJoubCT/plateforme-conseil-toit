@@ -266,7 +266,7 @@ export default function AdminBatimentsPage() {
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
           </div>
           <p className="text-sm font-medium text-slate-600">Chargement des bâtiments…</p>
         </div>
@@ -290,7 +290,7 @@ export default function AdminBatimentsPage() {
     <>
       <section className="space-y-6">
         {/* ========== HEADER ========== */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-ct-primary via-ct-primary-medium to-ct-primary-dark p-6 shadow-xl">
           {/* Décoration background */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
@@ -348,7 +348,7 @@ export default function AdminBatimentsPage() {
               <button
                 type="button"
                 onClick={openAddModal}
-                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#1F4E79] shadow-lg transition-all hover:bg-white/90 hover:shadow-xl"
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-ct-primary shadow-lg transition-all hover:bg-white/90 hover:shadow-xl"
               >
                 <Plus className="h-4 w-4" />
                 Nouveau bâtiment
@@ -361,8 +361,8 @@ export default function AdminBatimentsPage() {
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
           <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
-                <SlidersHorizontal className="h-5 w-5 text-[#1F4E79]" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-ct-primary/10">
+                <SlidersHorizontal className="h-5 w-5 text-ct-primary" />
               </div>
               <div>
                 <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
@@ -389,7 +389,7 @@ export default function AdminBatimentsPage() {
                     value={search}
                     onChange={handleSearchChange}
                     placeholder="Nom de bâtiment, adresse, client…"
-                    className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pr-10 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pr-10 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                     style={{ paddingLeft: '3rem' }}
                   />
 
@@ -413,7 +413,7 @@ export default function AdminBatimentsPage() {
                 <select
                   value={clientFilter}
                   onChange={handleClientFilterChange}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                 >
                   <option value="all">Tous les clients</option>
                   {clientOptions.map((c) => (
@@ -432,7 +432,7 @@ export default function AdminBatimentsPage() {
                 <select
                   value={cityFilter}
                   onChange={handleCityFilterChange}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                 >
                   <option value="all">Toutes les villes</option>
                   {cityOptions.map((city) => (
@@ -451,8 +451,8 @@ export default function AdminBatimentsPage() {
           <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
-                  <Building2 className="h-5 w-5 text-[#1F4E79]" />
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-ct-primary/10">
+                  <Building2 className="h-5 w-5 text-ct-primary" />
                 </div>
                 <div>
                   <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
@@ -506,11 +506,11 @@ export default function AdminBatimentsPage() {
                       {/* Nom du bâtiment */}
                       <td className="py-4 pl-6">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-sm font-semibold text-white shadow-sm">
+                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-sm font-semibold text-white shadow-sm">
                             {(b.name ?? 'B')[0].toUpperCase()}
                           </div>
                           <div className="min-w-0">
-                            <span className="block truncate font-semibold text-slate-800 transition-colors group-hover:text-[#1F4E79]">
+                            <span className="block truncate font-semibold text-slate-800 transition-colors group-hover:text-ct-primary">
                               {b.name || '(Sans nom)'}
                             </span>
                             <p className="truncate text-xs text-slate-500 md:hidden">
@@ -548,7 +548,7 @@ export default function AdminBatimentsPage() {
                           <span
                             className={`inline-flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold ${
                               b.nb_bassins > 0
-                                ? 'bg-[#1F4E79]/10 text-[#1F4E79]'
+                                ? 'bg-ct-primary/10 text-ct-primary'
                                 : 'bg-slate-100 text-slate-400'
                             }`}
                           >
@@ -606,7 +606,7 @@ export default function AdminBatimentsPage() {
                     type="text"
                     value={addName}
                     onChange={(e) => setAddName(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                     placeholder="Ex: École Primaire Saint-Joseph"
                     required
                   />
@@ -619,7 +619,7 @@ export default function AdminBatimentsPage() {
                   <select
                     value={addClientId}
                     onChange={(e) => setAddClientId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                     required
                   >
                     <option value="">Sélectionnez un client…</option>
@@ -642,7 +642,7 @@ export default function AdminBatimentsPage() {
                     type="text"
                     value={addAddress}
                     onChange={(e) => setAddAddress(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                     placeholder="No civique, rue"
                   />
                 </div>
@@ -655,7 +655,7 @@ export default function AdminBatimentsPage() {
                     type="text"
                     value={addCity}
                     onChange={(e) => setAddCity(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                     placeholder="Montréal"
                   />
                 </div>
@@ -668,7 +668,7 @@ export default function AdminBatimentsPage() {
                     type="text"
                     value={addPostalCode}
                     onChange={(e) => setAddPostalCode(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                     placeholder="H2X 1Y4"
                   />
                 </div>
@@ -684,7 +684,7 @@ export default function AdminBatimentsPage() {
                     type="text"
                     value={addLatitude}
                     onChange={(e) => setAddLatitude(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                     placeholder="ex.: 46.12345"
                   />
                 </div>
@@ -697,7 +697,7 @@ export default function AdminBatimentsPage() {
                     type="text"
                     value={addLongitude}
                     onChange={(e) => setAddLongitude(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                     placeholder="ex.: -72.98765"
                   />
                 </div>
@@ -712,7 +712,7 @@ export default function AdminBatimentsPage() {
                   value={addNotes}
                   onChange={(e) => setAddNotes(e.target.value)}
                   rows={3}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                   placeholder="Informations supplémentaires sur le bâtiment..."
                 />
               </div>
@@ -737,7 +737,7 @@ export default function AdminBatimentsPage() {
                 <button
                   type="submit"
                   disabled={addSaving}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+                  className="rounded-xl bg-gradient-to-r from-ct-primary to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
                 >
                   {addSaving ? 'Enregistrement…' : 'Créer le bâtiment'}
                 </button>

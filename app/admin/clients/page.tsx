@@ -164,7 +164,7 @@ export default function AdminClientsPage() {
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
           </div>
           <p className="text-sm font-medium text-slate-600">
             Chargement des clients…
@@ -191,7 +191,7 @@ export default function AdminClientsPage() {
     <>
       <section className="space-y-6">
         {/* ========== HEADER ========== */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-ct-primary via-ct-primary-medium to-ct-primary-dark p-6 shadow-xl">
           {/* Décoration background */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
@@ -242,7 +242,7 @@ export default function AdminClientsPage() {
               <button
                 type="button"
                 onClick={openCreateModal}
-                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#1F4E79] shadow-lg transition-all hover:bg-white/90 hover:shadow-xl"
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-ct-primary shadow-lg transition-all hover:bg-white/90 hover:shadow-xl"
               >
                 <Plus className="h-4 w-4" />
                 Nouveau client
@@ -255,8 +255,8 @@ export default function AdminClientsPage() {
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
           <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
-                <SlidersHorizontal className="h-5 w-5 text-[#1F4E79]" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-ct-primary/10">
+                <SlidersHorizontal className="h-5 w-5 text-ct-primary" />
               </div>
               <div>
                 <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
@@ -283,7 +283,7 @@ export default function AdminClientsPage() {
                     value={search}
                     onChange={handleSearchChange}
                     placeholder="Nom du client..."
-                    className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pr-10 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pr-10 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                     style={{ paddingLeft: '3rem' }}
                   />
                   {search && (
@@ -306,7 +306,7 @@ export default function AdminClientsPage() {
                 <select
                   value={sortDir}
                   onChange={handleSortDirChange}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                 >
                   <option value="asc">Croissant</option>
                   <option value="desc">Décroissant</option>
@@ -320,8 +320,8 @@ export default function AdminClientsPage() {
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
           <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
-                <Users className="h-5 w-5 text-[#1F4E79]" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-ct-primary/10">
+                <Users className="h-5 w-5 text-ct-primary" />
               </div>
               <div>
                 <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
@@ -373,11 +373,11 @@ export default function AdminClientsPage() {
                       >
                         <td className="py-4">
                           <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-sm font-semibold text-white shadow-sm">
+                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-sm font-semibold text-white shadow-sm">
                               {(c.name ?? 'C')[0].toUpperCase()}
                             </div>
                             <div className="min-w-0">
-                              <span className="block truncate font-semibold text-slate-800 transition-colors group-hover:text-[#1F4E79]">
+                              <span className="block truncate font-semibold text-slate-800 transition-colors group-hover:text-ct-primary">
                                 {c.name || '(Sans nom)'}
                               </span>
                             </div>
@@ -388,7 +388,7 @@ export default function AdminClientsPage() {
                             <span
                               className={`inline-flex min-w-[2rem] items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${
                                 c.nb_batiments > 0
-                                  ? 'bg-[#1F4E79]/10 text-[#1F4E79]'
+                                  ? 'bg-ct-primary/10 text-ct-primary'
                                   : 'bg-slate-100 text-slate-500'
                               }`}
                             >
@@ -447,7 +447,7 @@ export default function AdminClientsPage() {
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
                   placeholder="Ex.: Ville de X, Immobilier ABC"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                   autoFocus
                 />
               </div>
@@ -471,7 +471,7 @@ export default function AdminClientsPage() {
                 <button
                   type="submit"
                   disabled={createSaving}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+                  className="rounded-xl bg-gradient-to-r from-ct-primary to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
                 >
                   {createSaving ? 'Enregistrement…' : 'Créer le client'}
                 </button>

@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState, ChangeEvent } from 'react'
-import { supabaseBrowser } from '@/lib/supabaseBrowser'
-import EditUserModal, { BatimentRow, ClientRow } from '@/components/admin/users/EditUserModal'
+import { createBrowserClient, supabaseBrowser } from '@/lib/supabaseBrowser'
+import { useUsersData } from '@/lib/hooks/useUsersData'
+import type { UserProfileRow, ClientRow, BatimentRow, EditableUser } from '@/lib/hooks/useUsersData'
+import EditUserModal from '@/components/admin/users/EditUserModal'
 import {
   Dialog,
   DialogContent,
@@ -11,44 +13,18 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Users, UserPlus, Shield, KeyRound, Ban, CheckCircle2, X, Search, SlidersHorizontal } from 'lucide-react'
-
-type UserProfileRow = {
-  id: string
-  user_id: string
-  full_name: string | null
-  role: string | null
-  client_id: string | null
-  is_active: boolean | null
-}
-
-type UserClientRow = {
-  user_id: string
-  client_id: string
-}
-
-type UserBatimentAccessRow = {
-  user_id: string
-  batiment_id: string
-}
-
-type EditableUser = UserProfileRow & {
-  clientsLabels: string[]
-  batimentsLabels: string[]
-}
 
 type ToastState = { type: 'success' | 'error'; message: string } | null
 
 export default function AdminUtilisateursPage() {
-  const [loading, setLoading] = useState(true)
+  // Use the custom hook for data loading
+  const { users, clients, batiments, loading, error: dataError, loadUsersData } = useUsersData()
 
   // messages (utilisés par le modal Modifier)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
-
-  const [users, setUsers] = useState<EditableUser[]>([])
-  const [clients, setClients] = useState<ClientRow[]>([])
-  const [batiments, setBatiments] = useState<BatimentRow[]>([])
 
   // Recherche
   const [search, setSearch] = useState('')
@@ -89,107 +65,25 @@ export default function AdminUtilisateursPage() {
     [confirmResetUserId, users],
   )
 
+  // Confirmation pour toggle actif/inactif
+  const [confirmToggle, setConfirmToggle] = useState<{
+    profileId: string
+    userId: string
+    currentState: boolean | null
+    userName: string
+  } | null>(null)
+
+  // Load users data on mount
   useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      setErrorMsg(null)
+    loadUsersData()
+  }, [loadUsersData])
 
-      const { data: profilesData, error: profilesError } = await supabaseBrowser
-        .from('user_profiles')
-        .select('id, user_id, full_name, role, client_id, is_active')
-        .order('full_name', { ascending: true })
-
-      if (profilesError) {
-        setErrorMsg(profilesError.message)
-        setLoading(false)
-        return
-      }
-
-      const profiles = (profilesData || []) as UserProfileRow[]
-
-      const { data: clientsData, error: clientsError } = await supabaseBrowser
-        .from('clients')
-        .select('id, name')
-        .order('name', { ascending: true })
-
-      if (clientsError) {
-        setErrorMsg(clientsError.message)
-        setLoading(false)
-        return
-      }
-
-      const allClients = (clientsData || []) as ClientRow[]
-
-      const { data: batData, error: batError } = await supabaseBrowser
-        .from('batiments')
-        .select('id, client_id, name, address, city, postal_code')
-        .order('name', { ascending: true })
-
-      if (batError) {
-        setErrorMsg(batError.message)
-        setLoading(false)
-        return
-      }
-
-      const allBatiments = (batData || []) as BatimentRow[]
-
-      const { data: ucData, error: ucError } = await supabaseBrowser.from('user_clients').select('user_id, client_id')
-
-      if (ucError) {
-        setErrorMsg(ucError.message)
-        setLoading(false)
-        return
-      }
-
-      const userClients = (ucData || []) as UserClientRow[]
-
-      const { data: ubaData, error: ubaError } = await supabaseBrowser
-        .from('user_batiments_access')
-        .select('user_id, batiment_id')
-
-      if (ubaError) {
-        setErrorMsg(ubaError.message)
-        setLoading(false)
-        return
-      }
-
-      const userBatiments = (ubaData || []) as UserBatimentAccessRow[]
-
-      const clientsByIdMap = new Map<string, ClientRow>()
-      allClients.forEach((c) => clientsByIdMap.set(c.id, c))
-
-      const batById = new Map<string, BatimentRow>()
-      allBatiments.forEach((b) => batById.set(b.id, b))
-
-      const editable: EditableUser[] = profiles.map((p) => {
-        const uc = userClients.filter((x) => x.user_id === p.user_id)
-        const uba = userBatiments.filter((x) => x.user_id === p.user_id)
-
-        const clientsLabels = uc
-          .map((x) => clientsByIdMap.get(x.client_id)?.name || null)
-          .filter((x): x is string => !!x)
-
-        const batimentsLabels = uba
-          .map((x) => {
-            const b = batById.get(x.batiment_id)
-            if (!b) return null
-            if (b.name && b.city) return `${b.name} — ${b.city}`
-            if (b.name) return b.name
-            return null
-          })
-          .filter((x): x is string => !!x)
-
-        return { ...p, clientsLabels, batimentsLabels }
-      })
-
-      setUsers(editable)
-      setClients(allClients)
-      setBatiments(allBatiments)
-      setLoading(false)
+  // Handle data loading errors
+  useEffect(() => {
+    if (dataError) {
+      setErrorMsg(dataError)
     }
-
-    void load()
-  }, [])
+  }, [dataError])
 
   const clientsById = useMemo(() => {
     const m = new Map<string, ClientRow>()
@@ -319,105 +213,7 @@ export default function AdminUtilisateursPage() {
       setSuccessMsg('Modifications enregistrées.')
       setSaving(false)
 
-      const load = async () => {
-        setLoading(true)
-        setErrorMsg(null)
-
-        const { data: profilesData, error: profilesError } = await supabaseBrowser
-          .from('user_profiles')
-          .select('id, user_id, full_name, role, client_id, is_active')
-          .order('full_name', { ascending: true })
-
-        if (profilesError) {
-          setErrorMsg(profilesError.message)
-          setLoading(false)
-          return
-        }
-
-        const profiles = (profilesData || []) as UserProfileRow[]
-
-        const { data: clientsData, error: clientsError } = await supabaseBrowser
-          .from('clients')
-          .select('id, name')
-          .order('name', { ascending: true })
-
-        if (clientsError) {
-          setErrorMsg(clientsError.message)
-          setLoading(false)
-          return
-        }
-
-        const allClients = (clientsData || []) as ClientRow[]
-
-        const { data: batData, error: batError } = await supabaseBrowser
-          .from('batiments')
-          .select('id, client_id, name, address, city, postal_code')
-          .order('name', { ascending: true })
-
-        if (batError) {
-          setErrorMsg(batError.message)
-          setLoading(false)
-          return
-        }
-
-        const allBatiments = (batData || []) as BatimentRow[]
-
-        const { data: ucData, error: ucError } = await supabaseBrowser.from('user_clients').select('user_id, client_id')
-
-        if (ucError) {
-          setErrorMsg(ucError.message)
-          setLoading(false)
-          return
-        }
-
-        const userClients = (ucData || []) as UserClientRow[]
-
-        const { data: ubaData, error: ubaError } = await supabaseBrowser
-          .from('user_batiments_access')
-          .select('user_id, batiment_id')
-
-        if (ubaError) {
-          setErrorMsg(ubaError.message)
-          setLoading(false)
-          return
-        }
-
-        const userBatiments = (ubaData || []) as UserBatimentAccessRow[]
-
-        const clientsByIdMap = new Map<string, ClientRow>()
-        allClients.forEach((c) => clientsByIdMap.set(c.id, c))
-
-        const batById = new Map<string, BatimentRow>()
-        allBatiments.forEach((b) => batById.set(b.id, b))
-
-        const editable: EditableUser[] = profiles.map((p) => {
-          const uc = userClients.filter((x) => x.user_id === p.user_id)
-          const uba = userBatiments.filter((x) => x.user_id === p.user_id)
-
-          const clientsLabels = uc
-            .map((x) => clientsByIdMap.get(x.client_id)?.name || null)
-            .filter((x): x is string => !!x)
-
-          const batimentsLabels = uba
-            .map((x) => {
-              const b = batById.get(x.batiment_id)
-              if (!b) return null
-              if (b.name && b.city) return `${b.name} — ${b.city}`
-              if (b.name) return b.name
-              return null
-            })
-            .filter((x): x is string => !!x)
-
-          return { ...p, clientsLabels, batimentsLabels }
-        })
-
-        setUsers(editable)
-        setClients(allClients)
-        setBatiments(allBatiments)
-        setLoading(false)
-      }
-
-      await load()
+      await loadUsersData()
 
       window.setTimeout(() => {
         setShowModal(false)
@@ -430,118 +226,28 @@ export default function AdminUtilisateursPage() {
     }
   }
 
-  const toggleUserActive = async (profileId: string, userId: string, currentState: boolean | null) => {
-    const { error } = await supabaseBrowser
+  const executeToggleUserActive = async () => {
+    if (!confirmToggle) return
+
+    const { profileId, currentState } = confirmToggle
+
+    const supabase = createBrowserClient()
+
+    const { error } = await supabase
       .from('user_profiles')
       .update({ is_active: !currentState })
       .eq('id', profileId)
 
     if (error) {
       pushToast('error', `Erreur: ${error.message}`)
+      setConfirmToggle(null)
       return
     }
 
     pushToast('success', currentState ? 'Utilisateur suspendu.' : 'Utilisateur réactivé.')
+    setConfirmToggle(null)
 
-    const load = async () => {
-      setLoading(true)
-      setErrorMsg(null)
-
-      const { data: profilesData, error: profilesError } = await supabaseBrowser
-        .from('user_profiles')
-        .select('id, user_id, full_name, role, client_id, is_active')
-        .order('full_name', { ascending: true })
-
-      if (profilesError) {
-        setErrorMsg(profilesError.message)
-        setLoading(false)
-        return
-      }
-
-      const profiles = (profilesData || []) as UserProfileRow[]
-
-      const { data: clientsData, error: clientsError } = await supabaseBrowser
-        .from('clients')
-        .select('id, name')
-        .order('name', { ascending: true })
-
-      if (clientsError) {
-        setErrorMsg(clientsError.message)
-        setLoading(false)
-        return
-      }
-
-      const allClients = (clientsData || []) as ClientRow[]
-
-      const { data: batData, error: batError } = await supabaseBrowser
-        .from('batiments')
-        .select('id, client_id, name, address, city, postal_code')
-        .order('name', { ascending: true })
-
-      if (batError) {
-        setErrorMsg(batError.message)
-        setLoading(false)
-        return
-      }
-
-      const allBatiments = (batData || []) as BatimentRow[]
-
-      const { data: ucData, error: ucError } = await supabaseBrowser.from('user_clients').select('user_id, client_id')
-
-      if (ucError) {
-        setErrorMsg(ucError.message)
-        setLoading(false)
-        return
-      }
-
-      const userClients = (ucData || []) as UserClientRow[]
-
-      const { data: ubaData, error: ubaError } = await supabaseBrowser
-        .from('user_batiments_access')
-        .select('user_id, batiment_id')
-
-      if (ubaError) {
-        setErrorMsg(ubaError.message)
-        setLoading(false)
-        return
-      }
-
-      const userBatiments = (ubaData || []) as UserBatimentAccessRow[]
-
-      const clientsByIdMap = new Map<string, ClientRow>()
-      allClients.forEach((c) => clientsByIdMap.set(c.id, c))
-
-      const batById = new Map<string, BatimentRow>()
-      allBatiments.forEach((b) => batById.set(b.id, b))
-
-      const editable: EditableUser[] = profiles.map((p) => {
-        const uc = userClients.filter((x) => x.user_id === p.user_id)
-        const uba = userBatiments.filter((x) => x.user_id === p.user_id)
-
-        const clientsLabels = uc
-          .map((x) => clientsByIdMap.get(x.client_id)?.name || null)
-          .filter((x): x is string => !!x)
-
-        const batimentsLabels = uba
-          .map((x) => {
-            const b = batById.get(x.batiment_id)
-            if (!b) return null
-            if (b.name && b.city) return `${b.name} — ${b.city}`
-            if (b.name) return b.name
-            return null
-          })
-          .filter((x): x is string => !!x)
-
-        return { ...p, clientsLabels, batimentsLabels }
-      })
-
-      setUsers(editable)
-      setClients(allClients)
-      setBatiments(allBatiments)
-      setLoading(false)
-    }
-
-    await load()
+    await loadUsersData()
   }
 
   const requestResetPassword = (userId: string) => {
@@ -627,105 +333,7 @@ export default function AdminUtilisateursPage() {
       setCreateSaving(false)
       setShowCreateModal(false)
 
-      const load = async () => {
-        setLoading(true)
-        setErrorMsg(null)
-
-        const { data: profilesData, error: profilesError } = await supabaseBrowser
-          .from('user_profiles')
-          .select('id, user_id, full_name, role, client_id, is_active')
-          .order('full_name', { ascending: true })
-
-        if (profilesError) {
-          setErrorMsg(profilesError.message)
-          setLoading(false)
-          return
-        }
-
-        const profiles = (profilesData || []) as UserProfileRow[]
-
-        const { data: clientsData, error: clientsError } = await supabaseBrowser
-          .from('clients')
-          .select('id, name')
-          .order('name', { ascending: true })
-
-        if (clientsError) {
-          setErrorMsg(clientsError.message)
-          setLoading(false)
-          return
-        }
-
-        const allClients = (clientsData || []) as ClientRow[]
-
-        const { data: batData, error: batError } = await supabaseBrowser
-          .from('batiments')
-          .select('id, client_id, name, address, city, postal_code')
-          .order('name', { ascending: true })
-
-        if (batError) {
-          setErrorMsg(batError.message)
-          setLoading(false)
-          return
-        }
-
-        const allBatiments = (batData || []) as BatimentRow[]
-
-        const { data: ucData, error: ucError } = await supabaseBrowser.from('user_clients').select('user_id, client_id')
-
-        if (ucError) {
-          setErrorMsg(ucError.message)
-          setLoading(false)
-          return
-        }
-
-        const userClients = (ucData || []) as UserClientRow[]
-
-        const { data: ubaData, error: ubaError } = await supabaseBrowser
-          .from('user_batiments_access')
-          .select('user_id, batiment_id')
-
-        if (ubaError) {
-          setErrorMsg(ubaError.message)
-          setLoading(false)
-          return
-        }
-
-        const userBatiments = (ubaData || []) as UserBatimentAccessRow[]
-
-        const clientsByIdMap = new Map<string, ClientRow>()
-        allClients.forEach((c) => clientsByIdMap.set(c.id, c))
-
-        const batById = new Map<string, BatimentRow>()
-        allBatiments.forEach((b) => batById.set(b.id, b))
-
-        const editable: EditableUser[] = profiles.map((p) => {
-          const uc = userClients.filter((x) => x.user_id === p.user_id)
-          const uba = userBatiments.filter((x) => x.user_id === p.user_id)
-
-          const clientsLabels = uc
-            .map((x) => clientsByIdMap.get(x.client_id)?.name || null)
-            .filter((x): x is string => !!x)
-
-          const batimentsLabels = uba
-            .map((x) => {
-              const b = batById.get(x.batiment_id)
-              if (!b) return null
-              if (b.name && b.city) return `${b.name} — ${b.city}`
-              if (b.name) return b.name
-              return null
-            })
-            .filter((x): x is string => !!x)
-
-          return { ...p, clientsLabels, batimentsLabels }
-        })
-
-        setUsers(editable)
-        setClients(allClients)
-        setBatiments(allBatiments)
-        setLoading(false)
-      }
-
-      await load()
+      await loadUsersData()
     } catch (err: any) {
       console.error('Erreur inattendue création:', err)
       setCreateErrorMsg(err.message || 'Erreur inattendue.')
@@ -747,7 +355,7 @@ export default function AdminUtilisateursPage() {
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
           </div>
           <p className="text-sm font-medium text-slate-600">Chargement des utilisateurs…</p>
         </div>
@@ -758,7 +366,7 @@ export default function AdminUtilisateursPage() {
   return (
     <section className="space-y-6">
        {/* HEADER */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-ct-primary via-ct-primary-medium to-ct-primary-dark p-6 shadow-xl">
         {/* Décoration background */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
@@ -808,7 +416,7 @@ export default function AdminUtilisateursPage() {
             <button
               type="button"
               onClick={openCreateModal}
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#1F4E79] shadow-lg transition-all hover:bg-white/90 hover:shadow-xl"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-ct-primary shadow-lg transition-all hover:bg-white/90 hover:shadow-xl"
             >
               <UserPlus className="h-4 w-4" />
               Ajouter un utilisateur
@@ -821,8 +429,8 @@ export default function AdminUtilisateursPage() {
       <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
         <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
-              <SlidersHorizontal className="h-5 w-5 text-[#1F4E79]" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-ct-primary/10">
+              <SlidersHorizontal className="h-5 w-5 text-ct-primary" />
             </div>
             <div>
               <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Recherche</h2>
@@ -841,7 +449,7 @@ export default function AdminUtilisateursPage() {
                 value={search}
                 onChange={handleSearchChange}
                 placeholder="Nom complet de l'utilisateur..."
-                className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pr-10 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pr-10 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                 style={{ paddingLeft: '3rem' }}
               />
               {search && (
@@ -862,8 +470,8 @@ export default function AdminUtilisateursPage() {
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
         <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
-              <Users className="h-5 w-5 text-[#1F4E79]" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-ct-primary/10">
+              <Users className="h-5 w-5 text-ct-primary" />
             </div>
             <div>
               <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Liste des utilisateurs</h2>
@@ -923,7 +531,7 @@ export default function AdminUtilisateursPage() {
                     <tr key={u.id} className="group transition-colors hover:bg-slate-50">
                       <td className="border-b border-slate-100 px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-sm font-semibold text-white shadow-sm">
+                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-sm font-semibold text-white shadow-sm">
                             {(u.full_name ?? 'U')[0].toUpperCase()}
                           </div>
                           <div className="min-w-0">
@@ -1039,7 +647,12 @@ export default function AdminUtilisateursPage() {
                                 ? 'inline-flex items-center gap-2 rounded-xl border border-red-300/60 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-500/15'
                                 : 'inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50'
                             }
-                            onClick={() => toggleUserActive(u.id, u.user_id, u.is_active)}
+                            onClick={() => setConfirmToggle({
+                              profileId: u.id,
+                              userId: u.user_id,
+                              currentState: u.is_active,
+                              userName: u.full_name || u.user_id
+                            })}
                           >
                             {isActive ? <Ban className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
                             {isActive ? 'Suspendre' : 'Réactiver'}
@@ -1096,7 +709,7 @@ export default function AdminUtilisateursPage() {
                     value={createEmail}
                     onChange={(e) => setCreateEmail(e.target.value)}
                     required
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                   />
                 </div>
 
@@ -1106,7 +719,7 @@ export default function AdminUtilisateursPage() {
                     type="text"
                     value={createFullName}
                     onChange={(e) => setCreateFullName(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                   />
                 </div>
 
@@ -1115,7 +728,7 @@ export default function AdminUtilisateursPage() {
                   <select
                     value={createRole}
                     onChange={(e) => setCreateRole(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                   >
                     <option value="client">client</option>
                     <option value="admin">admin</option>
@@ -1127,7 +740,7 @@ export default function AdminUtilisateursPage() {
                   <select
                     value={createClientId}
                     onChange={(e) => setCreateClientId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                   >
                     <option value="">Aucun</option>
                     {clients.map((c) => (
@@ -1152,7 +765,7 @@ export default function AdminUtilisateursPage() {
                   type="button"
                   onClick={handleCreateUser}
                   disabled={createSaving}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+                  className="rounded-xl bg-gradient-to-r from-ct-primary to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
                 >
                   {createSaving ? 'Création…' : 'Créer et inviter'}
                 </button>
@@ -1205,7 +818,7 @@ export default function AdminUtilisateursPage() {
             </button>
             <button
               type="button"
-              className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-4 py-2 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
+              className="rounded-xl bg-gradient-to-r from-ct-primary to-[#2d6ba8] px-4 py-2 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg"
               onClick={handleConfirmResetPassword}
             >
               Confirmer
@@ -1213,6 +826,25 @@ export default function AdminUtilisateursPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation toggle actif/inactif */}
+      <ConfirmDialog
+        open={!!confirmToggle}
+        onOpenChange={() => setConfirmToggle(null)}
+        onConfirm={executeToggleUserActive}
+        title={
+          confirmToggle?.currentState
+            ? 'Suspendre cet utilisateur ?'
+            : 'Réactiver cet utilisateur ?'
+        }
+        description={
+          confirmToggle?.currentState
+            ? `${confirmToggle?.userName} ne pourra plus se connecter jusqu'à ce que vous le réactiviez.`
+            : `${confirmToggle?.userName} pourra à nouveau se connecter à la plateforme.`
+        }
+        confirmText={confirmToggle?.currentState ? 'Suspendre' : 'Réactiver'}
+        confirmVariant={confirmToggle?.currentState ? 'danger' : 'primary'}
+      />
 
       {/* Toast notifications */}
       {toast && (

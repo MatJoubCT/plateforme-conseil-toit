@@ -309,7 +309,7 @@ export default function AdminDashboardPage() {
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
           </div>
           <p className="text-sm font-medium text-slate-600">Chargement du tableau de bord…</p>
         </div>
@@ -331,7 +331,7 @@ export default function AdminDashboardPage() {
   return (
     <section className="space-y-6">
       {/* ========== HEADER ========== */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-ct-primary via-ct-primary-medium to-ct-primary-dark p-6 shadow-xl">
         {/* Décoration background */}
         <div className="pointer-events-none absolute inset-0 opacity-10">
           <div className="absolute -right-4 -top-4 h-32 w-32 rounded-full bg-white blur-3xl" />
@@ -610,10 +610,10 @@ export default function AdminDashboardPage() {
                         >
                           <td className="py-3.5">
                             <div className="flex items-center gap-2">
-                              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-xs font-semibold text-white">
+                              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-xs font-semibold text-white">
                                 {(b.name ?? 'B')[0].toUpperCase()}
                               </div>
-                              <span className="font-semibold text-slate-800 transition-colors group-hover:text-[#1F4E79]">
+                              <span className="font-semibold text-slate-800 transition-colors group-hover:text-ct-primary">
                                 {b.name || '(Sans nom)'}
                               </span>
                             </div>
@@ -655,8 +655,8 @@ export default function AdminDashboardPage() {
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
           <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
-                <Layers className="h-5 w-5 text-[#1F4E79]" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-ct-primary/10">
+                <Layers className="h-5 w-5 text-ct-primary" />
               </div>
               <div>
                 <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">

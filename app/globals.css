@@ -16,18 +16,25 @@
 
   /* Palette Conseil-Toit (devis V7) */
   --color-ct-primary: #1F4E79;
-  --color-ct-primaryLight: #C7D6E6;
-  --color-ct-grayDark: #2E2E2E;
+  --color-ct-primary-dark: #163555;
+  --color-ct-primary-medium: #1a4168;
+  --color-ct-primary-light: #C7D6E6;
+  --color-ct-gray-dark: #2E2E2E;
   --color-ct-gray: #7A7A7A;
-  --color-ct-grayLight: #F5F6F7;
+  --color-ct-gray-light: #F5F6F7;
   --color-ct-white: #FFFFFF;
 
   /* États des bassins */
   --color-ct-stateGood: #28A745;
+  --color-ct-state-good: #28A745;
   --color-ct-stateWatch: #FFC107;
+  --color-ct-state-watch: #FFC107;
   --color-ct-statePlan: #FD7E14;
+  --color-ct-state-plan: #FD7E14;
   --color-ct-stateUrgent: #DC3545;
+  --color-ct-state-urgent: #DC3545;
   --color-ct-stateUnknown: #6C757D;
+  --color-ct-state-unknown: #6C757D;
 
   /* Ombre des cartes */
   --shadow-ct-card: 0 8px 20px rgba(15, 23, 42, 0.06);
