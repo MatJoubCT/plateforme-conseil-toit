@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { GoogleMap, Polygon, useJsApiLoader } from '@react-google-maps/api'
+import type { Libraries } from '@react-google-maps/api'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import {
@@ -19,7 +20,7 @@ import {
   DataTableBody,
 } from '@/components/ui/DataTable'
 
-const GOOGLE_MAPS_LIBRARIES = ['drawing', 'geometry'] as const
+const GOOGLE_MAPS_LIBRARIES: Libraries = ['drawing', 'geometry']
 
 type BatimentRow = {
   id: string
@@ -98,7 +99,7 @@ function ClientBatimentMap({
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
     id: 'script-loader',
-    libraries: GOOGLE_MAPS_LIBRARIES as unknown as string[],
+    libraries: GOOGLE_MAPS_LIBRARIES,
     version: 'weekly',
   })
 
@@ -228,7 +229,6 @@ function ClientBatimentMap({
                 strokeWeight: isHovered ? 4 : 2,
                 zIndex: isHovered ? 2 : 1,
                 clickable: true,
-                cursor: 'pointer',
               }}
               onMouseOver={() => onHoverBassin(poly.id)}
               onMouseOut={() => onHoverBassin(null)}
@@ -433,7 +433,7 @@ export default function ClientBatimentDetailPage() {
             ) : (
               <div className="flex-1 overflow-hidden">
                 {/* ✅ Le DataTable remplit la hauteur restante (pas de maxHeight arbitraire) */}
-                <DataTable className="flex h-full flex-col">
+                <DataTable>
                   <table className="w-full table-fixed">
                     <DataTableHeader>
                       <tr>

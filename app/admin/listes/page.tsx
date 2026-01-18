@@ -161,7 +161,7 @@ export default function AdminListesChoixPage() {
 
   const openCreateModal = () => {
     if (!selectedCategory) {
-      setToast({ type: 'error', message: 'Veuillez d'abord choisir une catégorie.' })
+      setToast({ type: 'error', message: "Veuillez d'abord choisir une catégorie." })
       return
     }
     setModalMode('create')
@@ -245,7 +245,7 @@ export default function AdminListesChoixPage() {
           if (process.env.NODE_ENV === 'development') {
             console.error('Erreur insert listes_choix', error)
           }
-          setToast({ type: 'error', message: 'Erreur lors de la création de l'élément : ' + (error.message ?? 'Erreur inconnue') })
+          setToast({ type: 'error', message: "Erreur lors de la création de l'élément : " + (error.message ?? 'Erreur inconnue') })
           return
         }
 
@@ -270,7 +270,7 @@ export default function AdminListesChoixPage() {
           if (process.env.NODE_ENV === 'development') {
             console.error('Erreur update listes_choix', error)
           }
-          setToast({ type: 'error', message: 'Erreur lors de la mise à jour de l'élément : ' + (error.message ?? 'Erreur inconnue') })
+          setToast({ type: 'error', message: "Erreur lors de la mise à jour de l'élément : " + (error.message ?? 'Erreur inconnue') })
           return
         }
 
@@ -494,7 +494,7 @@ export default function AdminListesChoixPage() {
         if (process.env.NODE_ENV === 'development') {
           console.error('Erreur delete listes_choix', error)
         }
-        setToast({ type: 'error', message: 'Erreur lors de la suppression de l'élément : ' + (error.message ?? 'Erreur inconnue') })
+        setToast({ type: 'error', message: "Erreur lors de la suppression de l'élément : " + (error.message ?? 'Erreur inconnue') })
         return
       }
 

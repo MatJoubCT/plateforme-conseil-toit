@@ -4,15 +4,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { GoogleMap, Marker, Polygon, useJsApiLoader } from '@react-google-maps/api'
+import type { Libraries } from '@react-google-maps/api'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 
 /**
  * IMPORTANT
  * - libraries DOIT être une constante stable (sinon warning + reload du script)
- * - id DOIT matcher l’id déjà utilisé dans le projet (script-loader)
+ * - id DOIT matcher l'id déjà utilisé dans le projet (script-loader)
  */
-const GOOGLE_MAPS_LIBRARIES = ['drawing', 'geometry'] as const
+const GOOGLE_MAPS_LIBRARIES: Libraries = ['drawing', 'geometry']
 
 type ClientRow = {
   id: string
@@ -100,7 +101,7 @@ function ClientCarteMap({
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
     id: 'script-loader',
-    libraries: GOOGLE_MAPS_LIBRARIES as unknown as string[],
+    libraries: GOOGLE_MAPS_LIBRARIES,
     version: 'weekly',
   })
 

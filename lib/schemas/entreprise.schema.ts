@@ -32,12 +32,12 @@ const phoneSchema = z
  */
 export const createEntrepriseSchema = z.object({
   type: z
-    .string({ required_error: 'Le type est obligatoire' })
+    .string().min(1, 'Le type est obligatoire')
     .min(1, 'Le type est obligatoire')
     .max(100, 'Le type est trop long (max 100 caractères)'),
 
   nom: z
-    .string({ required_error: 'Le nom est obligatoire' })
+    .string().min(1, 'Le nom est obligatoire')
     .min(1, 'Le nom est obligatoire')
     .max(200, 'Le nom est trop long (max 200 caractères)'),
 
@@ -57,7 +57,7 @@ export const createEntrepriseSchema = z.object({
  */
 export const updateEntrepriseSchema = createEntrepriseSchema.extend({
   id: z
-    .string({ required_error: 'ID entreprise requis' })
+    .string().min(1, 'ID entreprise requis')
     .uuid('ID entreprise invalide'),
 })
 

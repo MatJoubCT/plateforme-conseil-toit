@@ -4,9 +4,7 @@ import { z } from 'zod'
  * Schéma de validation pour le prix
  */
 const prixSchema = z
-  .number({
-    invalid_type_error: 'Le prix doit être un nombre',
-  })
+  .number()
   .nonnegative('Le prix ne peut pas être négatif')
   .max(1000000, 'Le prix est trop élevé (max 1,000,000)')
   .nullable()
@@ -17,7 +15,7 @@ const prixSchema = z
  */
 export const createMateriauSchema = z.object({
   nom: z
-    .string({ required_error: 'Le nom du matériau est obligatoire' })
+    .string().min(1, 'Le nom du matériau est obligatoire')
     .min(1, 'Le nom du matériau est obligatoire')
     .max(200, 'Le nom est trop long (max 200 caractères)'),
 
@@ -47,7 +45,7 @@ export const createMateriauSchema = z.object({
  */
 export const updateMateriauSchema = createMateriauSchema.extend({
   id: z
-    .string({ required_error: 'ID matériau requis' })
+    .string().min(1, 'ID matériau requis')
     .uuid('ID matériau invalide'),
 })
 

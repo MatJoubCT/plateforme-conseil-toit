@@ -20,9 +20,7 @@ export const CATEGORIES_VALIDES = [
  * Schéma de validation pour la création d'un élément de liste
  */
 export const createListeChoixSchema = z.object({
-  categorie: z.enum(CATEGORIES_VALIDES, {
-    errorMap: () => ({ message: 'Catégorie invalide' }),
-  }),
+  categorie: z.enum(CATEGORIES_VALIDES),
 
   code: z
     .string()
@@ -33,7 +31,7 @@ export const createListeChoixSchema = z.object({
     .optional(),
 
   label: z
-    .string({ required_error: 'Le libellé est obligatoire' })
+    .string().min(1, 'Le libellé est obligatoire')
     .min(1, 'Le libellé est obligatoire')
     .max(200, 'Le libellé est trop long (max 200 caractères)'),
 
@@ -44,9 +42,7 @@ export const createListeChoixSchema = z.object({
     .optional(),
 
   ordre: z
-    .number({
-      invalid_type_error: 'L\'ordre doit être un nombre',
-    })
+    .number()
     .int('L\'ordre doit être un nombre entier')
     .nonnegative('L\'ordre ne peut pas être négatif')
     .nullable()
@@ -64,7 +60,7 @@ export const createListeChoixSchema = z.object({
  */
 export const updateListeChoixSchema = createListeChoixSchema.extend({
   id: z
-    .string({ required_error: 'ID élément requis' })
+    .string().min(1, 'ID élément requis')
     .uuid('ID élément invalide'),
 })
 

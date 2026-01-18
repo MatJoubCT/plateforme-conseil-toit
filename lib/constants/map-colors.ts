@@ -70,7 +70,7 @@ export const MAP_DEFAULT_OPTIONS = {
   rotateControl: false,
   tilt: 0,
   heading: 0,
-  gestureHandling: 'greedy' as google.maps.GestureHandlingOptions,
+  gestureHandling: 'greedy',
 } as const
 
 /**

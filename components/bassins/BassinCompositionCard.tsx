@@ -31,7 +31,7 @@ type CompositionRow = {
 }
 
 type CompositionJoined = CompositionRow & {
-  materiau: Pick<MateriauRow, 'id' | 'nom' | 'prix_cad' | 'actif'> | null
+  materiau: Pick<MateriauRow, 'id' | 'nom' | 'prix_cad' | 'actif'> | Pick<MateriauRow, 'id' | 'nom' | 'prix_cad' | 'actif'>[] | null
 }
 
 export default function BassinCompositionCard(props: { bassinId: string }) {
@@ -344,12 +344,27 @@ export default function BassinCompositionCard(props: { bassinId: string }) {
 
                     <td className="px-3 py-2 align-middle">
                       <div className="font-semibold text-slate-800">
-                        {row.materiau?.nom || 'Matériau'}
+                        {(() => {
+                          const mat = row.materiau
+                          return mat
+                            ? Array.isArray(mat)
+                              ? mat[0]?.nom || 'Matériau'
+                              : mat.nom || 'Matériau'
+                            : 'Matériau'
+                        })()}
                       </div>
                     </td>
 
                     <td className="px-3 py-2 align-middle text-right tabular-nums text-slate-700">
-                      {(row.materiau?.prix_cad ?? 0).toFixed(2)}
+                      {(() => {
+                        const mat = row.materiau
+                        const prix = mat
+                          ? Array.isArray(mat)
+                            ? mat[0]?.prix_cad ?? 0
+                            : mat.prix_cad ?? 0
+                          : 0
+                        return prix.toFixed(2)
+                      })()}
                     </td>
 
                     <td className="px-3 py-2 align-middle">
@@ -401,14 +416,20 @@ export default function BassinCompositionCard(props: { bassinId: string }) {
             <div className="p-6">
               <p className="text-sm text-slate-700">
                 Supprimer ce matériau du bassin?
-                {confirmDeleteLine.materiau?.nom ? (
-                  <>
-                    {' '}
-                    <span className="font-semibold text-slate-900">
-                      {confirmDeleteLine.materiau.nom}
-                    </span>
-                  </>
-                ) : null}
+                {(() => {
+                  const mat = confirmDeleteLine.materiau
+                  const nom = mat
+                    ? Array.isArray(mat)
+                      ? mat[0]?.nom
+                      : mat.nom
+                    : null
+                  return nom ? (
+                    <>
+                      {' '}
+                      <span className="font-semibold text-slate-900">{nom}</span>
+                    </>
+                  ) : null
+                })()}
               </p>
 
               <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">

@@ -1458,9 +1458,9 @@ function BatimentBasinsMap({
     <div className="relative h-[480px] w-full overflow-hidden rounded-xl border border-slate-200">
       <GoogleMap
         mapContainerStyle={{ width: '100%', height: '100%' }}
-        // IMPORTANT: defaultCenter/defaultZoom => la carte ne se recale PAS à chaque re-render
-        defaultCenter={initialCenterRef.current}
-        defaultZoom={18}
+        // IMPORTANT: center/zoom => contrôlé pour éviter les re-renders inutiles
+        center={initialCenterRef.current}
+        zoom={18}
         options={{
           mapTypeId: 'satellite',
           streetViewControl: false,

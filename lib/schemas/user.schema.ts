@@ -5,7 +5,7 @@ import { z } from 'zod'
  */
 export const createUserSchema = z.object({
   email: z
-    .string({ required_error: 'Le courriel est obligatoire' })
+    .string().min(1, 'Le courriel est obligatoire')
     .min(1, 'Le courriel est obligatoire')
     .email('Format de courriel invalide')
     .max(255, 'Le courriel est trop long (max 255 caractères)'),
@@ -17,9 +17,7 @@ export const createUserSchema = z.object({
     .nullable()
     .optional(),
 
-  role: z.enum(['admin', 'client'], {
-    errorMap: () => ({ message: 'Le rôle doit être "admin" ou "client"' }),
-  }),
+  role: z.enum(['admin', 'client']),
 
   clientId: z
     .string()
@@ -33,11 +31,11 @@ export const createUserSchema = z.object({
  */
 export const updateUserSchema = z.object({
   userId: z
-    .string({ required_error: 'ID utilisateur requis' })
+    .string().min(1, 'ID utilisateur requis')
     .uuid('ID utilisateur invalide'),
 
   profileId: z
-    .string({ required_error: 'ID profil requis' })
+    .string().min(1, 'ID profil requis')
     .uuid('ID profil invalide'),
 
   fullName: z
@@ -48,9 +46,7 @@ export const updateUserSchema = z.object({
     .optional(),
 
   role: z
-    .enum(['admin', 'client'], {
-      errorMap: () => ({ message: 'Le rôle doit être "admin" ou "client"' }),
-    })
+    .enum(['admin', 'client'])
     .nullable()
     .optional(),
 
@@ -74,13 +70,10 @@ export const updateUserSchema = z.object({
  */
 export const toggleUserActiveSchema = z.object({
   profileId: z
-    .string({ required_error: 'ID profil requis' })
+    .string().min(1, 'ID profil requis')
     .uuid('ID profil invalide'),
 
-  isActive: z.boolean({
-    required_error: 'État actif requis',
-    invalid_type_error: 'isActive doit être un booléen',
-  }),
+  isActive: z.boolean(),
 })
 
 /**
@@ -88,7 +81,7 @@ export const toggleUserActiveSchema = z.object({
  */
 export const resetPasswordSchema = z.object({
   userId: z
-    .string({ required_error: 'ID utilisateur requis' })
+    .string().min(1, 'ID utilisateur requis')
     .uuid('ID utilisateur invalide'),
 })
 
@@ -97,7 +90,7 @@ export const resetPasswordSchema = z.object({
  */
 export const updateUserAccessSchema = z.object({
   userId: z
-    .string({ required_error: 'ID utilisateur requis' })
+    .string().min(1, 'ID utilisateur requis')
     .uuid('ID utilisateur invalide'),
 
   selectedClientIds: z

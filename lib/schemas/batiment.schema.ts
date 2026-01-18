@@ -11,18 +11,14 @@ const CANADIAN_POSTAL_CODE_REGEX = /^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/i
 const coordinatesSchema = z
   .object({
     latitude: z
-      .number({
-        invalid_type_error: 'La latitude doit être un nombre',
-      })
+      .number()
       .min(-90, 'La latitude doit être entre -90 et 90')
       .max(90, 'La latitude doit être entre -90 et 90')
       .nullable()
       .optional(),
 
     longitude: z
-      .number({
-        invalid_type_error: 'La longitude doit être un nombre',
-      })
+      .number()
       .min(-180, 'La longitude doit être entre -180 et 180')
       .max(180, 'La longitude doit être entre -180 et 180')
       .nullable()
@@ -46,17 +42,16 @@ const coordinatesSchema = z
 export const createBatimentSchema = z
   .object({
     name: z
-      .string({ required_error: 'Le nom du bâtiment est obligatoire' })
+      .string().min(1, 'Le nom du bâtiment est obligatoire')
       .min(1, 'Le nom du bâtiment est obligatoire')
       .max(200, 'Le nom est trop long (max 200 caractères)'),
 
     address: z
-      .string({ required_error: 'L\'adresse est obligatoire' })
-      .min(1, 'L\'adresse est obligatoire')
+      .string().min(1, 'L\'adresse est obligatoire')
       .max(500, 'L\'adresse est trop longue (max 500 caractères)'),
 
     city: z
-      .string({ required_error: 'La ville est obligatoire' })
+      .string().min(1, 'La ville est obligatoire')
       .min(1, 'La ville est obligatoire')
       .max(100, 'La ville est trop longue (max 100 caractères)'),
 
@@ -68,7 +63,7 @@ export const createBatimentSchema = z
       .or(z.literal('')),
 
     clientId: z
-      .string({ required_error: 'Le client est requis' })
+      .string().min(1, 'Le client est requis')
       .uuid('ID client invalide'),
 
     latitude: z
@@ -109,7 +104,7 @@ export const createBatimentSchema = z
  */
 export const updateBatimentSchema = createBatimentSchema.extend({
   id: z
-    .string({ required_error: 'ID bâtiment requis' })
+    .string().min(1, 'ID bâtiment requis')
     .uuid('ID bâtiment invalide'),
 })
 

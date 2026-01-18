@@ -5,7 +5,7 @@ import { z } from 'zod'
  */
 export const createClientSchema = z.object({
   name: z
-    .string({ required_error: 'Le nom du client est obligatoire' })
+    .string().min(1, 'Le nom du client est obligatoire')
     .min(1, 'Le nom du client est obligatoire')
     .max(200, 'Le nom est trop long (max 200 caractères)'),
 })
@@ -15,7 +15,7 @@ export const createClientSchema = z.object({
  */
 export const updateClientSchema = createClientSchema.extend({
   id: z
-    .string({ required_error: 'ID client requis' })
+    .string().min(1, 'ID client requis')
     .uuid('ID client invalide'),
 })
 

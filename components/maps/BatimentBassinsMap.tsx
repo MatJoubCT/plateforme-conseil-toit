@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { GoogleMap, Polygon, useJsApiLoader, OverlayView } from '@react-google-maps/api'
+import type { Libraries } from '@react-google-maps/api'
 
 type GeoJSONPolygon = {
   type: 'Polygon'
@@ -24,7 +25,7 @@ type BatimentBassinsMapProps = {
   hoveredBassinId?: string | null  // ✨ AJOUTÉ pour le hover externe
 }
 
-const GOOGLE_MAPS_LIBRARIES = ['drawing', 'geometry'] as const
+const GOOGLE_MAPS_LIBRARIES: Libraries = ['drawing', 'geometry']
 
 function geoJsonToLatLngPath(poly: GeoJSONPolygon | null) {
   if (!poly?.coordinates?.[0]?.length) return []
@@ -57,7 +58,7 @@ export default function BatimentBassinsMap(props: BatimentBassinsMapProps) {
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'script-loader',
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
-    libraries: GOOGLE_MAPS_LIBRARIES as unknown as string[],
+    libraries: GOOGLE_MAPS_LIBRARIES,
     version: 'weekly',
   })
 
@@ -211,7 +212,6 @@ export default function BatimentBassinsMap(props: BatimentBassinsMapProps) {
                 strokeOpacity: isHovered ? 1 : 0.9,  // ✨ MODIFIÉ
                 strokeWeight: isHovered ? 4 : 2,     // ✨ MODIFIÉ : bordure plus épaisse
                 clickable: true,
-                cursor: 'pointer',  // ✨ AJOUTÉ
               }}
               onMouseOver={() => handleMouseOver(poly.id)}  // ✨ MODIFIÉ
               onMouseOut={handleMouseOut}                    // ✨ MODIFIÉ

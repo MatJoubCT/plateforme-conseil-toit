@@ -42,7 +42,7 @@ type BatimentRow = {
   city: string | null
   postal_code: string | null
   client_id: string | null
-  clients?: { id: string; name: string | null } | null
+  clients?: { id: string; name: string | null }[] | { id: string; name: string | null } | null
 }
 
 type ListeChoix = {
@@ -204,7 +204,11 @@ export default function AdminBassinsPage() {
 
     return bassins.filter((b) => {
       const bat = b.batiment_id ? batimentById.get(b.batiment_id) : undefined
-      const clientName = bat?.clients?.name ?? ''
+      const clientName = bat?.clients
+        ? Array.isArray(bat.clients)
+          ? bat.clients[0]?.name ?? ''
+          : bat.clients.name ?? ''
+        : ''
       const fields = [
         b.name ?? '',
         b.reference_interne ?? '',
@@ -229,7 +233,10 @@ export default function AdminBassinsPage() {
 
     const getClientName = (b: BassinRow) => {
       const bat = b.batiment_id ? batimentById.get(b.batiment_id) : undefined
-      return bat?.clients?.name ?? ''
+      if (!bat?.clients) return ''
+      return Array.isArray(bat.clients)
+        ? bat.clients[0]?.name ?? ''
+        : bat.clients.name ?? ''
     }
 
     const getEtatLabel = (b: BassinRow) => labelEtat(b.etat_id) ?? 'Non évalué'
@@ -295,7 +302,12 @@ export default function AdminBassinsPage() {
   const totalBassins = bassins.length
   const totalBatiments = new Set(bassins.map((b) => b.batiment_id).filter(Boolean)).size
   const totalClients = new Set(
-    batiments.map((b) => b.clients?.id).filter(Boolean)
+    batiments
+      .map((b) => {
+        if (!b.clients) return null
+        return Array.isArray(b.clients) ? b.clients[0]?.id : b.clients.id
+      })
+      .filter(Boolean)
   ).size
   const totalSurfaceFt2 = bassins.reduce((sum, b) => {
     if (b.surface_m2 != null) {
@@ -569,7 +581,11 @@ export default function AdminBassinsPage() {
                         <td className="py-4">
                           <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
                             <Users className="h-3 w-3 text-slate-400" />
-                            {bat?.clients?.name ?? '—'}
+                            {bat?.clients
+                              ? Array.isArray(bat.clients)
+                                ? bat.clients[0]?.name ?? '—'
+                                : bat.clients.name ?? '—'
+                              : '—'}
                           </span>
                         </td>
                         <td className="py-4">

@@ -12,7 +12,7 @@ export type BassinState =
   | "urgent"
   | "non_evalue";
 
-interface StateBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+interface StateBadgeProps extends Omit<React.HTMLAttributes<HTMLSpanElement>, 'color'> {
   state: BassinState;
 
   /**
