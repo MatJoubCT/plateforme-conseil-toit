@@ -101,7 +101,9 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
 
         setChecking(false)
       } catch (err) {
-        console.error('Erreur auth client:', err)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur auth client:', err)
+        }
         setErrorMsg("Erreur lors de la vérification de l'accès.")
         router.replace('/login')
       }

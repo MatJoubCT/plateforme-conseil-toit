@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
+import { validateCoordinates } from '@/lib/utils/validation'
 import { GoogleMap, Polygon, useLoadScript } from '@react-google-maps/api'
 import {
   Building2,
@@ -358,9 +359,13 @@ export default function AdminBatimentDetailPage() {
     setEditError(null)
     setEditSaving(true)
 
-    const lat = editLatitude.trim() !== '' ? Number(editLatitude.trim()) : null
-    const lng =
-      editLongitude.trim() !== '' ? Number(editLongitude.trim()) : null
+    const { latitude, longitude, error: coordError } = validateCoordinates(editLatitude, editLongitude)
+
+    if (coordError) {
+      setEditError(coordError)
+      setEditSaving(false)
+      return
+    }
 
     const { data, error } = await supabaseBrowser
       .from('batiments')
@@ -370,8 +375,8 @@ export default function AdminBatimentDetailPage() {
         address: editAddress || null,
         city: editCity || null,
         postal_code: editPostalCode || null,
-        latitude: lat,
-        longitude: lng,
+        latitude,
+        longitude,
         notes: editNotes || null,
       })
       .eq('id', batiment.id)
@@ -383,7 +388,9 @@ export default function AdminBatimentDetailPage() {
     setEditSaving(false)
 
     if (error) {
-      console.error('Erreur mise à jour bâtiment :', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur mise à jour bâtiment :', error)
+      }
       setEditError(error.message ?? 'Erreur inconnue')
       return
     }
@@ -536,7 +543,9 @@ export default function AdminBatimentDetailPage() {
     setAddBassinSaving(false)
 
     if (error) {
-      console.error('Erreur ajout bassin :', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur ajout bassin :', error)
+      }
       setAddBassinError(error.message ?? 'Erreur inconnue')
       return
     }

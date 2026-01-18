@@ -45,12 +45,6 @@ export default function LoginPage() {
       .eq('user_id', user.id)
       .single()
 
-    console.log('PROFILE DEBUG', {
-      userId: user.id,
-      profile,
-      profileFetchError,
-    })
-
     setLoading(false)
 
     if (profileFetchError || !profile) {

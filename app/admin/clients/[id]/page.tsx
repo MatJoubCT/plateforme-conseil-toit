@@ -4,6 +4,7 @@ import { useEffect, useState, ChangeEvent, FormEvent } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { validateCoordinates } from '@/lib/utils/validation'
 import {
   Users,
   Building2,
@@ -103,7 +104,9 @@ export default function AdminClientDetailPage() {
       .order('name', { ascending: true })
 
     if (error) {
-      console.error('Erreur chargement bâtiments:', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur chargement bâtiments:', error)
+      }
       setBatiments([])
       return
     }
@@ -125,7 +128,9 @@ export default function AdminClientDetailPage() {
         .maybeSingle()
 
       if (clientError || !clientData) {
-        console.error('Erreur chargement client:', clientError)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur chargement client:', clientError)
+        }
         setErrorMsg(
           clientError?.message ||
             "Impossible de charger les informations du client."
@@ -211,7 +216,9 @@ export default function AdminClientDetailPage() {
     const { error } = await supabaseBrowser.from('clients').update(payload).eq('id', clientId)
 
     if (error) {
-      console.error('Erreur mise à jour client:', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur mise à jour client:', error)
+      }
       setEditError(error.message)
       setEditSaving(false)
       return
@@ -248,7 +255,9 @@ export default function AdminClientDetailPage() {
     const { error } = await supabaseBrowser.from('clients').delete().eq('id', clientId)
 
     if (error) {
-      console.error('Erreur suppression client:', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur suppression client:', error)
+      }
       setDeleteError(
         error.message ??
           'Impossible de supprimer ce client. Vérifiez les bâtiments ou bassins associés.'
@@ -292,27 +301,12 @@ export default function AdminClientDetailPage() {
     setAddSaving(true)
     setAddError(null)
 
-    let latitude: number | null = null
-    let longitude: number | null = null
+    const { latitude, longitude, error: coordError } = validateCoordinates(addLatitude, addLongitude)
 
-    if (addLatitude.trim() !== '') {
-      const val = Number(addLatitude.replace(',', '.'))
-      if (Number.isNaN(val)) {
-        setAddError('La latitude doit être un nombre.')
-        setAddSaving(false)
-        return
-      }
-      latitude = val
-    }
-
-    if (addLongitude.trim() !== '') {
-      const val = Number(addLongitude.replace(',', '.'))
-      if (Number.isNaN(val)) {
-        setAddError('La longitude doit être un nombre.')
-        setAddSaving(false)
-        return
-      }
-      longitude = val
+    if (coordError) {
+      setAddError(coordError)
+      setAddSaving(false)
+      return
     }
 
     const payload = {
@@ -329,7 +323,9 @@ export default function AdminClientDetailPage() {
     const { error } = await supabaseBrowser.from('batiments').insert([payload])
 
     if (error) {
-      console.error('Erreur ajout bâtiment:', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur ajout bâtiment:', error)
+      }
       setAddError(error.message)
       setAddSaving(false)
       return

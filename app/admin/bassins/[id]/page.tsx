@@ -685,7 +685,9 @@ export default function AdminBassinDetailPage() {
     if ((payload.statut_id as any) === 'undefined') badUuidFields.push('statut_id')
 
     if (badUuidFields.length > 0) {
-      console.error('BUG: champs uuid = "undefined" dans payload', { payload, badUuidFields })
+      if (process.env.NODE_ENV === 'development') {
+        console.error('BUG: champs uuid = "undefined" dans payload', { payload, badUuidFields })
+      }
       alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
       setSaving(false)
       return
@@ -722,7 +724,9 @@ export default function AdminBassinDetailPage() {
     setSaving(false)
 
     if (error) {
-      console.error('Erreur Supabase insert/update garantie', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur Supabase insert/update garantie', error)
+      }
       alert(
         "Erreur lors de l'enregistrement de la garantie : " + ((error as any)?.message ?? 'Erreur inconnue')
       )
@@ -840,7 +844,9 @@ export default function AdminBassinDetailPage() {
     if ((payload.type_id as any) === 'undefined') badUuidFields.push('type_id')
 
     if (badUuidFields.length > 0) {
-      console.error('BUG: champs uuid = "undefined" dans payload rapport', { payload, badUuidFields })
+      if (process.env.NODE_ENV === 'development') {
+        console.error('BUG: champs uuid = "undefined" dans payload rapport', { payload, badUuidFields })
+      }
       alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
       setSavingRapport(false)
       return
@@ -873,7 +879,9 @@ export default function AdminBassinDetailPage() {
     setSavingRapport(false)
 
     if (error) {
-      console.error('Erreur Supabase insert/update rapport', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur Supabase insert/update rapport', error)
+      }
       alert("Erreur lors de l'enregistrement du rapport : " + ((error as any)?.message ?? 'Erreur inconnue'))
       return
     }
@@ -980,7 +988,9 @@ export default function AdminBassinDetailPage() {
     setSavingBassin(false)
 
     if (error) {
-      console.error('Erreur Supabase update bassin', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur Supabase update bassin', error)
+      }
       alert("Erreur lors de la mise à jour du bassin : " + (error.message ?? 'Erreur inconnue'))
       return
     }
@@ -1001,7 +1011,9 @@ export default function AdminBassinDetailPage() {
     setDeletingBassin(false)
 
     if (error) {
-      console.error('Erreur Supabase delete bassin', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur Supabase delete bassin', error)
+      }
       alert("Erreur lors de la suppression du bassin : " + (error.message ?? 'Erreur inconnue'))
       return
     }
@@ -1063,7 +1075,9 @@ export default function AdminBassinDetailPage() {
       .order('created_at', { ascending: false })
 
     if (intError) {
-      console.error('Erreur refresh interventions', intError)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur refresh interventions', intError)
+      }
       alert('Erreur chargement interventions : ' + intError.message)
       return
     }
@@ -1080,7 +1094,9 @@ export default function AdminBassinDetailPage() {
         .order('created_at', { ascending: true })
 
       if (filesError) {
-        console.error('Erreur refresh intervention_fichiers', filesError)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur refresh intervention_fichiers', filesError)
+        }
         alert('Erreur chargement fichiers interventions : ' + filesError.message)
         return
       }
@@ -1156,7 +1172,9 @@ export default function AdminBassinDetailPage() {
 
     if (err) {
       setSavingIntervention(false)
-      console.error('Erreur save intervention', err)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur save intervention', err)
+      }
       alert('Erreur enregistrement intervention : ' + (err.message ?? 'Erreur inconnue'))
       return
     }
@@ -1170,7 +1188,9 @@ export default function AdminBassinDetailPage() {
         const { error: upErr } = await supabaseBrowser.storage.from('interventions').upload(filePath, f, { upsert: false })
 
         if (upErr) {
-          console.error('Erreur upload fichier intervention', upErr)
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Erreur upload fichier intervention', upErr)
+          }
           alert('Erreur upload fichier : ' + upErr.message)
           continue
         }
@@ -1183,7 +1203,9 @@ export default function AdminBassinDetailPage() {
         })
 
         if (insErr) {
-          console.error('Erreur insert intervention_fichiers', insErr)
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Erreur insert intervention_fichiers', insErr)
+          }
           alert('Erreur indexation fichier : ' + insErr.message)
         }
       }
@@ -1214,7 +1236,9 @@ export default function AdminBassinDetailPage() {
         const { error: rmErr } = await supabaseBrowser.storage.from('interventions').remove(paths)
 
         if (rmErr) {
-          console.error('Erreur suppression storage interventions', rmErr)
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Erreur suppression storage interventions', rmErr)
+          }
           alert('Erreur suppression fichiers (storage) : ' + rmErr.message)
           setDeletingIntervention(false)
           return
@@ -1227,7 +1251,9 @@ export default function AdminBassinDetailPage() {
         .eq('intervention_id', it.id)
 
       if (delFilesErr) {
-        console.error('Erreur suppression intervention_fichiers', delFilesErr)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur suppression intervention_fichiers', delFilesErr)
+        }
         alert('Erreur suppression fichiers (DB) : ' + delFilesErr.message)
         setDeletingIntervention(false)
         return
@@ -1238,7 +1264,9 @@ export default function AdminBassinDetailPage() {
     const { error: delErr } = await supabaseBrowser.from('interventions').delete().eq('id', it.id)
 
     if (delErr) {
-      console.error('Erreur suppression intervention', delErr)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur suppression intervention', delErr)
+      }
       alert('Erreur suppression intervention : ' + delErr.message)
       setDeletingIntervention(false)
       return
@@ -1258,7 +1286,9 @@ export default function AdminBassinDetailPage() {
       const { data, error } = await supabaseBrowser.storage.from('interventions').createSignedUrl(file.file_path, 60 * 10)
 
       if (error) {
-        console.error('Erreur signed url', error)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur signed url', error)
+        }
         alert('Erreur accès fichier : ' + error.message)
         return
       }
@@ -1279,7 +1309,9 @@ export default function AdminBassinDetailPage() {
 
     if (rmErr) {
       setBusyFileIds((p) => ({ ...p, [file.id]: false }))
-      console.error('Erreur suppression storage file', rmErr)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur suppression storage file', rmErr)
+      }
       alert('Erreur suppression fichier (storage) : ' + rmErr.message)
       return
     }
@@ -1289,7 +1321,9 @@ export default function AdminBassinDetailPage() {
     setBusyFileIds((p) => ({ ...p, [file.id]: false }))
 
     if (delErr) {
-      console.error('Erreur suppression DB file', delErr)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur suppression DB file', delErr)
+      }
       alert('Erreur suppression fichier (DB) : ' + delErr.message)
       return
     }

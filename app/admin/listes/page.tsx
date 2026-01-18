@@ -23,6 +23,7 @@ import {
   Ban,
   AlertTriangle,
 } from 'lucide-react'
+import { Toast } from '@/components/ui/Toast'
 
 type ListeChoixRow = {
   id: string
@@ -55,6 +56,8 @@ export default function AdminListesChoixPage() {
 
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [orderDirty, setOrderDirty] = useState(false)
+
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   // Modal état
   const [showModal, setShowModal] = useState(false)
@@ -146,7 +149,7 @@ export default function AdminListesChoixPage() {
 
   const openCreateModal = () => {
     if (!selectedCategory) {
-      alert('Veuillez d’abord choisir une catégorie.')
+      setToast({ type: 'error', message: 'Veuillez d'abord choisir une catégorie.' })
       return
     }
     setModalMode('create')
@@ -177,27 +180,25 @@ export default function AdminListesChoixPage() {
   const handleModalSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!selectedCategory) {
-      alert('Aucune catégorie sélectionnée.')
+      setToast({ type: 'error', message: 'Aucune catégorie sélectionnée.' })
       return
     }
 
     const trimmedLabel = formLabel.trim()
     if (!trimmedLabel) {
-      alert('Le libellé est obligatoire.')
+      setToast({ type: 'error', message: 'Le libellé est obligatoire.' })
       return
     }
 
     const needColor = isColorRequired(selectedCategory)
     const trimmedColor = formCouleur.trim()
     if (needColor && !trimmedColor) {
-      alert(
-        'Une couleur est obligatoire pour cette catégorie (ex. #00A3FF).'
-      )
+      setToast({ type: 'error', message: 'Une couleur est obligatoire pour cette catégorie (ex. #00A3FF).' })
       return
     }
 
     if (trimmedColor && !/^#([0-9a-fA-F]{6})$/.test(trimmedColor)) {
-      alert('La couleur doit être au format hexadécimal, ex. #00A3FF.')
+      setToast({ type: 'error', message: 'La couleur doit être au format hexadécimal, ex. #00A3FF.' })
       return
     }
 
@@ -229,11 +230,10 @@ export default function AdminListesChoixPage() {
           .single()
 
         if (error) {
-          console.error('Erreur insert listes_choix', error)
-          alert(
-            'Erreur lors de la création de l’élément : ' +
-              (error.message ?? 'Erreur inconnue')
-          )
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Erreur insert listes_choix', error)
+          }
+          setToast({ type: 'error', message: 'Erreur lors de la création de l'élément : ' + (error.message ?? 'Erreur inconnue') })
           return
         }
 
@@ -255,11 +255,10 @@ export default function AdminListesChoixPage() {
           .single()
 
         if (error) {
-          console.error('Erreur update listes_choix', error)
-          alert(
-            'Erreur lors de la mise à jour de l’élément : ' +
-              (error.message ?? 'Erreur inconnue')
-          )
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Erreur update listes_choix', error)
+          }
+          setToast({ type: 'error', message: 'Erreur lors de la mise à jour de l'élément : ' + (error.message ?? 'Erreur inconnue') })
           return
         }
 
@@ -340,10 +339,10 @@ export default function AdminListesChoixPage() {
 
       setOrderDirty(false)
     } catch (error) {
-      console.error('Erreur sauvegarde ordre listes_choix', error)
-      alert(
-        "Erreur lors de l'enregistrement de l'ordre. Vérifiez la console."
-      )
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur sauvegarde ordre listes_choix', error)
+      }
+      setToast({ type: 'error', message: "Erreur lors de l'enregistrement de l'ordre. Vérifiez la console." })
     } finally {
       setSavingOrder(false)
     }
@@ -448,7 +447,9 @@ export default function AdminListesChoixPage() {
 
       return { used: false }
     } catch (err) {
-      console.error('Erreur checkItemUsed', err)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur checkItemUsed', err)
+      }
       return {
         used: true,
         message:
@@ -468,7 +469,7 @@ export default function AdminListesChoixPage() {
     try {
       const { used, message } = await checkItemUsed(item)
       if (used) {
-        alert(message || 'Cet élément est utilisé et ne peut pas être supprimé.')
+        setToast({ type: 'error', message: message || 'Cet élément est utilisé et ne peut pas être supprimé.' })
         return
       }
 
@@ -478,11 +479,10 @@ export default function AdminListesChoixPage() {
         .eq('id', item.id)
 
       if (error) {
-        console.error('Erreur delete listes_choix', error)
-        alert(
-          'Erreur lors de la suppression de l’élément : ' +
-            (error.message ?? 'Erreur inconnue')
-        )
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur delete listes_choix', error)
+        }
+        setToast({ type: 'error', message: 'Erreur lors de la suppression de l'élément : ' + (error.message ?? 'Erreur inconnue') })
         return
       }
 
@@ -934,6 +934,14 @@ export default function AdminListesChoixPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {toast && (
+        <Toast
+          type={toast.type}
+          message={toast.message}
+          onClose={() => setToast(null)}
+        />
       )}
     </section>
   )

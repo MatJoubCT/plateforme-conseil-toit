@@ -12,6 +12,7 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react'
+import { Toast } from '@/components/ui/Toast'
 
 type EntrepriseRow = {
   id: string
@@ -36,6 +37,8 @@ export default function AdminEntreprisesPage() {
 
   const [entreprises, setEntreprises] = useState<EntrepriseRow[]>([])
   const [search, setSearch] = useState('')
+
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   // Modal ajout
   const [showAddModal, setShowAddModal] = useState(false)
@@ -199,7 +202,7 @@ export default function AdminEntreprisesPage() {
 
     // Champs non nullable : type, nom
     if (!fType.trim() || !fNom.trim()) {
-      alert('Les champs "Type" et "Nom" sont obligatoires.')
+      setToast({ type: 'error', message: 'Les champs "Type" et "Nom" sont obligatoires.' })
       return
     }
 
@@ -218,8 +221,10 @@ export default function AdminEntreprisesPage() {
     setSaving(false)
 
     if (error) {
-      console.error('Erreur insert entreprises', error)
-      alert("Erreur lors de l'ajout : " + (error.message ?? 'Erreur inconnue'))
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur insert entreprises', error)
+      }
+      setToast({ type: 'error', message: "Erreur lors de l'ajout : " + (error.message ?? 'Erreur inconnue') })
       return
     }
 
@@ -234,7 +239,7 @@ export default function AdminEntreprisesPage() {
     if (!editingEntreprise) return
 
     if (!fType.trim() || !fNom.trim()) {
-      alert('Les champs "Type" et "Nom" sont obligatoires.')
+      setToast({ type: 'error', message: 'Les champs "Type" et "Nom" sont obligatoires.' })
       return
     }
 
@@ -250,8 +255,10 @@ export default function AdminEntreprisesPage() {
     setSaving(false)
 
     if (error) {
-      console.error('Erreur update entreprises', error)
-      alert("Erreur lors de la modification : " + (error.message ?? 'Erreur inconnue'))
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur update entreprises', error)
+      }
+      setToast({ type: 'error', message: "Erreur lors de la modification : " + (error.message ?? 'Erreur inconnue') })
       return
     }
 
@@ -274,8 +281,10 @@ export default function AdminEntreprisesPage() {
     setDeleting(false)
 
     if (error) {
-      console.error('Erreur delete entreprises', error)
-      alert("Erreur lors de la suppression : " + (error.message ?? 'Erreur inconnue'))
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur delete entreprises', error)
+      }
+      setToast({ type: 'error', message: "Erreur lors de la suppression : " + (error.message ?? 'Erreur inconnue') })
       return
     }
 
@@ -858,6 +867,14 @@ export default function AdminEntreprisesPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {toast && (
+        <Toast
+          type={toast.type}
+          message={toast.message}
+          onClose={() => setToast(null)}
+        />
       )}
     </section>
   )

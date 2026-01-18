@@ -4,6 +4,7 @@ import { useEffect, useState, ChangeEvent, FormEvent } from 'react'
 import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
+import { validateCoordinates } from '@/lib/utils/validation'
 import {
   Building2,
   Plus,
@@ -81,7 +82,9 @@ export default function AdminBatimentsPage() {
       .order('name', { ascending: true })
 
     if (batimentsError) {
-      console.error('Erreur Supabase batiments:', batimentsError)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur Supabase batiments:', batimentsError)
+      }
       setErrorMsg(batimentsError.message)
       setLoading(false)
       return
@@ -104,7 +107,9 @@ export default function AdminBatimentsPage() {
       .select('id, batiment_id')
 
     if (bassinsError) {
-      console.error('Erreur Supabase bassins (count):', bassinsError)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur Supabase bassins (count):', bassinsError)
+      }
       setBatiments(rawBatiments)
     } else {
       const countByBatiment = new Map<string, number>()
@@ -130,7 +135,9 @@ export default function AdminBatimentsPage() {
       .order('name', { ascending: true })
 
     if (clientsError) {
-      console.error('Erreur Supabase clients (liste):', clientsError)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur Supabase clients (liste):', clientsError)
+      }
       setClients([])
     } else {
       setClients(
@@ -234,8 +241,13 @@ export default function AdminBatimentsPage() {
     setAddSaving(true)
     setAddError(null)
 
-    const lat = addLatitude.trim() ? parseFloat(addLatitude) : null
-    const lng = addLongitude.trim() ? parseFloat(addLongitude) : null
+    const { latitude, longitude, error: coordError } = validateCoordinates(addLatitude, addLongitude)
+
+    if (coordError) {
+      setAddError(coordError)
+      setAddSaving(false)
+      return
+    }
 
     const { error: insertError } = await supabaseBrowser.from('batiments').insert({
       name: addName.trim(),
@@ -243,15 +255,17 @@ export default function AdminBatimentsPage() {
       address: addAddress.trim() || null,
       city: addCity.trim() || null,
       postal_code: addPostalCode.trim() || null,
-      latitude: lat,
-      longitude: lng,
+      latitude,
+      longitude,
       notes: addNotes.trim() || null,
     })
 
     setAddSaving(false)
 
     if (insertError) {
-      console.error('Erreur insert batiment:', insertError)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur insert batiment:', insertError)
+      }
       setAddError(insertError.message)
       return
     }

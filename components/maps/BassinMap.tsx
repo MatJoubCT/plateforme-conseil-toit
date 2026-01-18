@@ -149,7 +149,9 @@ export default function BassinMap({
           .eq('id', bassinId)
 
         if (error) {
-          console.error('Erreur Supabase reset polygone :', error)
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Erreur Supabase reset polygone :', error)
+          }
           alert('Erreur lors de la réinitialisation du polygone (voir console).')
         } else {
           setAreaM2(null)
@@ -176,7 +178,9 @@ export default function BassinMap({
         .eq('id', bassinId)
 
       if (error) {
-        console.error('Erreur Supabase save polygone :', error)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur Supabase save polygone :', error)
+        }
         alert("Erreur lors de l'enregistrement du polygone (voir console).")
       } else if (area !== null) {
         setAreaM2(area)

@@ -37,49 +37,29 @@ export default function AdminClientsPage() {
     setLoading(true)
     setErrorMsg(null)
 
+    // Optimisation: Une seule requête avec comptage des bâtiments via agrégation
+    // Au lieu de charger tous les clients puis tous les bâtiments séparément
     const { data: clientsData, error: clientsError } = await supabaseBrowser
       .from('clients')
-      .select('id, name')
+      .select('id, name, batiments(count)')
       .order('name', { ascending: true })
 
     if (clientsError) {
-      console.error('Erreur Supabase clients:', clientsError)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur Supabase clients:', clientsError)
+      }
       setErrorMsg(clientsError.message)
       setLoading(false)
       return
     }
 
-    const rawClients: ClientRow[] = (clientsData || []).map((row: any) => ({
+    const formattedClients: ClientRow[] = (clientsData || []).map((row: any) => ({
       id: row.id as string,
       name: (row.name as string) ?? null,
-      nb_batiments: 0,
+      nb_batiments: row.batiments?.[0]?.count ?? 0,
     }))
 
-    const { data: batimentsData, error: batimentsError } = await supabaseBrowser
-      .from('batiments')
-      .select('id, client_id')
-
-    if (batimentsError) {
-      console.error('Erreur Supabase batiments:', batimentsError)
-      setClients(rawClients)
-      setLoading(false)
-      return
-    }
-
-    const countByClient = new Map<string, number>()
-    ;(batimentsData || []).forEach((b: any) => {
-      const clientId = b.client_id as string | null
-      if (!clientId) return
-      const current = countByClient.get(clientId) ?? 0
-      countByClient.set(clientId, current + 1)
-    })
-
-    const merged = rawClients.map((c) => ({
-      ...c,
-      nb_batiments: countByClient.get(c.id) ?? 0,
-    }))
-
-    setClients(merged)
+    setClients(formattedClients)
     setLoading(false)
   }
 
@@ -122,7 +102,9 @@ export default function AdminClientsPage() {
         .insert([{ name: createName.trim() }])
 
       if (insertError) {
-        console.error('Erreur insertion client:', insertError)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur insertion client:', insertError)
+        }
         setCreateError(
           insertError.message ?? 'Erreur lors de la création du client.'
         )
@@ -134,7 +116,9 @@ export default function AdminClientsPage() {
       setCreateSaving(false)
       setCreateOpen(false)
     } catch (err: any) {
-      console.error('Erreur inattendue insertion client:', err)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur inattendue insertion client:', err)
+      }
       setCreateError('Erreur inattendue lors de la création du client.')
       setCreateSaving(false)
     }

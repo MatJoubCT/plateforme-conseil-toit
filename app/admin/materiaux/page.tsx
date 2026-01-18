@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   Save,
 } from 'lucide-react'
+import { Toast } from '@/components/ui/Toast'
 
 type MateriauRow = {
   id: string
@@ -59,6 +60,8 @@ export default function AdminMateriauxPage() {
   const [categories, setCategories] = useState<ListeChoixRow[]>([])
   const [unites, setUnites] = useState<ListeChoixRow[]>([])
   const [entreprises, setEntreprises] = useState<EntrepriseRow[]>([])
+
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   // filtres
   const [q, setQ] = useState('')
@@ -232,7 +235,7 @@ export default function AdminMateriauxPage() {
 
     const nom = formNom.trim()
     if (!nom) {
-      alert('Le nom du matériau est obligatoire.')
+      setToast({ type: 'error', message: 'Le nom du matériau est obligatoire.' })
       return
     }
 
@@ -738,6 +741,14 @@ export default function AdminMateriauxPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {toast && (
+        <Toast
+          type={toast.type}
+          message={toast.message}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   )

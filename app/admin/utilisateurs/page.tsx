@@ -150,7 +150,9 @@ export default function AdminUtilisateursPage() {
         .eq('id', editingUser.id)
 
       if (updateError) {
-        console.error('Erreur update profile:', updateError)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur update profile:', updateError)
+        }
         setErrorMsg(updateError.message)
         setSaving(false)
         return
@@ -162,7 +164,9 @@ export default function AdminUtilisateursPage() {
         .eq('user_id', editingUser.user_id)
 
       if (deleteClientsError) {
-        console.error('Erreur delete user_clients:', deleteClientsError)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur delete user_clients:', deleteClientsError)
+        }
         setErrorMsg(deleteClientsError.message)
         setSaving(false)
         return
@@ -176,7 +180,9 @@ export default function AdminUtilisateursPage() {
         const { error: insertClientsError } = await supabaseBrowser.from('user_clients').insert(inserts)
 
         if (insertClientsError) {
-          console.error('Erreur insert user_clients:', insertClientsError)
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Erreur insert user_clients:', insertClientsError)
+          }
           setErrorMsg(insertClientsError.message)
           setSaving(false)
           return
@@ -189,7 +195,9 @@ export default function AdminUtilisateursPage() {
         .eq('user_id', editingUser.user_id)
 
       if (deleteBatError) {
-        console.error('Erreur delete user_batiments_access:', deleteBatError)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur delete user_batiments_access:', deleteBatError)
+        }
         setErrorMsg(deleteBatError.message)
         setSaving(false)
         return
@@ -203,7 +211,9 @@ export default function AdminUtilisateursPage() {
         const { error: insertBatError } = await supabaseBrowser.from('user_batiments_access').insert(insertsBat)
 
         if (insertBatError) {
-          console.error('Erreur insert user_batiments_access:', insertBatError)
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Erreur insert user_batiments_access:', insertBatError)
+          }
           setErrorMsg(insertBatError.message)
           setSaving(false)
           return
@@ -220,7 +230,9 @@ export default function AdminUtilisateursPage() {
         setEditingUser(null)
       }, 1500)
     } catch (err: any) {
-      console.error('Erreur inattendue save:', err)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur inattendue save:', err)
+      }
       setErrorMsg(err.message || 'Erreur inattendue.')
       setSaving(false)
     }
@@ -335,7 +347,9 @@ export default function AdminUtilisateursPage() {
 
       await loadUsersData()
     } catch (err: any) {
-      console.error('Erreur inattendue création:', err)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur inattendue création:', err)
+      }
       setCreateErrorMsg(err.message || 'Erreur inattendue.')
       setCreateSaving(false)
     }
