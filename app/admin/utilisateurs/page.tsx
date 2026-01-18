@@ -14,6 +14,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { Pagination, usePagination } from '@/components/ui/Pagination'
 import { Users, UserPlus, Shield, KeyRound, Ban, CheckCircle2, X, Search, SlidersHorizontal } from 'lucide-react'
 
 type ToastState = { type: 'success' | 'error'; message: string } | null
@@ -364,6 +365,17 @@ export default function AdminUtilisateursPage() {
     (u.full_name ?? '').toLowerCase().includes(search.trim().toLowerCase())
   )
 
+  // Apply pagination to filtered results
+  const {
+    currentPage,
+    totalPages,
+    currentItems,
+    setCurrentPage,
+    startIndex,
+    endIndex,
+    totalItems,
+  } = usePagination(filteredUsers, 50) // 50 items per page
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -522,7 +534,7 @@ export default function AdminUtilisateursPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.length === 0 ? (
+              {currentItems.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center">
                     <div className="flex flex-col items-center justify-center">
@@ -537,7 +549,7 @@ export default function AdminUtilisateursPage() {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((u) => {
+                currentItems.map((u) => {
                   const isActive = u.is_active ?? true
                   const resetLoading = resetLoadingByUserId[u.user_id] ?? false
 
@@ -680,6 +692,20 @@ export default function AdminUtilisateursPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination info */}
+        {filteredUsers.length > 0 && (
+          <div className="mt-4 text-sm text-ct-gray text-center">
+            Affichage de {startIndex} à {endIndex} sur {totalItems} utilisateur{totalItems > 1 ? 's' : ''}
+          </div>
+        )}
+
+        {/* Pagination controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* MODAL AJOUTER UTILISATEUR (inline) */}

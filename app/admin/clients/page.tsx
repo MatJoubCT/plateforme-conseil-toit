@@ -11,6 +11,7 @@ import {
   X,
   AlertTriangle,
 } from 'lucide-react'
+import { Pagination, usePagination } from '@/components/ui/Pagination'
 
 type ClientRow = {
   id: string
@@ -135,6 +136,17 @@ export default function AdminClientsPage() {
       if (aName > bName) return sortDir === 'asc' ? 1 : -1
       return 0
     })
+
+  // Apply pagination to filtered results
+  const {
+    currentPage,
+    totalPages,
+    currentItems,
+    setCurrentPage,
+    startIndex,
+    endIndex,
+    totalItems,
+  } = usePagination(filteredAndSortedClients, 50) // 50 items per page
 
   const totalClients = clients.length
   const totalBatiments = clients.reduce((sum, c) => sum + c.nb_batiments, 0)
@@ -347,7 +359,7 @@ export default function AdminClientsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredAndSortedClients.map((c) => (
+                    {currentItems.map((c) => (
                       <tr
                         key={c.id}
                         className="group cursor-pointer transition-colors hover:bg-slate-50"
@@ -386,6 +398,20 @@ export default function AdminClientsPage() {
                 </table>
               </div>
             )}
+
+            {/* Pagination info */}
+            {filteredAndSortedClients.length > 0 && (
+              <div className="mt-4 text-sm text-ct-gray text-center">
+                Affichage de {startIndex} à {endIndex} sur {totalItems} client{totalItems > 1 ? 's' : ''}
+              </div>
+            )}
+
+            {/* Pagination controls */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
           </div>
         </div>
       </section>

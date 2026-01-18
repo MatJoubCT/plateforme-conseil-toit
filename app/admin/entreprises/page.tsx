@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, FormEvent } from 'react'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { Pagination, usePagination } from '@/components/ui/Pagination'
 import {
   Briefcase,
   Search,
@@ -142,6 +143,17 @@ export default function AdminEntreprisesPage() {
       return hay.includes(q)
     })
   }, [entreprises, search])
+
+  // Apply pagination to filtered results
+  const {
+    currentPage,
+    totalPages,
+    currentItems,
+    setCurrentPage,
+    startIndex,
+    endIndex,
+    totalItems,
+  } = usePagination(filtered, 50) // 50 items per page
 
   const openAdd = () => {
     resetForm()
@@ -391,14 +403,14 @@ export default function AdminEntreprisesPage() {
         </div>
 
         <div className="p-5">
-          {filtered.length === 0 ? (
+          {currentItems.length === 0 ? (
             <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 py-10 text-center">
               <Briefcase className="mx-auto h-10 w-10 text-slate-300 mb-3" />
               <p className="text-sm text-slate-500">Aucune entreprise trouvée</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {filtered.map((e) => (
+              {currentItems.map((e) => (
                 <div
                   key={e.id}
                   className="rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-slate-300 hover:shadow-sm"
@@ -474,6 +486,20 @@ export default function AdminEntreprisesPage() {
               ))}
             </div>
           )}
+
+          {/* Pagination info */}
+          {filtered.length > 0 && (
+            <div className="mt-4 text-sm text-ct-gray text-center">
+              Affichage de {startIndex} à {endIndex} sur {totalItems} entreprise{totalItems > 1 ? 's' : ''}
+            </div>
+          )}
+
+          {/* Pagination controls */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
         </div>
       </div>
 

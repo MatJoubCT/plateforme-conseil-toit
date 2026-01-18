@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, FormEvent, ChangeEvent } from 'react'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { Pagination, usePagination } from '@/components/ui/Pagination'
 import {
   Layers,
   Plus,
@@ -189,6 +190,17 @@ export default function AdminMateriauxPage() {
       return hay.includes(qq)
     })
   }, [materiaux, q, filtreActif, filtreCategorieId, filtreUniteId, mapCategorie, mapUnite, mapEntreprise])
+
+  // Apply pagination to filtered results
+  const {
+    currentPage,
+    totalPages,
+    currentItems,
+    setCurrentPage,
+    startIndex,
+    endIndex,
+    totalItems,
+  } = usePagination(filtered, 50) // 50 items per page
 
   const openCreate = () => {
     setModalMode('create')
@@ -436,14 +448,14 @@ export default function AdminMateriauxPage() {
                     Chargement…
                   </td>
                 </tr>
-              ) : filtered.length === 0 ? (
+              ) : currentItems.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-10 text-center text-slate-500">
                     Aucun résultat.
                   </td>
                 </tr>
               ) : (
-                filtered.map((m) => (
+                currentItems.map((m) => (
                   <tr key={m.id} className="hover:bg-slate-50/50">
                     <td className="px-6 py-3">
                       <div className="font-semibold text-slate-800">{m.nom}</div>
@@ -504,6 +516,20 @@ export default function AdminMateriauxPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination info */}
+        {filtered.length > 0 && (
+          <div className="mt-4 text-sm text-ct-gray text-center">
+            Affichage de {startIndex} à {endIndex} sur {totalItems} matériau{totalItems > 1 ? 'x' : ''}
+          </div>
+        )}
+
+        {/* Pagination controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* MODAL Create/Edit */}

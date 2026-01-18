@@ -24,6 +24,7 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import { Toast } from '@/components/ui/Toast'
+import { Pagination, usePagination } from '@/components/ui/Pagination'
 
 type ListeChoixRow = {
   id: string
@@ -141,6 +142,17 @@ export default function AdminListesChoixPage() {
         return (a.label ?? '').localeCompare(b.label ?? '')
       })
   }, [allItems, selectedCategory])
+
+  // Apply pagination
+  const {
+    currentPage,
+    totalPages,
+    currentItems,
+    setCurrentPage,
+    startIndex,
+    endIndex,
+    totalItems,
+  } = usePagination(itemsForCategory, 50) // 50 items per page
 
   const handleCategoryChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setSelectedCategory(e.target.value)

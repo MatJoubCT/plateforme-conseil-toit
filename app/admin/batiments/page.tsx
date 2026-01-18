@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import { validateCoordinates } from '@/lib/utils/validation'
+import { Pagination, usePagination } from '@/components/ui/Pagination'
 import {
   Building2,
   Plus,
@@ -209,6 +210,17 @@ export default function AdminBatimentsPage() {
 
     return true
   })
+
+  // Apply pagination to filtered results
+  const {
+    currentPage,
+    totalPages,
+    currentItems,
+    setCurrentPage,
+    startIndex,
+    endIndex,
+    totalItems,
+  } = usePagination(filteredBatiments, 50) // 50 items per page
 
   // Statistiques
   const totalBatiments = batiments.length
@@ -509,7 +521,7 @@ export default function AdminBatimentsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {filteredBatiments.map((b) => (
+                    {currentItems.map((b) => (
                     <tr
                       key={b.id}
                       className="group hover:bg-slate-50 transition-colors cursor-pointer"
@@ -576,6 +588,20 @@ export default function AdminBatimentsPage() {
                 </table>
               </div>
             )}
+
+            {/* Pagination info */}
+            {filteredBatiments.length > 0 && (
+              <div className="mt-4 text-sm text-ct-gray text-center">
+                Affichage de {startIndex} à {endIndex} sur {totalItems} bâtiment{totalItems > 1 ? 's' : ''}
+              </div>
+            )}
+
+            {/* Pagination controls */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
           </div>
         </div>
       </section>

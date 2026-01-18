@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
+import { Pagination, usePagination } from '@/components/ui/Pagination'
 import {
   Layers,
   Search,
@@ -260,6 +261,17 @@ export default function AdminBassinsPage() {
     return arr
   }, [filteredBassins, sortKey, sortDir, batimentById, etatsBassin])
 
+  // Apply pagination to filtered results
+  const {
+    currentPage,
+    totalPages,
+    currentItems,
+    setCurrentPage,
+    startIndex,
+    endIndex,
+    totalItems,
+  } = usePagination(sortedBassins, 50) // 50 items per page
+
   const toggleSort = (key: 'batiment' | 'client' | 'etat' | 'duree_vie') => {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -511,7 +523,7 @@ export default function AdminBassinsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {sortedBassins.map((bassin) => {
+                  {currentItems.map((bassin) => {
                     const bat = bassin.batiment_id
                       ? batimentById.get(bassin.batiment_id)
                       : undefined
@@ -607,6 +619,20 @@ export default function AdminBassinsPage() {
               </table>
             </div>
           )}
+
+          {/* Pagination info */}
+          {sortedBassins.length > 0 && (
+            <div className="mt-4 text-sm text-ct-gray text-center">
+              Affichage de {startIndex} à {endIndex} sur {totalItems} bassin{totalItems > 1 ? 's' : ''}
+            </div>
+          )}
+
+          {/* Pagination controls */}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
         </div>
       </div>
     </section>
