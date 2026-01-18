@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireAdmin } from '@/lib/auth-middleware'
+import { updateUserSchema } from '@/lib/schemas/user.schema'
 
 export async function POST(req: Request) {
   try {
@@ -10,21 +12,24 @@ export async function POST(req: Request) {
 
     const body = await req.json()
 
-    const profileId = String(body?.profileId || '').trim()
-    const userId = String(body?.userId || '').trim()
-
-    const fullName = body?.fullName ? String(body.fullName).trim() : null
-    const role = body?.role ? String(body.role).trim() : null
-
-    const selectedClientIds = Array.isArray(body?.selectedClientIds) ? body.selectedClientIds : []
-    const selectedBatimentIds = Array.isArray(body?.selectedBatimentIds) ? body.selectedBatimentIds : []
-
-    if (!profileId || !userId) {
-      return NextResponse.json({ error: 'profileId/userId manquant.' }, { status: 400 })
+    // Validation Zod
+    let validated
+    try {
+      validated = updateUserSchema.parse(body)
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json({ error: error.issues[0].message }, { status: 400 })
+      }
+      throw error
     }
 
-    const uniqClients = Array.from(new Set(selectedClientIds.map((x: any) => String(x).trim()).filter(Boolean)))
-    const uniqBatiments = Array.from(new Set(selectedBatimentIds.map((x: any) => String(x).trim()).filter(Boolean)))
+    const profileId = validated.profileId
+    const userId = validated.userId
+    const fullName = validated.fullName || null
+    const role = validated.role || null
+
+    const uniqClients = Array.from(new Set(validated.selectedClientIds))
+    const uniqBatiments = Array.from(new Set(validated.selectedBatimentIds))
 
     // 1) Update profil
     const { data: updatedProfile, error: upErr } = await supabaseAdmin

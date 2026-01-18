@@ -1,68 +1,32 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-
-function getBearerToken(req: Request) {
-  const h = req.headers.get('authorization') || req.headers.get('Authorization')
-  if (!h) return null
-  const m = h.match(/^Bearer\s+(.+)$/i)
-  return m?.[1] || null
-}
+import { requireAdmin } from '@/lib/auth-middleware'
+import { updateUserAccessSchema } from '@/lib/schemas/user.schema'
 
 export async function POST(req: Request) {
   try {
-    const token = getBearerToken(req)
-    if (!token) {
-      return NextResponse.json({ error: 'Authorization Bearer token manquant.' }, { status: 401 })
-    }
+    // Vérification d'authentification et de rôle admin
+    const { error: authError, user } = await requireAdmin(req)
+    if (authError) return authError
 
-    // 1) Valider l’appelant (session) via Supabase Auth
-    const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token)
-    if (userErr || !userData?.user) {
-      return NextResponse.json({ error: 'Token invalide ou session expirée.' }, { status: 401 })
-    }
-
-    // 2) Vérifier que l’appelant est admin (user_profiles.role)
-    const callerId = userData.user.id
-    const { data: callerProfile, error: callerProfErr } = await supabaseAdmin
-      .from('user_profiles')
-      .select('role')
-      .eq('user_id', callerId)
-      .maybeSingle()
-
-    if (callerProfErr) {
-      return NextResponse.json({ error: `Impossible de lire le profil appelant: ${callerProfErr.message}` }, { status: 500 })
-    }
-
-    if (!callerProfile || callerProfile.role !== 'admin') {
-      return NextResponse.json({ error: 'Accès refusé (admin requis).' }, { status: 403 })
-    }
-
-    // 3) Body
+    // Body
     const body = await req.json()
 
-    const userId = String(body?.userId || '').trim()
-    const selectedClientIdsRaw = Array.isArray(body?.selectedClientIds) ? body.selectedClientIds : []
-    const selectedBatimentIdsRaw = Array.isArray(body?.selectedBatimentIds) ? body.selectedBatimentIds : []
-
-    if (!userId) {
-      return NextResponse.json({ error: 'userId manquant.' }, { status: 400 })
+    // Validation Zod
+    let validated
+    try {
+      validated = updateUserAccessSchema.parse(body)
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json({ error: error.issues[0].message }, { status: 400 })
+      }
+      throw error
     }
 
-    const selectedClientIds = Array.from(
-      new Set(
-        selectedClientIdsRaw
-          .map((x: any) => String(x || '').trim())
-          .filter((x: string) => x.length > 0),
-      ),
-    )
-
-    const selectedBatimentIds = Array.from(
-      new Set(
-        selectedBatimentIdsRaw
-          .map((x: any) => String(x || '').trim())
-          .filter((x: string) => x.length > 0),
-      ),
-    )
+    const userId = validated.userId
+    const selectedClientIds = Array.from(new Set(validated.selectedClientIds))
+    const selectedBatimentIds = Array.from(new Set(validated.selectedBatimentIds))
 
     // 4) Écrire les accès (service role => bypass RLS)
     const { error: delClientsErr } = await supabaseAdmin.from('user_clients').delete().eq('user_id', userId)

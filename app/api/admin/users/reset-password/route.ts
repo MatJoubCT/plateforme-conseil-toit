@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireAdmin, getValidatedOrigin } from '@/lib/auth-middleware'
+import { resetPasswordSchema } from '@/lib/schemas/user.schema'
 
 export async function POST(req: Request) {
   try {
@@ -10,10 +12,19 @@ export async function POST(req: Request) {
 
     // Body
     const body = await req.json()
-    const userId = String(body?.userId || '').trim()
-    if (!userId) {
-      return NextResponse.json({ error: 'userId manquant.' }, { status: 400 })
+
+    // Validation Zod
+    let validated
+    try {
+      validated = resetPasswordSchema.parse(body)
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json({ error: error.issues[0].message }, { status: 400 })
+      }
+      throw error
     }
+
+    const userId = validated.userId
 
     // Récupérer l'email depuis Supabase Auth
     const { data: target, error: targetErr } = await supabaseAdmin.auth.admin.getUserById(userId)

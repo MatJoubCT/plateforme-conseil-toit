@@ -19,6 +19,17 @@ import { Users, UserPlus, Shield, KeyRound, Ban, CheckCircle2, X, Search, Slider
 
 type ToastState = { type: 'success' | 'error'; message: string } | null
 
+/**
+ * Helper pour obtenir le token de session
+ */
+async function getSessionToken(): Promise<string | null> {
+  const supabase = createBrowserClient()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  return session?.access_token || null
+}
+
 export default function AdminUtilisateursPage() {
   // Use the custom hook for data loading
   const { users, clients, batiments, loading, error: dataError, loadUsersData } = useUsersData()
@@ -277,9 +288,19 @@ export default function AdminUtilisateursPage() {
     setConfirmResetUserId(null)
 
     try {
-      const res = await fetch('/api/admin/reset-password', {
+      const token = await getSessionToken()
+      if (!token) {
+        pushToast('error', 'Session expirée. Veuillez vous reconnecter.')
+        setResetLoadingByUserId((prev) => ({ ...prev, [userId]: false }))
+        return
+      }
+
+      const res = await fetch('/api/admin/users/reset-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ userId }),
       })
 
@@ -323,9 +344,19 @@ export default function AdminUtilisateursPage() {
     setCreateErrorMsg(null)
 
     try {
-      const res = await fetch('/api/admin/create-user', {
+      const token = await getSessionToken()
+      if (!token) {
+        setCreateErrorMsg('Session expirée. Veuillez vous reconnecter.')
+        setCreateSaving(false)
+        return
+      }
+
+      const res = await fetch('/api/admin/users/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           email: createEmail.trim(),
           fullName: createFullName.trim() || null,

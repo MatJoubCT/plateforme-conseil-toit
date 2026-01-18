@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireAdmin } from '@/lib/auth-middleware'
+import { toggleUserActiveSchema } from '@/lib/schemas/user.schema'
 
 export async function POST(req: Request) {
   try {
@@ -9,17 +11,19 @@ export async function POST(req: Request) {
     if (authError) return authError
 
     const body = await req.json()
-    const { profileId, isActive } = body as {
-      profileId?: string
-      isActive?: boolean
+
+    // Validation Zod
+    let validated
+    try {
+      validated = toggleUserActiveSchema.parse(body)
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json({ error: error.issues[0].message }, { status: 400 })
+      }
+      throw error
     }
 
-    if (!profileId || typeof isActive !== 'boolean') {
-      return NextResponse.json(
-        { error: 'profileId et isActive (bool) sont requis.' },
-        { status: 400 },
-      )
-    }
+    const { profileId, isActive } = validated
 
     const { error } = await supabaseAdmin
       .from('user_profiles')

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireAdmin, getValidatedOrigin } from '@/lib/auth-middleware'
+import { createUserSchema } from '@/lib/schemas/user.schema'
 
 async function findUserIdByEmail(email: string): Promise<string | null> {
   const { data, error } = await supabaseAdmin.auth.admin.listUsers()
@@ -17,15 +19,21 @@ export async function POST(req: Request) {
 
     const body = await req.json()
 
-    const email = String(body?.email || '').trim().toLowerCase()
-    const fullName = body?.fullName ? String(body.fullName).trim() : null
-    const role = body?.role ? String(body.role).trim() : 'client'
-    const clientIdRaw = body?.clientId ? String(body.clientId).trim() : ''
-    const clientId = clientIdRaw ? clientIdRaw : null
-
-    if (!email) {
-      return NextResponse.json({ error: 'Courriel manquant.' }, { status: 400 })
+    // Validation Zod
+    let validated
+    try {
+      validated = createUserSchema.parse(body)
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json({ error: error.issues[0].message }, { status: 400 })
+      }
+      throw error
     }
+
+    const email = validated.email.trim().toLowerCase()
+    const fullName = validated.fullName || null
+    const role = validated.role
+    const clientId = validated.clientId || null
 
     const origin = getValidatedOrigin(req)
     const redirectTo = `${origin}/auth/callback`
