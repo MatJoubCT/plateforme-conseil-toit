@@ -290,6 +290,11 @@ export default function AdminMateriauxPage() {
       setShowModal(false)
       setEditing(null)
       await fetchAll()
+    } catch (err: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur inattendue sauvegarde matériau:', err)
+      }
+      setErrorMsg(err.message || 'Erreur inattendue lors de la sauvegarde.')
     } finally {
       setSavingModal(false)
     }

@@ -116,7 +116,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
         const { data: profile, error: profileError } = await supabaseBrowser
           .from('user_profiles')
-          .select('role, full_name')
+          .select('role, full_name, is_active')
           .eq('user_id', user.id)
           .single()
 
@@ -128,6 +128,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
         if (profile.role !== 'admin') {
           setErrorMsg('Accès refusé : rôle non administrateur.')
+          router.replace('/login')
+          return
+        }
+
+        if (profile.is_active === false) {
+          setErrorMsg(
+            'Votre accès administrateur a été suspendu. Veuillez contacter votre supérieur.'
+          )
+          await supabaseBrowser.auth.signOut()
           router.replace('/login')
           return
         }

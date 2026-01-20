@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { Toast } from '@/components/ui/Toast'
 import { Pagination, usePagination } from '@/components/ui/Pagination'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 type ListeChoixRow = {
   id: string
@@ -72,6 +73,10 @@ export default function AdminListesChoixPage() {
 
   const [savingOrder, setSavingOrder] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // Confirmation de suppression
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<ListeChoixRow | null>(null)
 
   // Chargement initial
   useEffect(() => {
@@ -470,16 +475,19 @@ export default function AdminListesChoixPage() {
     }
   }
 
-  const handleDelete = async (item: ListeChoixRow) => {
-    const confirm = window.confirm(
-      `Voulez-vous vraiment supprimer « ${item.label ?? ''} » ?`
-    )
-    if (!confirm) return
+  const requestDelete = (item: ListeChoixRow) => {
+    setItemToDelete(item)
+    setConfirmDeleteOpen(true)
+  }
 
-    setDeletingId(item.id)
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return
+
+    setConfirmDeleteOpen(false)
+    setDeletingId(itemToDelete.id)
 
     try {
-      const { used, message } = await checkItemUsed(item)
+      const { used, message } = await checkItemUsed(itemToDelete)
       if (used) {
         setToast({ type: 'error', message: message || 'Cet élément est utilisé et ne peut pas être supprimé.' })
         return
@@ -488,7 +496,7 @@ export default function AdminListesChoixPage() {
       const { error } = await supabaseBrowser
         .from('listes_choix')
         .delete()
-        .eq('id', item.id)
+        .eq('id', itemToDelete.id)
 
       if (error) {
         if (process.env.NODE_ENV === 'development') {
@@ -498,7 +506,9 @@ export default function AdminListesChoixPage() {
         return
       }
 
-      setAllItems((prev) => prev.filter((i) => i.id !== item.id))
+      setAllItems((prev) => prev.filter((i) => i.id !== itemToDelete.id))
+      setToast({ type: 'success', message: 'Élément supprimé avec succès.' })
+      setItemToDelete(null)
     } finally {
       setDeletingId(null)
     }
@@ -803,7 +813,7 @@ export default function AdminListesChoixPage() {
 
                           <button
                             type="button"
-                            onClick={() => handleDelete(item)}
+                            onClick={() => requestDelete(item)}
                             disabled={deletingId === item.id}
                             className="inline-flex items-center gap-2 rounded-xl border border-red-300/60 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-500/15 disabled:opacity-60"
                           >
@@ -947,6 +957,17 @@ export default function AdminListesChoixPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        onConfirm={handleConfirmDelete}
+        title="Supprimer cet élément ?"
+        description={`Voulez-vous vraiment supprimer « ${itemToDelete?.label ?? ''} » ?`}
+        confirmText="Supprimer"
+        confirmVariant="danger"
+        loading={deletingId !== null}
+      />
 
       {toast && (
         <Toast

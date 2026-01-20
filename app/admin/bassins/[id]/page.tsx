@@ -7,6 +7,7 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import BassinMap, { InterventionMarker } from '@/components/maps/BassinMap'
 import BassinCompositionCard from '@/components/bassins/BassinCompositionCard'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import {
   Info,
   Wrench,
@@ -252,6 +253,8 @@ export default function AdminBassinDetailPage() {
 
   const [confirmDeleteRapport, setConfirmDeleteRapport] = useState<RapportRow | null>(null)
   const [deletingRapport, setDeletingRapport] = useState(false)
+
+  const [confirmDeleteFile, setConfirmDeleteFile] = useState<InterventionFichierRow | null>(null)
 
   // Interventions — éditeur inline
   const [showInterventionEditor, setShowInterventionEditor] = useState(false)
@@ -1299,16 +1302,20 @@ export default function AdminBassinDetailPage() {
     }
   }
 
-  const handleDeleteFile = async (file: InterventionFichierRow) => {
-    const ok = window.confirm('Supprimer ce fichier ?')
-    if (!ok) return
+  const requestDeleteFile = (file: InterventionFichierRow) => {
+    setConfirmDeleteFile(file)
+  }
 
-    setBusyFileIds((p) => ({ ...p, [file.id]: true }))
+  const handleConfirmDeleteFile = async () => {
+    if (!confirmDeleteFile) return
 
-    const { error: rmErr } = await supabaseBrowser.storage.from('interventions').remove([file.file_path])
+    setConfirmDeleteFile(null)
+    setBusyFileIds((p) => ({ ...p, [confirmDeleteFile.id]: true }))
+
+    const { error: rmErr } = await supabaseBrowser.storage.from('interventions').remove([confirmDeleteFile.file_path])
 
     if (rmErr) {
-      setBusyFileIds((p) => ({ ...p, [file.id]: false }))
+      setBusyFileIds((p) => ({ ...p, [confirmDeleteFile.id]: false }))
       if (process.env.NODE_ENV === 'development') {
         console.error('Erreur suppression storage file', rmErr)
       }
@@ -1316,9 +1323,9 @@ export default function AdminBassinDetailPage() {
       return
     }
 
-    const { error: delErr } = await supabaseBrowser.from('intervention_fichiers').delete().eq('id', file.id)
+    const { error: delErr } = await supabaseBrowser.from('intervention_fichiers').delete().eq('id', confirmDeleteFile.id)
 
-    setBusyFileIds((p) => ({ ...p, [file.id]: false }))
+    setBusyFileIds((p) => ({ ...p, [confirmDeleteFile.id]: false }))
 
     if (delErr) {
       if (process.env.NODE_ENV === 'development') {
@@ -1330,15 +1337,15 @@ export default function AdminBassinDetailPage() {
 
     setInterventions((prev) =>
       prev.map((it) => {
-        if (it.id !== file.intervention_id) return it
-        return { ...it, files: it.files.filter((f) => f.id !== file.id) }
+        if (it.id !== confirmDeleteFile.intervention_id) return it
+        return { ...it, files: it.files.filter((f) => f.id !== confirmDeleteFile.id) }
       })
     )
 
     setEditingIntervention((cur) => {
       if (!cur) return cur
-      if (cur.id !== file.intervention_id) return cur
-      return { ...cur, files: cur.files.filter((f) => f.id !== file.id) }
+      if (cur.id !== confirmDeleteFile.intervention_id) return cur
+      return { ...cur, files: cur.files.filter((f) => f.id !== confirmDeleteFile.id) }
     })
   }
 
@@ -1869,7 +1876,7 @@ export default function AdminBassinDetailPage() {
                                 <button
                                   type="button"
                                   disabled={!!busyFileIds[f.id]}
-                                  onClick={() => void handleDeleteFile(f)}
+                                  onClick={() => void requestDeleteFile(f)}
                                   className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -2806,6 +2813,17 @@ export default function AdminBassinDetailPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmDeleteFile}
+        onOpenChange={(open) => !open && setConfirmDeleteFile(null)}
+        onConfirm={handleConfirmDeleteFile}
+        title="Supprimer ce fichier ?"
+        description={`Voulez-vous vraiment supprimer « ${confirmDeleteFile?.file_name ?? 'ce fichier'} » ?`}
+        confirmText="Supprimer"
+        confirmVariant="danger"
+        loading={confirmDeleteFile ? !!busyFileIds[confirmDeleteFile.id] : false}
+      />
     </section>
   )
 }

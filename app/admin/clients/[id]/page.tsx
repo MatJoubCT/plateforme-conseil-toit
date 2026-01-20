@@ -245,13 +245,47 @@ export default function AdminClientDetailPage() {
     e.preventDefault()
     if (!clientId) return
 
-    if (deleteConfirmText !== 'SUPPRIMER') {
-      setDeleteError('Vous devez écrire exactement « SUPPRIMER » pour confirmer.')
+    setDeleteError(null)
+
+    // 1) Bloquer si des bâtiments sont encore liés (UI + sécurité)
+    if (batiments.length > 0) {
+      setDeleteError(
+        'Suppression impossible : des bâtiments sont encore reliés à ce client. Supprimez ou déplacez les bâtiments avant de supprimer le client.'
+      )
+      return
+    }
+
+    // 2) Confirmation texte
+    if (deleteConfirmText.trim().toUpperCase() !== 'SUPPRIMER') {
+      setDeleteError('Pour confirmer, vous devez écrire SUPPRIMER.')
       return
     }
 
     setDeleteSaving(true)
 
+    // 3) Re-vérification côté BD pour éviter tout contournement
+    const { count, error: countError } = await supabaseBrowser
+      .from('batiments')
+      .select('id', { count: 'exact', head: true })
+      .eq('client_id', clientId)
+
+    if (countError) {
+      setDeleteSaving(false)
+      setDeleteError(
+        countError.message ?? 'Erreur lors de la vérification des bâtiments.'
+      )
+      return
+    }
+
+    if ((count ?? 0) > 0) {
+      setDeleteSaving(false)
+      setDeleteError(
+        'Suppression impossible : un ou plusieurs bâtiments sont maintenant reliés à ce client. Rafraîchissez la page et réessayez.'
+      )
+      return
+    }
+
+    // 4) Suppression finale
     const { error } = await supabaseBrowser.from('clients').delete().eq('id', clientId)
 
     if (error) {
