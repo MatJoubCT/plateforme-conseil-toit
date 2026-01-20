@@ -1,12 +1,19 @@
 // app/client/carte/page.tsx
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { GoogleMap, Marker, Polygon, useJsApiLoader } from '@react-google-maps/api'
+import { GoogleMap, Polygon, useJsApiLoader } from '@react-google-maps/api'
 import type { Libraries } from '@react-google-maps/api'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
-import { StateBadge, BassinState } from '@/components/ui/StateBadge'
+import {
+  Building2,
+  MapPin,
+  Layers,
+  Users,
+  Map as MapIcon,
+  AlertTriangle,
+} from 'lucide-react'
 
 /**
  * IMPORTANT
@@ -20,15 +27,6 @@ type ClientRow = {
   name: string | null
 }
 
-type UserProfileRow = {
-  id: string
-  user_id: string
-  role: string | null
-  client_id: string | null
-  full_name: string | null
-  is_active?: boolean | null
-}
-
 type BatimentRow = {
   id: string
   client_id: string | null
@@ -38,6 +36,8 @@ type BatimentRow = {
   postal_code: string | null
   latitude: number | null
   longitude: number | null
+  client_name: string | null
+  nb_bassins: number
 }
 
 type GeoJSONPolygon = {
@@ -73,30 +73,16 @@ function geoJsonToLatLngPath(poly: GeoJSONPolygon | null) {
   return poly.coordinates[0].map(([lng, lat]) => ({ lat, lng }))
 }
 
-function mapEtatToStateBadge(etat: string | null): BassinState {
-  if (!etat) return 'non_evalue'
-  const v = etat.toLowerCase()
-  if (v.includes('urgent')) return 'urgent'
-  if (v.includes('bon')) return 'bon'
-  if (v.includes('surveiller')) return 'a_surveille'
-  if (v.includes('planifier')) return 'planifier'
-  return 'non_evalue'
-}
-
 function ClientCarteMap({
-  center,
   polygons,
   batiments,
-  selectedBatimentId,
-  onPolygonClick,
-  onMarkerClick,
+  hoveredBatimentId,
+  onHoverBatiment,
 }: {
-  center: google.maps.LatLngLiteral
   polygons: CartePolygon[]
   batiments: BatimentRow[]
-  selectedBatimentId: string | null
-  onPolygonClick: (poly: CartePolygon) => void
-  onMarkerClick: (id: string) => void
+  hoveredBatimentId: string | null
+  onHoverBatiment: (id: string | null) => void
 }) {
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
@@ -106,50 +92,6 @@ function ClientCarteMap({
   })
 
   const [map, setMap] = useState<google.maps.Map | null>(null)
-
-  // Verrou anti-boucle (évite Maximum call stack size exceeded)
-  const enforcingRef = useRef(false)
-
-  useEffect(() => {
-    if (!map) return
-
-    // Appliquer une fois les options anti-rotation / anti-tilt
-    map.setOptions({
-      rotateControl: false,
-      tilt: 0,
-      heading: 0,
-    })
-    map.setTilt(0)
-    map.setHeading(0)
-
-    const enforceFlat = () => {
-      if (enforcingRef.current) return
-      enforcingRef.current = true
-
-      // On décale dans le prochain frame pour éviter les cascades sync
-      requestAnimationFrame(() => {
-        try {
-          const t = map.getTilt ? map.getTilt() : 0
-          const h = map.getHeading ? map.getHeading() : 0
-
-          if (t !== 0) map.setTilt(0)
-          if (h !== 0) map.setHeading(0)
-        } finally {
-          enforcingRef.current = false
-        }
-      })
-    }
-
-    const l1 = map.addListener('tilt_changed', enforceFlat)
-    const l2 = map.addListener('heading_changed', enforceFlat)
-    const l3 = map.addListener('maptypeid_changed', enforceFlat)
-
-    return () => {
-      l1.remove()
-      l2.remove()
-      l3.remove()
-    }
-  }, [map])
 
   useEffect(() => {
     if (!isLoaded || !map) return
@@ -174,71 +116,66 @@ function ClientCarteMap({
     if (hasPoints) {
       map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 })
     } else {
-      map.setCenter(center)
+      map.setCenter({ lat: 46.5, lng: -72.5 })
       map.setZoom(7)
     }
-  }, [isLoaded, polygons, batiments, map, center])
+  }, [isLoaded, polygons, batiments, map])
 
   if (!isLoaded) {
     return (
-      <div className="flex h-[480px] items-center justify-center text-ct-gray">
-        Chargement de la carte…
+      <div className="flex h-full items-center justify-center text-slate-500">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-12 w-12 animate-pulse rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8]" />
+          <p className="text-sm font-medium">Chargement de la carte…</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="h-[480px] w-full overflow-hidden rounded-2xl border border-ct-grayLight bg-white shadow-card">
-      <GoogleMap
-        onLoad={(m) => {
-          setMap(m)
-          // Double sécurité immédiate
-          m.setOptions({ rotateControl: false, tilt: 0, heading: 0 })
-          m.setTilt(0)
-          m.setHeading(0)
-        }}
-        mapContainerStyle={{ width: '100%', height: '100%' }}
-        center={center}
-        zoom={15}
-        options={{
-          mapTypeId: 'satellite',
-          streetViewControl: false,
-          fullscreenControl: true,
-          rotateControl: false,
-          tilt: 0,
-          heading: 0,
-        }}
-      >
-        {polygons.map((poly) => {
-          const selected = poly.batimentId === selectedBatimentId
-          return (
-            <Polygon
-              key={poly.id}
-              path={poly.path}
-              options={{
-                fillColor: poly.color,
-                fillOpacity: selected ? 0.6 : 0.3,
-                strokeColor: poly.color,
-                strokeOpacity: selected ? 1 : 0.7,
-                strokeWeight: selected ? 4 : 2,
-              }}
-              onClick={() => onPolygonClick(poly)}
-            />
-          )
-        })}
-
-        {batiments.map((b) => {
-          if (!b.latitude || !b.longitude) return null
-          return (
-            <Marker
-              key={b.id}
-              position={{ lat: b.latitude, lng: b.longitude }}
-              onClick={() => onMarkerClick(b.id)}
-            />
-          )
-        })}
-      </GoogleMap>
-    </div>
+    <GoogleMap
+      onLoad={(m) => {
+        setMap(m)
+        m.setOptions({ rotateControl: false, tilt: 0, heading: 0 })
+        m.setTilt(0)
+        m.setHeading(0)
+      }}
+      mapContainerStyle={{ width: '100%', height: '100%' }}
+      center={{ lat: 46.5, lng: -72.5 }}
+      zoom={15}
+      options={{
+        mapTypeId: 'satellite',
+        streetViewControl: false,
+        fullscreenControl: true,
+        rotateControl: false,
+        tilt: 0,
+        heading: 0,
+      }}
+    >
+      {polygons.map((poly) => {
+        const isHovered = poly.batimentId === hoveredBatimentId
+        return (
+          <Polygon
+            key={poly.id}
+            path={poly.path}
+            options={{
+              fillColor: poly.color,
+              fillOpacity: isHovered ? 0.75 : 0.4,
+              strokeColor: poly.color,
+              strokeOpacity: isHovered ? 1 : 0.9,
+              strokeWeight: isHovered ? 4 : 2,
+            }}
+            onMouseOver={() => poly.batimentId && onHoverBatiment(poly.batimentId)}
+            onMouseOut={() => onHoverBatiment(null)}
+            onClick={() => {
+              if (poly.batimentId) {
+                window.location.href = `/client/batiments/${poly.batimentId}`
+              }
+            }}
+          />
+        )
+      })}
+    </GoogleMap>
   )
 }
 
@@ -248,76 +185,176 @@ export default function ClientCartePage() {
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  const [profile, setProfile] = useState<UserProfileRow | null>(null)
-  const [client, setClient] = useState<ClientRow | null>(null)
+  const [clients, setClients] = useState<ClientRow[]>([])
   const [batiments, setBatiments] = useState<BatimentRow[]>([])
   const [bassins, setBassins] = useState<BassinRow[]>([])
   const [listes, setListes] = useState<ListeChoix[]>([])
 
-  const [selectedBatimentId, setSelectedBatimentId] = useState<string | null>(null)
+  const [hoveredBatimentId, setHoveredBatimentId] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       setErrorMsg(null)
 
-      const { data: userData, error: userErr } = await supabaseBrowser.auth.getUser()
-      if (userErr || !userData?.user) {
-        router.push('/login')
-        return
-      }
+      // 1. Récupérer le profil utilisateur pour obtenir les clients autorisés
+      const {
+        data: { user },
+      } = await supabaseBrowser.auth.getUser()
 
-      const { data: profileData, error: profileError } = await supabaseBrowser
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', userData.user.id)
-        .maybeSingle()
-
-      if (profileError || !profileData) {
-        setErrorMsg('Profil utilisateur introuvable.')
+      if (!user) {
+        setErrorMsg('Non authentifié')
         setLoading(false)
         return
       }
 
-      setProfile(profileData)
+      const { data: profile, error: profileError } = await supabaseBrowser
+        .from('user_profiles')
+        .select('client_id')
+        .eq('user_id', user.id)
+        .single()
 
-      if (profileData.client_id) {
-        const { data: clientData } = await supabaseBrowser
-          .from('clients')
-          .select('*')
-          .eq('id', profileData.client_id)
-          .maybeSingle()
-        setClient(clientData)
+      if (profileError || !profile) {
+        setErrorMsg(profileError?.message || 'Profil introuvable')
+        setLoading(false)
+        return
       }
 
-      const { data: batsData } = await supabaseBrowser
-        .from('batiments')
-        .select('*')
-        .order('name')
+      // 2. Récupérer tous les clients autorisés via user_clients
+      const { data: userClientsData, error: userClientsError } =
+        await supabaseBrowser
+          .from('user_clients')
+          .select('client_id')
+          .eq('user_id', user.id)
 
-      setBatiments(batsData ?? [])
-      if (batsData?.length) setSelectedBatimentId(batsData[0].id)
-
-      const ids = (batsData ?? []).map((b) => b.id)
-      if (ids.length) {
-        const { data: bassinData } = await supabaseBrowser
-          .from('bassins')
-          .select('*')
-          .in('batiment_id', ids)
-
-        setBassins(bassinData ?? [])
-      } else {
-        setBassins([])
+      if (userClientsError) {
+        setErrorMsg(userClientsError.message)
+        setLoading(false)
+        return
       }
 
-      const { data: listesData } = await supabaseBrowser.from('listes_choix').select('*')
-      setListes(listesData ?? [])
+      // Combiner le client principal et les clients supplémentaires
+      const authorizedClientIds = new Set<string>()
+      if (profile.client_id) {
+        authorizedClientIds.add(profile.client_id)
+      }
+      userClientsData?.forEach((uc) => {
+        if (uc.client_id) authorizedClientIds.add(uc.client_id)
+      })
 
+      const clientIdsArray = Array.from(authorizedClientIds)
+
+      if (clientIdsArray.length === 0) {
+        setErrorMsg('Aucun client associé à ce compte')
+        setLoading(false)
+        return
+      }
+
+      // 3. Récupérer les données filtrées
+      const [clientsRes, batimentsRes, bassinsRes, listesRes] =
+        await Promise.all([
+          supabaseBrowser
+            .from('clients')
+            .select('id, name')
+            .in('id', clientIdsArray),
+          supabaseBrowser
+            .from('batiments')
+            .select(
+              `
+              id,
+              name,
+              address,
+              city,
+              postal_code,
+              latitude,
+              longitude,
+              client_id,
+              clients (name)
+            `
+            )
+            .in('client_id', clientIdsArray)
+            .order('name', { ascending: true }),
+          supabaseBrowser.from('bassins').select('*'),
+          supabaseBrowser.from('listes_choix').select('*'),
+        ])
+
+      if (clientsRes.error) {
+        setErrorMsg(clientsRes.error.message)
+        setLoading(false)
+        return
+      }
+      if (batimentsRes.error) {
+        setErrorMsg(batimentsRes.error.message)
+        setLoading(false)
+        return
+      }
+      if (bassinsRes.error) {
+        setErrorMsg(bassinsRes.error.message)
+        setLoading(false)
+        return
+      }
+      if (listesRes.error) {
+        setErrorMsg(listesRes.error.message)
+        setLoading(false)
+        return
+      }
+
+      const rawBatiments: BatimentRow[] = (batimentsRes.data || []).map(
+        (row: {
+          id: string
+          name: string | null
+          address: string | null
+          city: string | null
+          postal_code: string | null
+          latitude: number | null
+          longitude: number | null
+          client_id: string | null
+          clients: { name: string | null } | null
+        }) => ({
+          id: row.id,
+          name: row.name ?? null,
+          address: row.address ?? null,
+          city: row.city ?? null,
+          postal_code: row.postal_code ?? null,
+          latitude: row.latitude ?? null,
+          longitude: row.longitude ?? null,
+          client_id: row.client_id ?? null,
+          client_name: row.clients?.name ?? null,
+          nb_bassins: 0,
+        })
+      )
+
+      const allBassins = (bassinsRes.data || []) as BassinRow[]
+
+      // Filtrer les bassins pour ne garder que ceux des bâtiments autorisés
+      const batimentIds = new Set(rawBatiments.map((b) => b.id))
+      const filteredBassins = allBassins.filter((b) =>
+        b.batiment_id ? batimentIds.has(b.batiment_id) : false
+      )
+
+      // Compter les bassins par bâtiment
+      const countByBatiment = new Map<string, number>()
+      filteredBassins.forEach((b) => {
+        const batId = b.batiment_id
+        if (!batId) return
+        const current = countByBatiment.get(batId) ?? 0
+        countByBatiment.set(batId, current + 1)
+      })
+
+      const merged = rawBatiments.map((b) => ({
+        ...b,
+        nb_bassins: countByBatiment.get(b.id) ?? 0,
+      }))
+
+      setClients((clientsRes.data || []) as ClientRow[])
+      setBatiments(merged)
+      setBassins(filteredBassins)
+      setListes((listesRes.data || []) as ListeChoix[])
       setLoading(false)
     }
 
     void load()
-  }, [router])
+  }, [])
 
   const polygons = useMemo(() => {
     return bassins
@@ -339,130 +376,280 @@ export default function ClientCartePage() {
       .filter(Boolean) as CartePolygon[]
   }, [bassins, listes])
 
-  const mapCenter = useMemo(() => {
-    if (!batiments.length) return { lat: 46.5, lng: -72.5 }
-
-    const pts: { lat: number; lng: number }[] = []
-    batiments.forEach((b) => {
-      if (b.latitude && b.longitude) pts.push({ lat: b.latitude, lng: b.longitude })
-    })
-
-    if (!pts.length) return { lat: 46.5, lng: -72.5 }
-
-    const lat = pts.reduce((sum, p) => sum + p.lat, 0) / pts.length
-    const lng = pts.reduce((sum, p) => sum + p.lng, 0) / pts.length
-    return { lat, lng }
-  }, [batiments])
+  const totalBatiments = batiments.length
+  const totalBassins = bassins.length
+  const totalClients = clients.length
+  const totalVilles = new Set(batiments.map((b) => b.city).filter(Boolean)).size
 
   if (loading) {
-    return <div className="p-8 text-sm text-ct-gray">Chargement…</div>
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">
+            Chargement de la carte…
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (errorMsg) {
-    return <div className="p-8 text-sm text-red-600">Erreur : {errorMsg}</div>
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-8 py-6 text-center shadow-sm">
+          <AlertTriangle className="mx-auto h-10 w-10 text-red-500 mb-3" />
+          <p className="text-sm font-medium text-red-700">Erreur : {errorMsg}</p>
+        </div>
+      </div>
+    )
   }
 
-  const titreClient = client?.name ?? profile?.full_name ?? 'Portail client'
-
   return (
-    <main className="mx-auto max-w-7xl px-6 py-8 space-y-8">
-      <header className="space-y-1">
-        <p className="text-xs tracking-wide uppercase text-ct-gray">Carte des bâtiments</p>
-        <h1 className="text-2xl font-semibold text-ct-primary">{titreClient}</h1>
-        <p className="text-sm text-ct-gray">
-          Cliquez sur un bâtiment ou un polygone pour consulter les détails.
-        </p>
-      </header>
+    <section className="space-y-6">
+      {/* ========== HEADER ========== */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-ct-primary via-ct-primary-medium to-ct-primary-dark p-6 shadow-xl">
+        {/* Décoration background */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
+          <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+        </div>
 
-      <section className="grid gap-8 grid-cols-[560px_minmax(0,1fr)]">
-        <div className="rounded-2xl border border-ct-grayLight bg-white shadow-card p-4 flex flex-col">
-          <h2 className="text-sm font-semibold text-ct-grayDark">Bâtiments accessibles</h2>
-          <p className="mt-1 text-xs text-ct-gray">
-            Cliquez pour afficher sur la carte ou consulter les détails.
-          </p>
+        <div className="relative z-10">
+          {/* Titre */}
+          <div className="flex flex-col gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
+                  <MapIcon className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-white">
+                    Carte des bâtiments
+                  </h1>
+                  <p className="mt-0.5 text-sm text-white/70">
+                    Visualisation géographique de vos bâtiments et bassins
+                  </p>
+                </div>
+              </div>
 
-          <div className="mt-4 flex-1 overflow-y-auto overflow-x-hidden rounded-xl border border-ct-grayLight bg-white">
-            <table className="w-full table-fixed text-sm">
-              <thead className="bg-ct-grayLight/50 border-b border-ct-grayLight">
-                <tr className="text-[11px] font-semibold uppercase tracking-wide text-ct-grayDark">
-                  <th className="px-4 py-3 text-left whitespace-nowrap w-[44%]">Bâtiment</th>
-                  <th className="px-4 py-3 text-left whitespace-nowrap w-[28%]">Ville</th>
-                  <th className="px-4 py-3 text-center whitespace-nowrap w-[12%]">Bassins</th>
-                  <th className="px-4 py-3 whitespace-nowrap w-[16%]">
-                    <div className="w-full flex items-center justify-center">État</div>
-                  </th>
-                </tr>
-              </thead>
+              {/* Stats rapides */}
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                  <Building2 className="h-4 w-4 text-white/70" />
+                  <span className="text-sm text-white/90">
+                    {totalBatiments} bâtiment{totalBatiments > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                  <Layers className="h-4 w-4 text-white/70" />
+                  <span className="text-sm text-white/90">
+                    {totalBassins} bassin{totalBassins > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                  <Users className="h-4 w-4 text-white/70" />
+                  <span className="text-sm text-white/90">
+                    {totalClients} client{totalClients > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                  <MapPin className="h-4 w-4 text-white/70" />
+                  <span className="text-sm text-white/90">
+                    {totalVilles} ville{totalVilles > 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-              <tbody>
-                {batiments.map((b) => {
-                  const bassinsCount = bassins.filter((ba) => ba.batiment_id === b.id).length
+      {/* ========== GRILLE LISTE + CARTE ========== */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,0.65fr)_minmax(0,1fr)]">
+        {/* ========== LISTE DES BÂTIMENTS ========== */}
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-ct-primary/10">
+                  <Building2 className="h-5 w-5 text-ct-primary" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                    Liste des bâtiments
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    {batiments.length} bâtiment{batiments.length > 1 ? 's' : ''} trouvé{batiments.length > 1 ? 's' : ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
 
-                  const etat = (() => {
-                    const list = bassins.filter((ba) => ba.batiment_id === b.id)
-                    if (!list.length) return 'non_evalue' as BassinState
-                    const order: BassinState[] = ['bon', 'a_surveille', 'planifier', 'urgent']
-                    const ranked = list
-                      .map((ba) => {
-                        const label = listes.find((l) => l.id === ba.etat_id)?.label
-                        return mapEtatToStateBadge(label ?? null)
-                      })
-                      .sort((a, b2) => order.indexOf(b2) - order.indexOf(a))
-                    return ranked[0]
-                  })()
-
-                  const selected = selectedBatimentId === b.id
-
-                  return (
-                    <tr
-                      key={b.id}
-                      className={`border-b border-ct-grayLight last:border-0 cursor-pointer transition-colors ${
-                        selected ? 'bg-ct-primaryLight/10' : 'hover:bg-ct-grayLight/20'
-                      }`}
-                      onClick={() => {
-                        setSelectedBatimentId(b.id)
-                        router.push(`/client/batiments/${b.id}`)
-                      }}
-                    >
-                      <td className="px-4 py-2 align-middle">{b.name}</td>
-                      <td className="px-4 py-2 align-middle whitespace-nowrap">{b.city}</td>
-                      <td className="px-4 py-2 text-center align-middle whitespace-nowrap">
-                        {bassinsCount}
-                      </td>
-                      <td className="px-4 py-2 align-middle">
-                        <div className="flex items-center justify-center whitespace-nowrap">
-                          <StateBadge state={etat} />
-                        </div>
-                      </td>
+          <div className="p-5">
+            {batiments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 mb-4">
+                  <Building2 className="h-8 w-8 text-slate-400" />
+                </div>
+                <p className="text-sm font-medium text-slate-600">
+                  Aucun bâtiment trouvé
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Contactez votre administrateur
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                <table className="w-full">
+                  <thead className="border-b-2 border-slate-200 bg-slate-50 sticky top-0 z-10">
+                    <tr>
+                      <th className="py-4 pl-6 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
+                        Bâtiment
+                      </th>
+                      <th className="py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden md:table-cell">
+                        Client
+                      </th>
+                      <th className="py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden lg:table-cell">
+                        Localisation
+                      </th>
+                      <th className="py-4 pr-6 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
+                        Bassins
+                      </th>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {batiments.map((b) => {
+                      const isHovered = hoveredBatimentId === b.id
+
+                      return (
+                        <tr
+                          key={b.id}
+                          className={`group cursor-pointer transition-all ${
+                            isHovered
+                              ? 'bg-ct-primary/10 shadow-sm'
+                              : 'hover:bg-slate-50'
+                          }`}
+                          onMouseEnter={() => setHoveredBatimentId(b.id)}
+                          onMouseLeave={() => setHoveredBatimentId(null)}
+                          onClick={() => {
+                            router.push(`/client/batiments/${b.id}`)
+                          }}
+                        >
+                          {/* Nom du bâtiment */}
+                          <td className="py-4 pl-6">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white shadow-sm transition-all ${
+                                  isHovered
+                                    ? 'bg-gradient-to-br from-ct-primary to-[#163555] scale-110'
+                                    : 'bg-gradient-to-br from-ct-primary to-[#2d6ba8]'
+                                }`}
+                              >
+                                {(b.name ?? 'B')[0].toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <span
+                                  className={`block truncate font-semibold transition-colors ${
+                                    isHovered
+                                      ? 'text-ct-primary'
+                                      : 'text-slate-800 group-hover:text-ct-primary'
+                                  }`}
+                                >
+                                  {b.name || '(Sans nom)'}
+                                </span>
+                                <p className="truncate text-xs text-slate-500 md:hidden">
+                                  {b.client_name || '—'}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Client (caché sur mobile) */}
+                          <td className="py-4 hidden md:table-cell">
+                            <p className="text-sm text-slate-700">
+                              {b.client_name || '—'}
+                            </p>
+                          </td>
+
+                          {/* Localisation (cachée sur mobile/tablet) */}
+                          <td className="py-4 hidden lg:table-cell">
+                            <div className="flex items-start gap-2">
+                              <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
+                              <div className="text-sm">
+                                {b.city || b.address ? (
+                                  <>
+                                    <p className="font-medium text-slate-700">
+                                      {b.city || '—'}
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                      {b.address || '—'}
+                                    </p>
+                                  </>
+                                ) : (
+                                  <p className="text-slate-500">—</p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Nombre de bassins (centré) */}
+                          <td className="py-4 pr-6">
+                            <div className="flex justify-center">
+                              <span
+                                className={`inline-flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold transition-all ${
+                                  b.nb_bassins > 0
+                                    ? isHovered
+                                      ? 'bg-ct-primary text-white scale-110'
+                                      : 'bg-ct-primary/10 text-ct-primary'
+                                    : 'bg-slate-100 text-slate-400'
+                                }`}
+                              >
+                                {b.nb_bassins}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="flex flex-col rounded-2xl border border-ct-grayLight bg-white shadow-card p-4">
-          <h2 className="text-sm font-semibold text-ct-grayDark">Carte Google Maps</h2>
-          <p className="mt-1 text-xs text-ct-gray mb-3">
-            Visualisation des bâtiments et bassins de toiture.
-          </p>
+        {/* ========== CARTE ========== */}
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-ct-primary/10">
+                <MapIcon className="h-5 w-5 text-ct-primary" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                  Carte Google Maps
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Visualisation des bâtiments et bassins de toiture
+                </p>
+              </div>
+            </div>
+          </div>
 
-          <ClientCarteMap
-            center={mapCenter}
-            polygons={polygons}
-            batiments={batiments}
-            selectedBatimentId={selectedBatimentId}
-            onPolygonClick={(p) => {
-              if (p.batimentId) router.push(`/client/batiments/${p.batimentId}`)
-            }}
-            onMarkerClick={(id) => {
-              setSelectedBatimentId(id)
-              router.push(`/client/batiments/${id}`)
-            }}
-          />
+          <div className="h-[600px]">
+            <ClientCarteMap
+              polygons={polygons}
+              batiments={batiments}
+              hoveredBatimentId={hoveredBatimentId}
+              onHoverBatiment={setHoveredBatimentId}
+            />
+          </div>
         </div>
-      </section>
-    </main>
+      </div>
+    </section>
   )
 }
