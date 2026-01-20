@@ -11,6 +11,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard,
   Map,
+  Layers,
   LogOut,
   Menu,
   X,
@@ -35,6 +36,12 @@ const primaryNav: NavItem[] = [
     description: 'Bâtiments et bassins sur la carte',
     href: '/client/carte',
     icon: Map,
+  },
+  {
+    label: 'Bassins',
+    description: 'Unités de toiture par bâtiment',
+    href: '/client/bassins',
+    icon: Layers,
   },
 ]
 
