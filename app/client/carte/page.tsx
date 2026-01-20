@@ -92,6 +92,7 @@ function ClientCarteMap({
   })
 
   const [map, setMap] = useState<google.maps.Map | null>(null)
+  const initialCenter = useMemo(() => ({ lat: 46.5, lng: -72.5 }), [])
 
   useEffect(() => {
     if (!isLoaded || !map) return
@@ -141,7 +142,7 @@ function ClientCarteMap({
         m.setHeading(0)
       }}
       mapContainerStyle={{ width: '100%', height: '100%' }}
-      center={{ lat: 46.5, lng: -72.5 }}
+      center={initialCenter}
       zoom={15}
       options={{
         mapTypeId: 'satellite',
@@ -150,6 +151,8 @@ function ClientCarteMap({
         rotateControl: false,
         tilt: 0,
         heading: 0,
+        gestureHandling: 'greedy',
+        scrollwheel: true,
       }}
     >
       {polygons.map((poly) => {
@@ -165,7 +168,9 @@ function ClientCarteMap({
               strokeOpacity: isHovered ? 1 : 0.9,
               strokeWeight: isHovered ? 4 : 2,
             }}
-            onMouseOver={() => poly.batimentId && onHoverBatiment(poly.batimentId)}
+            onMouseOver={() =>
+              poly.batimentId && onHoverBatiment(poly.batimentId)
+            }
             onMouseOut={() => onHoverBatiment(null)}
             onClick={() => {
               if (poly.batimentId) {
