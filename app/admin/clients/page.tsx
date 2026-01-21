@@ -11,7 +11,7 @@ import {
   X,
   AlertTriangle,
 } from 'lucide-react'
-import { Pagination, usePagination } from '@/components/ui/Pagination'
+import { Pagination } from '@/components/ui/Pagination'
 
 type ClientRow = {
   id: string
@@ -21,6 +21,8 @@ type ClientRow = {
 
 type SortDir = 'asc' | 'desc'
 
+const ITEMS_PER_PAGE = 20
+
 export default function AdminClientsPage() {
   const [clients, setClients] = useState<ClientRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -28,6 +30,11 @@ export default function AdminClientsPage() {
 
   const [search, setSearch] = useState('')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  // Pagination côté serveur
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [createName, setCreateName] = useState('')
@@ -38,42 +45,68 @@ export default function AdminClientsPage() {
     setLoading(true)
     setErrorMsg(null)
 
-    // Optimisation: Une seule requête avec comptage des bâtiments via agrégation
-    // Au lieu de charger tous les clients puis tous les bâtiments séparément
-    const { data: clientsData, error: clientsError } = await supabaseBrowser
-      .from('clients')
-      .select('id, name, batiments(count)')
-      .order('name', { ascending: true })
+    try {
+      // Pagination côté serveur avec Supabase
+      let query = supabaseBrowser
+        .from('clients')
+        .select('id, name, batiments(count)', { count: 'exact' })
 
-    if (clientsError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur Supabase clients:', clientsError)
+      // Recherche côté serveur
+      if (search.trim()) {
+        query = query.ilike('name', `%${search.trim()}%`)
       }
-      setErrorMsg(clientsError.message)
+
+      // Tri côté serveur
+      query = query.order('name', { ascending: sortDir === 'asc' })
+
+      // Pagination avec .range()
+      const start = (currentPage - 1) * ITEMS_PER_PAGE
+      const end = start + ITEMS_PER_PAGE - 1
+      query = query.range(start, end)
+
+      const { data: clientsData, error: clientsError, count } = await query
+
+      if (clientsError) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur Supabase clients:', clientsError)
+        }
+        setErrorMsg(clientsError.message)
+        setLoading(false)
+        return
+      }
+
+      const formattedClients: ClientRow[] = (clientsData || []).map((row: any) => ({
+        id: row.id as string,
+        name: (row.name as string) ?? null,
+        nb_batiments: row.batiments?.[0]?.count ?? 0,
+      }))
+
+      setClients(formattedClients)
+      setTotalCount(count || 0)
+      setTotalPages(Math.ceil((count || 0) / ITEMS_PER_PAGE))
       setLoading(false)
-      return
+    } catch (err: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur fetch clients:', err)
+      }
+      setErrorMsg('Erreur lors du chargement des clients.')
+      setLoading(false)
     }
-
-    const formattedClients: ClientRow[] = (clientsData || []).map((row: any) => ({
-      id: row.id as string,
-      name: (row.name as string) ?? null,
-      nb_batiments: row.batiments?.[0]?.count ?? 0,
-    }))
-
-    setClients(formattedClients)
-    setLoading(false)
   }
 
   useEffect(() => {
     void fetchClients()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, search, sortDir])
 
   const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value)
+    setCurrentPage(1) // Reset à la page 1 lors d'une recherche
   }
 
   const handleSortDirChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setSortDir(e.target.value as SortDir)
+    setCurrentPage(1) // Reset à la page 1 lors d'un changement de tri
   }
 
   const openCreateModal = () => {
@@ -125,35 +158,12 @@ export default function AdminClientsPage() {
     }
   }
 
-  const filteredAndSortedClients = clients
-    .filter((c) =>
-      (c.name ?? '').toLowerCase().includes(search.trim().toLowerCase())
-    )
-    .sort((a, b) => {
-      const aName = (a.name ?? '').toLowerCase()
-      const bName = (b.name ?? '').toLowerCase()
-      if (aName < bName) return sortDir === 'asc' ? -1 : 1
-      if (aName > bName) return sortDir === 'asc' ? 1 : -1
-      return 0
-    })
+  // Calculs pour l'affichage
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE + 1
+  const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, totalCount)
 
-  // Apply pagination to filtered results
-  const {
-    currentPage,
-    totalPages,
-    currentItems,
-    setCurrentPage,
-    startIndex,
-    endIndex,
-    totalItems,
-  } = usePagination(filteredAndSortedClients, 50) // 50 items per page
-
-  const totalClients = clients.length
+  // Stats de la page actuelle (pour affichage)
   const totalBatiments = clients.reduce((sum, c) => sum + c.nb_batiments, 0)
-  const moyenneBatiments =
-    totalClients > 0
-      ? (totalBatiments / totalClients).toFixed(1).replace('.', ',')
-      : '0,0'
 
   if (loading) {
     return (
@@ -216,21 +226,17 @@ export default function AdminClientsPage() {
                   <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
                     <Users className="h-4 w-4 text-white/70" />
                     <span className="text-sm text-white/90">
-                      {totalClients} client{totalClients > 1 ? 's' : ''}
+                      {totalCount} client{totalCount > 1 ? 's' : ''}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-                    <Building2 className="h-4 w-4 text-white/70" />
-                    <span className="text-sm text-white/90">
-                      {totalBatiments} bâtiment{totalBatiments > 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-                    <Building2 className="h-4 w-4 text-white/70" />
-                    <span className="text-sm text-white/90">
-                      {moyenneBatiments} bâtiments / client
-                    </span>
-                  </div>
+                  {totalBatiments > 0 && (
+                    <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                      <Building2 className="h-4 w-4 text-white/70" />
+                      <span className="text-sm text-white/90">
+                        {totalBatiments} bâtiment{totalBatiments > 1 ? 's' : ''} (page actuelle)
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -324,16 +330,16 @@ export default function AdminClientsPage() {
                   Liste des clients
                 </h2>
                 <p className="text-xs text-slate-500">
-                  {filteredAndSortedClients.length} client
-                  {filteredAndSortedClients.length > 1 ? 's' : ''} trouvé
-                  {filteredAndSortedClients.length > 1 ? 's' : ''}.
+                  {totalCount} client
+                  {totalCount > 1 ? 's' : ''} trouvé
+                  {totalCount > 1 ? 's' : ''}.
                 </p>
               </div>
             </div>
           </div>
 
           <div className="p-5">
-            {filteredAndSortedClients.length === 0 ? (
+            {totalCount === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 mb-4">
                   <Users className="h-8 w-8 text-slate-400" />
@@ -359,7 +365,7 @@ export default function AdminClientsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {currentItems.map((c) => (
+                    {clients.map((c) => (
                       <tr
                         key={c.id}
                         className="group cursor-pointer transition-colors hover:bg-slate-50"
@@ -400,18 +406,20 @@ export default function AdminClientsPage() {
             )}
 
             {/* Pagination info */}
-            {filteredAndSortedClients.length > 0 && (
+            {totalCount > 0 && (
               <div className="mt-4 text-sm text-ct-gray text-center">
-                Affichage de {startIndex} à {endIndex} sur {totalItems} client{totalItems > 1 ? 's' : ''}
+                Affichage de {startIndex} à {endIndex} sur {totalCount} client{totalCount > 1 ? 's' : ''}
               </div>
             )}
 
             {/* Pagination controls */}
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-            />
+            {totalPages > 1 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+            )}
           </div>
         </div>
       </section>

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import { validateCoordinates } from '@/lib/utils/validation'
-import { Pagination, usePagination } from '@/components/ui/Pagination'
+import { Pagination } from '@/components/ui/Pagination'
 import {
   Building2,
   Plus,
@@ -37,6 +37,7 @@ type ClientSelectOption = {
 }
 
 const DEFAULT_BATIMENT_STATE: BassinState = 'non_evalue'
+const ITEMS_PER_PAGE = 20
 
 export default function AdminBatimentsPage() {
   const [batiments, setBatiments] = useState<BatimentRow[]>([])
@@ -47,6 +48,11 @@ export default function AdminBatimentsPage() {
   const [search, setSearch] = useState('')
   const [clientFilter, setClientFilter] = useState<string>('all')
   const [cityFilter, setCityFilter] = useState<string>('all')
+
+  // Pagination côté serveur
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
 
   // Modal création bâtiment
   const [addOpen, setAddOpen] = useState(false)
@@ -66,106 +72,118 @@ export default function AdminBatimentsPage() {
     setLoading(true)
     setErrorMsg(null)
 
-    // Bâtiments + client
-    const { data: batimentsData, error: batimentsError } = await supabaseBrowser
-      .from('batiments')
-      .select(
-        `
-        id,
-        name,
-        address,
-        city,
-        postal_code,
-        client_id,
-        clients ( name )
-      `
-      )
-      .order('name', { ascending: true })
+    try {
+      // Pagination côté serveur pour les bâtiments
+      let query = supabaseBrowser
+        .from('batiments')
+        .select(
+          `
+          id,
+          name,
+          address,
+          city,
+          postal_code,
+          client_id,
+          clients ( name ),
+          bassins ( count )
+        `,
+          { count: 'exact' }
+        )
 
-    if (batimentsError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur Supabase batiments:', batimentsError)
+      // Recherche côté serveur (nom OU adresse)
+      if (search.trim()) {
+        query = query.or(`name.ilike.%${search.trim()}%,address.ilike.%${search.trim()}%`)
       }
-      setErrorMsg(batimentsError.message)
-      setLoading(false)
-      return
-    }
 
-    const rawBatiments: BatimentRow[] = (batimentsData || []).map((row: any) => ({
-      id: row.id as string,
-      name: (row.name as string) ?? null,
-      address: (row.address as string) ?? null,
-      city: (row.city as string) ?? null,
-      postal_code: (row.postal_code as string) ?? null,
-      client_id: (row.client_id as string) ?? null,
-      client_name: (row.clients?.name as string) ?? null,
-      nb_bassins: 0,
-    }))
-
-    // Bassins => count par bâtiment
-    const { data: bassinsData, error: bassinsError } = await supabaseBrowser
-      .from('bassins')
-      .select('id, batiment_id')
-
-    if (bassinsError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur Supabase bassins (count):', bassinsError)
+      // Filtre par client
+      if (clientFilter !== 'all') {
+        query = query.eq('client_id', clientFilter)
       }
-      setBatiments(rawBatiments)
-    } else {
-      const countByBatiment = new Map<string, number>()
-      ;(bassinsData || []).forEach((b: any) => {
-        const batId = b.batiment_id as string | null
-        if (!batId) return
-        const current = countByBatiment.get(batId) ?? 0
-        countByBatiment.set(batId, current + 1)
-      })
 
-      const merged = rawBatiments.map((b) => ({
-        ...b,
-        nb_bassins: countByBatiment.get(b.id) ?? 0,
+      // Filtre par ville
+      if (cityFilter !== 'all') {
+        query = query.eq('city', cityFilter)
+      }
+
+      // Tri côté serveur
+      query = query.order('name', { ascending: true })
+
+      // Pagination avec .range()
+      const start = (currentPage - 1) * ITEMS_PER_PAGE
+      const end = start + ITEMS_PER_PAGE - 1
+      query = query.range(start, end)
+
+      const { data: batimentsData, error: batimentsError, count } = await query
+
+      if (batimentsError) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur Supabase batiments:', batimentsError)
+        }
+        setErrorMsg(batimentsError.message)
+        setLoading(false)
+        return
+      }
+
+      const formattedBatiments: BatimentRow[] = (batimentsData || []).map((row: any) => ({
+        id: row.id as string,
+        name: (row.name as string) ?? null,
+        address: (row.address as string) ?? null,
+        city: (row.city as string) ?? null,
+        postal_code: (row.postal_code as string) ?? null,
+        client_id: (row.client_id as string) ?? null,
+        client_name: (row.clients?.name as string) ?? null,
+        nb_bassins: row.bassins?.[0]?.count ?? 0,
       }))
 
-      setBatiments(merged)
-    }
+      setBatiments(formattedBatiments)
+      setTotalCount(count || 0)
+      setTotalPages(Math.ceil((count || 0) / ITEMS_PER_PAGE))
 
-    // Clients pour sélecteurs
-    const { data: clientsData, error: clientsError } = await supabaseBrowser
-      .from('clients')
-      .select('id, name')
-      .order('name', { ascending: true })
+      // Clients pour sélecteurs (chargés une seule fois, pas de pagination)
+      if (clients.length === 0) {
+        const { data: clientsData, error: clientsError } = await supabaseBrowser
+          .from('clients')
+          .select('id, name')
+          .order('name', { ascending: true })
 
-    if (clientsError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur Supabase clients (liste):', clientsError)
+        if (!clientsError && clientsData) {
+          setClients(
+            clientsData.map((c: any) => ({
+              id: c.id as string,
+              name: (c.name as string) ?? '(Sans nom)',
+            }))
+          )
+        }
       }
-      setClients([])
-    } else {
-      setClients(
-        (clientsData || []).map((c: any) => ({
-          id: c.id as string,
-          name: (c.name as string) ?? '(Sans nom)',
-        }))
-      )
-    }
 
-    setLoading(false)
+      setLoading(false)
+    } catch (err: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur load batiments:', err)
+      }
+      setErrorMsg('Erreur lors du chargement des bâtiments.')
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
     void loadData()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, search, clientFilter, cityFilter])
 
   const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value)
+    setCurrentPage(1) // Reset à la page 1 lors d'une recherche
   }
 
   const handleClientFilterChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setClientFilter(e.target.value)
+    setCurrentPage(1) // Reset à la page 1 lors d'un changement de filtre
   }
 
   const handleCityFilterChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setCityFilter(e.target.value)
+    setCurrentPage(1) // Reset à la page 1 lors d'un changement de filtre
   }
 
   const clientOptions = Array.from(
@@ -176,6 +194,7 @@ export default function AdminBatimentsPage() {
     ).entries()
   ).map(([id, name]) => ({ id, name }))
 
+  // Villes uniques pour le filtre (basé sur page actuelle)
   const cityOptions = Array.from(
     new Set(
       batiments
@@ -184,46 +203,11 @@ export default function AdminBatimentsPage() {
     )
   ).sort((a, b) => a.localeCompare(b, 'fr-CA'))
 
-  const filteredBatiments = batiments.filter((b) => {
-    const s = search.trim().toLowerCase()
-    if (s.length > 0) {
-      const haystack = [
-        b.name ?? '',
-        b.address ?? '',
-        b.city ?? '',
-        b.postal_code ?? '',
-        b.client_name ?? '',
-      ]
-        .join(' ')
-        .toLowerCase()
-
-      if (!haystack.includes(s)) return false
-    }
-
-    if (clientFilter !== 'all') {
-      if (!b.client_id || b.client_id !== clientFilter) return false
-    }
-
-    if (cityFilter !== 'all') {
-      if (!b.city || b.city.trim() !== cityFilter) return false
-    }
-
-    return true
-  })
-
-  // Apply pagination to filtered results
-  const {
-    currentPage,
-    totalPages,
-    currentItems,
-    setCurrentPage,
-    startIndex,
-    endIndex,
-    totalItems,
-  } = usePagination(filteredBatiments, 50) // 50 items per page
-
+  // Calculs pour l'affichage de pagination
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE + 1
+  const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, totalCount)
   // Statistiques
-  const totalBatiments = batiments.length
+  const totalBatiments = totalCount
   const totalBassins = batiments.reduce((sum, b) => sum + b.nb_bassins, 0)
   const totalClients = new Set(batiments.map((b) => b.client_id).filter(Boolean)).size
   const totalVilles = cityOptions.length
@@ -485,7 +469,7 @@ export default function AdminBatimentsPage() {
                     Liste des bâtiments
                   </h2>
                   <p className="text-xs text-slate-500">
-                    {filteredBatiments.length} bâtiment{filteredBatiments.length > 1 ? 's' : ''} trouvé{filteredBatiments.length > 1 ? 's' : ''}
+                    {totalCount} bâtiment{totalCount > 1 ? 's' : ''} trouvé{totalCount > 1 ? 's' : ''}
                   </p>
                 </div>
               </div>
@@ -493,7 +477,7 @@ export default function AdminBatimentsPage() {
           </div>
 
           <div className="p-5">
-            {filteredBatiments.length === 0 ? (
+            {totalCount === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 mb-4">
                   <Building2 className="h-8 w-8 text-slate-400" />
@@ -521,7 +505,7 @@ export default function AdminBatimentsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {currentItems.map((b) => (
+                    {batiments.map((b) => (
                     <tr
                       key={b.id}
                       className="group hover:bg-slate-50 transition-colors cursor-pointer"
@@ -590,18 +574,20 @@ export default function AdminBatimentsPage() {
             )}
 
             {/* Pagination info */}
-            {filteredBatiments.length > 0 && (
+            {totalCount > 0 && (
               <div className="mt-4 text-sm text-ct-gray text-center">
-                Affichage de {startIndex} à {endIndex} sur {totalItems} bâtiment{totalItems > 1 ? 's' : ''}
+                Affichage de {startIndex} à {endIndex} sur {totalCount} bâtiment{totalCount > 1 ? 's' : ''}
               </div>
             )}
 
             {/* Pagination controls */}
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-            />
+            {totalPages > 1 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+            )}
           </div>
         </div>
       </section>
