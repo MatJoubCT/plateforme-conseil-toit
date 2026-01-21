@@ -73,6 +73,7 @@ export default function ClientInterventionsPage() {
 
         if (profileError || !profile) {
           setErrorMsg('Profil introuvable.')
+          setLoading(false)
           return
         }
 
@@ -189,7 +190,10 @@ export default function ClientInterventionsPage() {
     }
 
     void loadData()
-  }, [router, supabaseBrowser])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router])
+  // Note: supabaseBrowser intentionnellement exclu des dépendances pour éviter boucle infinie
+  // Le client Supabase est stable et ne devrait pas déclencher de re-render
 
   // Filtrage
   const filteredInterventions = useMemo(() => {
