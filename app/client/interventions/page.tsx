@@ -26,6 +26,7 @@ type InterventionRow = {
   client_id: string | null
   client_name: string | null
   type_label: string | null
+  type_couleur: string | null
 }
 
 type ListeChoixRow = {
@@ -163,6 +164,7 @@ export default function ClientInterventionsPage() {
             client_id: (batiment?.client_id as string | null) ?? null,
             client_name: (client?.name as string | null) ?? null,
             type_label: null,
+            type_couleur: null,
           }
         })
 
@@ -171,11 +173,12 @@ export default function ClientInterventionsPage() {
           i.client_id && clientIdsArray.includes(i.client_id)
         )
 
-        // Enrichir avec les labels de type
+        // Enrichir avec les labels et couleurs de type
         const typesInterventions = (listesData || []).filter((l) => l.categorie === 'type_interventions')
         filteredInterventions.forEach((intervention) => {
           const typeItem = typesInterventions.find((t) => t.id === intervention.type_intervention_id)
           intervention.type_label = typeItem?.label ?? null
+          intervention.type_couleur = typeItem?.couleur ?? null
         })
 
         setInterventions(filteredInterventions)
@@ -424,7 +427,13 @@ export default function ClientInterventionsPage() {
 
                     {/* Type */}
                     <td className="py-4 hidden md:table-cell">
-                      <span className="inline-flex items-center rounded-full bg-ct-primary/10 px-2.5 py-0.5 text-xs font-medium text-ct-primary">
+                      <span
+                        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                        style={{
+                          backgroundColor: intervention.type_couleur ? `${intervention.type_couleur}20` : '#1F4E7920',
+                          color: intervention.type_couleur || '#1F4E79',
+                        }}
+                      >
                         {intervention.type_label || 'Non spécifié'}
                       </span>
                     </td>
