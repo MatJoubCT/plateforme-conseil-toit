@@ -339,36 +339,35 @@ export default function ClientInterventionsPage() {
             <label htmlFor="filterType" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600">
               Type d&apos;intervention
             </label>
-            <select
-              id="filterType"
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white py-2 px-3 text-sm text-slate-900 transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-            >
-              <option value="">Tous les types</option>
-              {typesInterventions.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-3">
+              <select
+                id="filterType"
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="flex-1 rounded-lg border border-slate-300 bg-white py-2 px-3 text-sm text-slate-900 transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
+              >
+                <option value="">Tous les types</option>
+                {typesInterventions.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+
+              {(search || filterType) && (
+                <button
+                  onClick={() => {
+                    setSearch('')
+                    setFilterType('')
+                  }}
+                  className="flex-shrink-0 text-xs font-medium text-ct-primary hover:text-ct-primary-dark transition-colors whitespace-nowrap"
+                >
+                  Réinitialiser les filtres
+                </button>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Bouton reset */}
-        {(search || filterType) && (
-          <div className="mt-3 flex justify-end">
-            <button
-              onClick={() => {
-                setSearch('')
-                setFilterType('')
-              }}
-              className="text-xs font-medium text-ct-primary hover:text-ct-primary-dark transition-colors"
-            >
-              Réinitialiser les filtres
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Liste des interventions */}
