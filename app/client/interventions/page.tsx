@@ -234,8 +234,12 @@ export default function ClientInterventionsPage() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-ct-primary border-t-transparent" />
-          <p className="text-sm text-slate-600">Chargement des interventions…</p>
+          <div className="relative">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">
+            Chargement des interventions…
+          </p>
         </div>
       </div>
     )
@@ -303,14 +307,15 @@ export default function ClientInterventionsPage() {
               Recherche
             </label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 id="search"
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Rechercher par bassin, bâtiment, client, type..."
-                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
+                className="w-full rounded-lg border border-slate-300 bg-white py-2 pr-4 text-sm text-slate-900 placeholder-slate-400 transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
+                style={{ paddingLeft: '3rem' }}
               />
             </div>
           </div>
