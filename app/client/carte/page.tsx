@@ -1,7 +1,7 @@
 // app/client/carte/page.tsx
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { GoogleMap, Polygon, useJsApiLoader } from '@react-google-maps/api'
 import type { Libraries } from '@react-google-maps/api'
@@ -93,9 +93,10 @@ function ClientCarteMap({
 
   const [map, setMap] = useState<google.maps.Map | null>(null)
   const initialCenter = useMemo(() => ({ lat: 46.5, lng: -72.5 }), [])
+  const hasInitializedBoundsRef = useRef(false)
 
   useEffect(() => {
-    if (!isLoaded || !map) return
+    if (!isLoaded || !map || hasInitializedBoundsRef.current) return
 
     const bounds = new google.maps.LatLngBounds()
     let hasPoints = false
@@ -120,6 +121,8 @@ function ClientCarteMap({
       map.setCenter({ lat: 46.5, lng: -72.5 })
       map.setZoom(7)
     }
+
+    hasInitializedBoundsRef.current = true
   }, [isLoaded, polygons, batiments, map])
 
   if (!isLoaded) {
@@ -305,26 +308,17 @@ export default function ClientCartePage() {
       }
 
       const rawBatiments: BatimentRow[] = (batimentsRes.data || []).map(
-        (row: {
-          id: string
-          name: string | null
-          address: string | null
-          city: string | null
-          postal_code: string | null
-          latitude: number | null
-          longitude: number | null
-          client_id: string | null
-          clients: { name: string | null } | null
-        }) => ({
-          id: row.id,
-          name: row.name ?? null,
-          address: row.address ?? null,
-          city: row.city ?? null,
-          postal_code: row.postal_code ?? null,
-          latitude: row.latitude ?? null,
-          longitude: row.longitude ?? null,
-          client_id: row.client_id ?? null,
-          client_name: row.clients?.name ?? null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (row: any) => ({
+          id: row.id as string,
+          name: (row.name as string | null) ?? null,
+          address: (row.address as string | null) ?? null,
+          city: (row.city as string | null) ?? null,
+          postal_code: (row.postal_code as string | null) ?? null,
+          latitude: (row.latitude as number | null) ?? null,
+          longitude: (row.longitude as number | null) ?? null,
+          client_id: (row.client_id as string | null) ?? null,
+          client_name: (row.clients?.name as string | null) ?? null,
           nb_bassins: 0,
         })
       )
