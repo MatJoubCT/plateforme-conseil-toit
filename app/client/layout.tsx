@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Map,
   Layers,
+  FileText,
   LogOut,
   Menu,
   X,
@@ -42,6 +43,12 @@ const primaryNav: NavItem[] = [
     description: 'Unités de toiture par bâtiment',
     href: '/client/bassins',
     icon: Layers,
+  },
+  {
+    label: 'Interventions',
+    description: 'Historique des interventions',
+    href: '/client/interventions',
+    icon: FileText,
   },
 ]
 
