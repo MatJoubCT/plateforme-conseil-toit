@@ -66,6 +66,7 @@ export default function ClientInterventionsPage() {
   // Modal images
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedIntervention, setSelectedIntervention] = useState<InterventionRow | null>(null)
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
 
   // Charger les données
   useEffect(() => {
@@ -238,6 +239,37 @@ export default function ClientInterventionsPage() {
   // Note: supabaseBrowser intentionnellement exclu des dépendances pour éviter boucle infinie
   // Le client Supabase est stable et ne devrait pas déclencher de re-render
 
+  // Charger les URLs signées des images lorsque le modal s'ouvre
+  useEffect(() => {
+    if (!modalOpen || !selectedIntervention) {
+      setImageUrls({})
+      return
+    }
+
+    const files = interventionFiles[selectedIntervention.id] || []
+    const imageFiles = files.filter((f) => f.mime_type?.startsWith('image/'))
+
+    if (imageFiles.length === 0) {
+      return
+    }
+
+    // Charger les URLs signées pour toutes les images
+    Promise.all(
+      imageFiles.map(async (file) => {
+        const url = await getImageThumbnailUrl(file.file_path)
+        return { id: file.id, url }
+      })
+    ).then((results) => {
+      const urlMap = results.reduce((acc, { id, url }) => {
+        acc[id] = url
+        return acc
+      }, {} as Record<string, string>)
+      setImageUrls(urlMap)
+    }).catch((err) => {
+      console.error('Erreur chargement URLs images:', err)
+    })
+  }, [modalOpen, selectedIntervention, interventionFiles])
+
   // Filtrage
   const filteredInterventions = useMemo(() => {
     return interventions.filter((i) => {
@@ -299,16 +331,18 @@ export default function ClientInterventionsPage() {
     }
   }
 
-  const getImageThumbnailUrl = (filePath: string) => {
-    const { data } = supabaseBrowser.storage
-      .from('interventions')
-      .getPublicUrl(filePath, {
-        transform: {
-          width: 200,
-          height: 200,
-        },
-      })
-    return data.publicUrl
+  const getImageThumbnailUrl = async (filePath: string): Promise<string> => {
+    try {
+      const { data, error } = await supabaseBrowser.storage
+        .from('interventions')
+        .createSignedUrl(filePath, 3600) // URL valide pour 1 heure
+
+      if (error) throw error
+      return data.signedUrl
+    } catch (err) {
+      console.error('Erreur création URL signée:', err)
+      return ''
+    }
   }
 
   // Stats rapides
@@ -468,8 +502,7 @@ export default function ClientInterventionsPage() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl bg-white shadow-md border border-slate-200">
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <table className="w-full">
               <thead className="border-b-2 border-slate-200 bg-slate-50">
                 <tr>
                   <th className="py-4 pl-6 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
@@ -486,9 +519,6 @@ export default function ClientInterventionsPage() {
                   </th>
                   <th className="py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden xl:table-cell">
                     Client
-                  </th>
-                  <th className="py-4 pr-6 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden 2xl:table-cell">
-                    Commentaire
                   </th>
                   <th className="py-4 pr-6 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
                     Images
@@ -557,16 +587,6 @@ export default function ClientInterventionsPage() {
                       </span>
                     </td>
 
-                    {/* Commentaire */}
-                    <td className="py-4 pr-6 hidden 2xl:table-cell">
-                      <div className="flex items-start gap-2 max-w-xs">
-                        <MessageSquare className="h-4 w-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                        <span className="text-sm text-slate-600 line-clamp-2">
-                          {intervention.commentaire || '—'}
-                        </span>
-                      </div>
-                    </td>
-
                     {/* Images */}
                     <td className="py-4 pr-6">
                       <div className="flex justify-center">
@@ -592,7 +612,6 @@ export default function ClientInterventionsPage() {
                 })}
               </tbody>
             </table>
-          </div>
         </div>
       )}
 
@@ -654,30 +673,42 @@ export default function ClientInterventionsPage() {
 
                 return (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {imageFiles.map((file) => (
-                      <div
-                        key={file.id}
-                        className="group relative aspect-square overflow-hidden rounded-lg border-2 border-slate-200 hover:border-ct-primary transition-all cursor-pointer bg-slate-50"
-                        onClick={() => handleDownloadImage(file)}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={getImageThumbnailUrl(file.file_path)}
-                          alt={file.file_name}
-                          className="h-full w-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Download className="h-8 w-8 text-white drop-shadow-lg" />
+                    {imageFiles.map((file) => {
+                      const imageUrl = imageUrls[file.id]
+
+                      return (
+                        <div
+                          key={file.id}
+                          className="group relative aspect-square overflow-hidden rounded-lg border-2 border-slate-200 hover:border-ct-primary transition-all cursor-pointer bg-slate-50"
+                          onClick={() => handleDownloadImage(file)}
+                        >
+                          {imageUrl ? (
+                            <>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={imageUrl}
+                                alt={file.file_name}
+                                className="h-full w-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Download className="h-8 w-8 text-white drop-shadow-lg" />
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="h-full w-full flex items-center justify-center">
+                              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
+                            </div>
+                          )}
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                            <p className="text-xs text-white truncate">
+                              {file.file_name}
+                            </p>
                           </div>
                         </div>
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                          <p className="text-xs text-white truncate">
-                            {file.file_name}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )
               })()}
