@@ -12,6 +12,7 @@ import {
   Calendar,
   MessageSquare,
   ChevronRight,
+  X,
 } from 'lucide-react'
 
 type InterventionRow = {
@@ -320,6 +321,16 @@ export default function ClientInterventionsPage() {
                 className="w-full rounded-lg border border-slate-300 bg-white py-2 pr-4 text-sm text-slate-900 placeholder-slate-400 transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                 style={{ paddingLeft: '3rem' }}
               />
+
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
 
