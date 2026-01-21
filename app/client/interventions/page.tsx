@@ -268,7 +268,9 @@ export default function ClientInterventionsPage() {
     }).catch((err) => {
       console.error('Erreur chargement URLs images:', err)
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modalOpen, selectedIntervention, interventionFiles])
+  // Note: getImageThumbnailUrl intentionnellement exclu car fonction stable utilisant supabaseBrowser
 
   // Filtrage
   const filteredInterventions = useMemo(() => {
@@ -505,22 +507,25 @@ export default function ClientInterventionsPage() {
           <table className="w-full">
               <thead className="border-b-2 border-slate-200 bg-slate-50">
                 <tr>
-                  <th className="py-4 pl-6 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
+                  <th className="py-3 pl-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
                     Date
                   </th>
-                  <th className="py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden md:table-cell">
+                  <th className="py-3 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden md:table-cell">
                     Type
                   </th>
-                  <th className="py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
+                  <th className="py-3 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
                     Bassin
                   </th>
-                  <th className="py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden lg:table-cell">
+                  <th className="py-3 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden lg:table-cell">
                     Bâtiment
                   </th>
-                  <th className="py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden xl:table-cell">
+                  <th className="py-3 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden xl:table-cell">
                     Client
                   </th>
-                  <th className="py-4 pr-6 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
+                  <th className="py-3 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden 2xl:table-cell">
+                    Commentaire
+                  </th>
+                  <th className="py-3 pr-4 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
                     Images
                   </th>
                 </tr>
@@ -538,9 +543,9 @@ export default function ClientInterventionsPage() {
                     className="group transition-colors hover:bg-slate-50"
                   >
                     {/* Date */}
-                    <td className="py-4 pl-6">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-slate-400" />
+                    <td className="py-3 pl-4">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar className="h-4 w-4 text-slate-400 flex-shrink-0" />
                         <span className="text-sm font-medium text-slate-900">
                           {new Date(intervention.date_intervention).toLocaleDateString('fr-CA')}
                         </span>
@@ -548,9 +553,9 @@ export default function ClientInterventionsPage() {
                     </td>
 
                     {/* Type */}
-                    <td className="py-4 hidden md:table-cell">
+                    <td className="py-3 px-2 hidden md:table-cell">
                       <span
-                        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
                         style={{
                           backgroundColor: intervention.type_couleur ? `${intervention.type_couleur}20` : '#1F4E7920',
                           color: intervention.type_couleur || '#1F4E79',
@@ -561,9 +566,9 @@ export default function ClientInterventionsPage() {
                     </td>
 
                     {/* Bassin */}
-                    <td className="py-4">
-                      <div className="flex items-center gap-2">
-                        <Layers className="h-4 w-4 text-slate-400" />
+                    <td className="py-3 px-2">
+                      <div className="flex items-center gap-1.5">
+                        <Layers className="h-4 w-4 text-slate-400 flex-shrink-0" />
                         <span className="text-sm text-slate-700">
                           {intervention.bassin_name || 'Sans nom'}
                         </span>
@@ -571,9 +576,9 @@ export default function ClientInterventionsPage() {
                     </td>
 
                     {/* Bâtiment */}
-                    <td className="py-4 hidden lg:table-cell">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-slate-400" />
+                    <td className="py-3 px-2 hidden lg:table-cell">
+                      <div className="flex items-center gap-1.5">
+                        <Building2 className="h-4 w-4 text-slate-400 flex-shrink-0" />
                         <span className="text-sm text-slate-600">
                           {intervention.batiment_name || 'Sans nom'}
                         </span>
@@ -581,14 +586,24 @@ export default function ClientInterventionsPage() {
                     </td>
 
                     {/* Client */}
-                    <td className="py-4 hidden xl:table-cell">
+                    <td className="py-3 px-2 hidden xl:table-cell">
                       <span className="text-sm text-slate-600">
                         {intervention.client_name || 'Sans nom'}
                       </span>
                     </td>
 
+                    {/* Commentaire */}
+                    <td className="py-3 px-2 hidden 2xl:table-cell">
+                      <div className="flex items-start gap-1.5 max-w-xs">
+                        <MessageSquare className="h-4 w-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                        <span className="text-sm text-slate-600 line-clamp-2">
+                          {intervention.commentaire || '—'}
+                        </span>
+                      </div>
+                    </td>
+
                     {/* Images */}
-                    <td className="py-4 pr-6">
+                    <td className="py-3 pr-4">
                       <div className="flex justify-center">
                         {imageFiles.length > 0 ? (
                           <button
