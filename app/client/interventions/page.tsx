@@ -14,6 +14,7 @@ import {
   X,
   Eye,
   Download,
+  ChevronRight,
 } from 'lucide-react'
 
 type InterventionRow = {
@@ -525,8 +526,11 @@ export default function ClientInterventionsPage() {
                   <th className="py-3 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden 2xl:table-cell">
                     Commentaire
                   </th>
-                  <th className="py-3 pr-4 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
+                  <th className="py-3 px-2 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
                     Images
+                  </th>
+                  <th className="py-3 pr-4 text-right text-xs font-bold uppercase tracking-wide text-slate-600">
+                    Détails
                   </th>
                 </tr>
               </thead>
@@ -540,7 +544,8 @@ export default function ClientInterventionsPage() {
                   return (
                   <tr
                     key={intervention.id}
-                    className="group transition-colors hover:bg-slate-50"
+                    onClick={() => router.push(`/client/bassins/${intervention.bassin_id}`)}
+                    className="group cursor-pointer transition-colors hover:bg-slate-50"
                   >
                     {/* Date */}
                     <td className="py-3 pl-4">
@@ -603,12 +608,15 @@ export default function ClientInterventionsPage() {
                     </td>
 
                     {/* Images */}
-                    <td className="py-3 pr-4">
+                    <td className="py-3 px-2">
                       <div className="flex justify-center">
                         {imageFiles.length > 0 ? (
                           <button
                             type="button"
-                            onClick={() => handleOpenModal(intervention)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleOpenModal(intervention)
+                            }}
                             className="group/eye relative rounded-full p-2 text-slate-400 hover:bg-ct-primary/10 hover:text-ct-primary transition-all"
                             title="Voir les images"
                           >
@@ -620,6 +628,13 @@ export default function ClientInterventionsPage() {
                         ) : (
                           <span className="text-xs text-slate-400">—</span>
                         )}
+                      </div>
+                    </td>
+
+                    {/* Détails */}
+                    <td className="py-3 pr-4">
+                      <div className="flex justify-end">
+                        <ChevronRight className="h-5 w-5 text-slate-400 transition-transform group-hover:translate-x-1" />
                       </div>
                     </td>
                   </tr>
