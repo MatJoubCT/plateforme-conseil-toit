@@ -124,8 +124,8 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100">
         <div className="flex flex-col items-center gap-4 rounded-2xl bg-white/80 px-10 py-8 shadow-2xl backdrop-blur-sm border border-white/60">
           <div className="relative">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg" />
-            <div className="absolute inset-0 h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] animate-pulse opacity-50" />
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg" />
+            <div className="absolute inset-0 h-12 w-12 rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8] animate-pulse opacity-50" />
           </div>
           <p className="text-sm font-medium text-slate-700">
             Chargement du portail client…
@@ -161,7 +161,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
         href={item.href}
         className={[
           'group relative flex flex-col gap-1.5 rounded-xl px-4 py-3 transition-all duration-200',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1F4E79]',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-ct-primary',
           active
             ? 'bg-white/15 shadow-[0_0_0_1px_rgba(255,255,255,0.4),0_2px_8px_rgba(0,0,0,0.1)]'
             : 'hover:bg-white/10 hover:shadow-[0_0_0_1px_rgba(255,255,255,0.15)]',
@@ -211,7 +211,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
       <aside
         className={[
           'client-sidebar fixed inset-y-0 left-0 z-40 flex w-72 flex-col',
-          'bg-gradient-to-b from-[#1F4E79] via-[#1a4168] to-[#163555]',
+          'bg-gradient-to-b from-ct-primary via-ct-primary-medium to-ct-primary-dark',
           'text-white shadow-2xl',
           'transition-transform duration-300 ease-out',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
@@ -261,7 +261,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
         {/* Bas de sidebar : compte + déconnexion */}
         <div className="border-t border-white/10 bg-gradient-to-r from-white/5 to-transparent px-4 py-4">
           <div className="mb-3 flex items-center gap-3 rounded-lg bg-white/5 px-3 py-2.5 backdrop-blur-sm">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-white via-slate-50 to-slate-100 text-xs font-bold text-[#1F4E79] shadow-md ring-2 ring-white/20">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-white via-slate-50 to-slate-100 text-xs font-bold text-ct-primary shadow-md ring-2 ring-white/20">
               {getInitials(clientName)}
             </div>
             <div className="flex flex-col min-w-0">
@@ -277,7 +277,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={handleLogout}
-            className="group inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/30 bg-white/5 px-3 py-2.5 text-xs font-semibold tracking-wide text-white shadow-sm backdrop-blur-sm transition-all hover:bg-white/10 hover:border-white/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1F4E79]"
+            className="group inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/30 bg-white/5 px-3 py-2.5 text-xs font-semibold tracking-wide text-white shadow-sm backdrop-blur-sm transition-all hover:bg-white/10 hover:border-white/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-ct-primary"
           >
             <LogOut className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
             Déconnexion
@@ -298,7 +298,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition-all hover:bg-slate-50 hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F4E79]"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition-all hover:bg-slate-50 hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ct-primary"
           >
             <Menu className="h-4 w-4" />
             <span>Menu</span>
@@ -308,7 +308,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
             {clientName || 'Client'}
           </span>
 
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-[10px] font-bold text-white shadow-md">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-[10px] font-bold text-white shadow-md">
             {getInitials(clientName)}
           </div>
         </header>
@@ -324,8 +324,8 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
                 Bienvenue dans votre portail client
               </p>
             </div>
-            
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-sm font-bold text-white shadow-lg ring-2 ring-slate-200">
+
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-sm font-bold text-white shadow-lg ring-2 ring-slate-200">
               {getInitials(clientName)}
             </div>
           </div>
