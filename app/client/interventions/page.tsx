@@ -11,8 +11,9 @@ import {
   Layers,
   Calendar,
   MessageSquare,
-  ChevronRight,
   X,
+  Eye,
+  Download,
 } from 'lucide-react'
 
 type InterventionRow = {
@@ -39,6 +40,15 @@ type ListeChoixRow = {
   ordre: number
 }
 
+type InterventionFichierRow = {
+  id: string
+  intervention_id: string
+  file_path: string
+  file_name: string
+  mime_type: string | null
+  created_at: string
+}
+
 export default function ClientInterventionsPage() {
   const router = useRouter()
   const supabaseBrowser = createBrowserClient()
@@ -47,10 +57,15 @@ export default function ClientInterventionsPage() {
   const [interventions, setInterventions] = useState<InterventionRow[]>([])
   const [listes, setListes] = useState<ListeChoixRow[]>([])
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [interventionFiles, setInterventionFiles] = useState<Record<string, InterventionFichierRow[]>>({})
 
   // Filtres
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState<string>('')
+
+  // Modal images
+  const [modalOpen, setModalOpen] = useState(false)
+  const [selectedIntervention, setSelectedIntervention] = useState<InterventionRow | null>(null)
 
   // Charger les données
   useEffect(() => {
@@ -183,6 +198,30 @@ export default function ClientInterventionsPage() {
         })
 
         setInterventions(filteredInterventions)
+
+        // 7. Charger les fichiers des interventions
+        const interventionIds = filteredInterventions.map((i) => i.id)
+        if (interventionIds.length > 0) {
+          const { data: filesData, error: filesError } = await supabaseBrowser
+            .from('intervention_fichiers')
+            .select('id, intervention_id, file_path, file_name, mime_type, created_at')
+            .in('intervention_id', interventionIds)
+            .order('created_at', { ascending: true })
+
+          if (filesError) {
+            console.error('Erreur chargement fichiers:', filesError)
+          } else {
+            // Organiser les fichiers par intervention_id
+            const filesByIntervention: Record<string, InterventionFichierRow[]> = {}
+            filesData?.forEach((f) => {
+              if (!filesByIntervention[f.intervention_id]) {
+                filesByIntervention[f.intervention_id] = []
+              }
+              filesByIntervention[f.intervention_id].push(f as InterventionFichierRow)
+            })
+            setInterventionFiles(filesByIntervention)
+          }
+        }
       } catch (err: unknown) {
         if (process.env.NODE_ENV === 'development') {
           console.error('Erreur chargement interventions:', err)
@@ -229,6 +268,48 @@ export default function ClientInterventionsPage() {
   const typesInterventions = useMemo(() => {
     return listes.filter((l) => l.categorie === 'type_interventions')
   }, [listes])
+
+  // Fonctions pour gérer les images
+  const handleOpenModal = (intervention: InterventionRow) => {
+    setSelectedIntervention(intervention)
+    setModalOpen(true)
+  }
+
+  const handleDownloadImage = async (file: InterventionFichierRow) => {
+    try {
+      const { data, error } = await supabaseBrowser.storage
+        .from('interventions')
+        .download(file.file_path)
+
+      if (error) throw error
+
+      // Créer un URL pour l'image et l'ouvrir dans un nouvel onglet
+      const url = URL.createObjectURL(data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = file.file_name
+      link.target = '_blank'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Erreur téléchargement fichier:', err)
+      alert('Erreur lors du téléchargement du fichier.')
+    }
+  }
+
+  const getImageThumbnailUrl = (filePath: string) => {
+    const { data } = supabaseBrowser.storage
+      .from('interventions')
+      .getPublicUrl(filePath, {
+        transform: {
+          width: 200,
+          height: 200,
+        },
+      })
+    return data.publicUrl
+  }
 
   // Stats rapides
   const totalInterventions = interventions.length
@@ -410,20 +491,21 @@ export default function ClientInterventionsPage() {
                     Commentaire
                   </th>
                   <th className="py-4 pr-6 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
-                    Détails
+                    Images
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {filteredInterventions.map((intervention) => (
+                {filteredInterventions.map((intervention) => {
+                  const files = interventionFiles[intervention.id] || []
+                  const imageFiles = files.filter((f) =>
+                    f.mime_type?.startsWith('image/')
+                  )
+
+                  return (
                   <tr
                     key={intervention.id}
-                    className="group cursor-pointer transition-colors hover:bg-slate-50"
-                    onClick={() => {
-                      if (intervention.bassin_id) {
-                        router.push(`/client/bassins/${intervention.bassin_id}`)
-                      }
-                    }}
+                    className="group transition-colors hover:bg-slate-50"
                   >
                     {/* Date */}
                     <td className="py-4 pl-6">
@@ -485,16 +567,128 @@ export default function ClientInterventionsPage() {
                       </div>
                     </td>
 
-                    {/* Action */}
+                    {/* Images */}
                     <td className="py-4 pr-6">
                       <div className="flex justify-center">
-                        <ChevronRight className="h-5 w-5 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-ct-primary" />
+                        {imageFiles.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenModal(intervention)}
+                            className="group/eye relative rounded-full p-2 text-slate-400 hover:bg-ct-primary/10 hover:text-ct-primary transition-all"
+                            title="Voir les images"
+                          >
+                            <Eye className="h-5 w-5" />
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover/eye:opacity-100 transition-opacity pointer-events-none">
+                              Voir les images ({imageFiles.length})
+                            </span>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal images */}
+      {modalOpen && selectedIntervention && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-4xl max-h-[90vh] overflow-auto bg-white rounded-2xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header du modal */}
+            <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    Images de l&apos;intervention
+                  </h2>
+                  <p className="text-sm text-slate-600 mt-1">
+                    {new Date(selectedIntervention.date_intervention).toLocaleDateString('fr-FR', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                    {' — '}
+                    {selectedIntervention.bassin_name || 'Sans nom'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Contenu du modal */}
+            <div className="p-6">
+              {(() => {
+                const files = interventionFiles[selectedIntervention.id] || []
+                const imageFiles = files.filter((f) =>
+                  f.mime_type?.startsWith('image/')
+                )
+
+                if (imageFiles.length === 0) {
+                  return (
+                    <div className="text-center py-12">
+                      <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                      <p className="text-sm text-slate-600">
+                        Aucune image disponible pour cette intervention.
+                      </p>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {imageFiles.map((file) => (
+                      <div
+                        key={file.id}
+                        className="group relative aspect-square overflow-hidden rounded-lg border-2 border-slate-200 hover:border-ct-primary transition-all cursor-pointer bg-slate-50"
+                        onClick={() => handleDownloadImage(file)}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={getImageThumbnailUrl(file.file_path)}
+                          alt={file.file_name}
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Download className="h-8 w-8 text-white drop-shadow-lg" />
+                          </div>
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                          <p className="text-xs text-white truncate">
+                            {file.file_name}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* Footer du modal */}
+            <div className="sticky bottom-0 border-t border-slate-200 bg-slate-50 px-6 py-4">
+              <p className="text-xs text-slate-600 text-center">
+                Cliquez sur une image pour la télécharger et l&apos;ouvrir
+              </p>
+            </div>
           </div>
         </div>
       )}
