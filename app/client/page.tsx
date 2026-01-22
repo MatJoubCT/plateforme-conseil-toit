@@ -233,7 +233,42 @@ export default function ClientDashboardPage() {
 
       const allBatiments = (batimentsRes.data || []) as BatimentRow[]
       const allBassins = (bassinsRes.data || []) as BassinRow[]
-      const allGaranties = (garantiesRes.data || []) as GarantieRow[]
+
+      // Normaliser les garanties (les jointures peuvent retourner des tableaux)
+      const normalizedGaranties = (garantiesRes.data || []).map((row: any) => ({
+        ...row,
+        bassins: Array.isArray(row.bassins) ? row.bassins[0] || null : row.bassins
+      })).map((row: any) => {
+        if (row.bassins && row.bassins.batiments) {
+          return {
+            ...row,
+            bassins: {
+              ...row.bassins,
+              batiments: Array.isArray(row.bassins.batiments)
+                ? row.bassins.batiments[0] || null
+                : row.bassins.batiments
+            }
+          }
+        }
+        return row
+      }).map((row: any) => {
+        if (row.bassins?.batiments?.clients) {
+          return {
+            ...row,
+            bassins: {
+              ...row.bassins,
+              batiments: {
+                ...row.bassins.batiments,
+                clients: Array.isArray(row.bassins.batiments.clients)
+                  ? row.bassins.batiments.clients[0] || null
+                  : row.bassins.batiments.clients
+              }
+            }
+          }
+        }
+        return row
+      })
+      const allGaranties = normalizedGaranties as GarantieRow[]
 
       // Filtrer les bassins pour ne garder que ceux des bâtiments autorisés
       const batimentIds = new Set(allBatiments.map((b) => b.id))

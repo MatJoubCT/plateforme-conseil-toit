@@ -144,6 +144,7 @@ type CompositionLineRow = {
     nom: string
     prix_cad: number
     actif: boolean
+    categorie_id: string | null
   } | null
 }
 
@@ -552,7 +553,8 @@ export default function ClientBassinDetailPage() {
               id,
               nom,
               prix_cad,
-              actif
+              actif,
+              categorie_id
             )
           `
           )
@@ -566,6 +568,12 @@ export default function ClientBassinDetailPage() {
         return
       }
 
+      // Normaliser les données de composition (materiau peut être un tableau)
+      const normalizedComposition = (compositionData || []).map((row: any) => ({
+        ...row,
+        materiau: Array.isArray(row.materiau) ? row.materiau[0] || null : row.materiau
+      }))
+
       setBassin(bassinData as BassinRow)
       setBatiment(batData)
       setListes((listesData || []) as ListeChoix[])
@@ -573,7 +581,7 @@ export default function ClientBassinDetailPage() {
       setGaranties((garantiesData || []) as GarantieRow[])
       setRapports((rapportsData || []) as RapportRow[])
       setInterventions(combined)
-      setCompositionLines((compositionData || []) as CompositionLineRow[])
+      setCompositionLines(normalizedComposition as CompositionLineRow[])
       setLoading(false)
     }
 
@@ -681,6 +689,16 @@ export default function ClientBassinDetailPage() {
       .slice()
       .sort((a, b) => (a.ordre ?? 999999) - (b.ordre ?? 999999) || (a.label || '').localeCompare(b.label || '', 'fr-CA'))
   }, [listes])
+
+  const categoriesMateriaux = useMemo(() => {
+    return listes.filter((l) => l.categorie === 'materiaux_categorie')
+  }, [listes])
+
+  const getCategorieMateriauLabel = (categorieId: string | null): string => {
+    if (!categorieId) return '—'
+    const categorie = categoriesMateriaux.find((c) => c.id === categorieId)
+    return categorie?.label || '—'
+  }
 
   // Couleur du polygone selon l'état / durée de vie
   const couleurEtat: string | undefined = (() => {
@@ -2264,24 +2282,20 @@ export default function ClientBassinDetailPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50">
                       <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        <th className="px-3 py-2 w-[72px]">Ordre</th>
                         <th className="px-3 py-2">Matériau</th>
-                        <th className="px-3 py-2 w-[140px] text-right">Prix (CAD)</th>
+                        <th className="px-3 py-2">Catégorie</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 bg-white">
                       {compositionLines.map((row) => (
                         <tr key={row.id} className="hover:bg-slate-50/50">
-                          <td className="px-3 py-2 align-middle text-slate-500">
-                            {row.position ?? '—'}
-                          </td>
                           <td className="px-3 py-2 align-middle">
                             <div className="font-semibold text-slate-800">
                               {row.materiau?.nom || 'Matériau'}
                             </div>
                           </td>
-                          <td className="px-3 py-2 align-middle text-right tabular-nums text-slate-700">
-                            {(row.materiau?.prix_cad ?? 0).toFixed(2)}
+                          <td className="px-3 py-2 align-middle text-slate-600">
+                            {getCategorieMateriauLabel(row.materiau?.categorie_id || null)}
                           </td>
                         </tr>
                       ))}
