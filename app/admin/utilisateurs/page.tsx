@@ -16,8 +16,7 @@ import {
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Pagination, usePagination } from '@/components/ui/Pagination'
 import { Users, UserPlus, Shield, KeyRound, Ban, CheckCircle2, X, Search, SlidersHorizontal } from 'lucide-react'
-
-type ToastState = { type: 'success' | 'error'; message: string } | null
+import { useToast } from '@/lib/toast-context'
 
 /**
  * Helper pour obtenir le token de session
@@ -31,6 +30,9 @@ async function getSessionToken(): Promise<string | null> {
 }
 
 export default function AdminUtilisateursPage() {
+  // Toast global
+  const toast = useToast()
+
   // Use the custom hook for data loading
   const { users, clients, batiments, loading, error: dataError, loadUsersData } = useUsersData()
 
@@ -40,13 +42,6 @@ export default function AdminUtilisateursPage() {
 
   // Recherche
   const [search, setSearch] = useState('')
-
-  // Toast (UI pro)
-  const [toast, setToast] = useState<ToastState>(null)
-  const pushToast = (type: 'success' | 'error', message: string) => {
-    setToast({ type, message })
-    window.setTimeout(() => setToast(null), 3500)
-  }
 
   // Modal édition
   const [showModal, setShowModal] = useState(false)
@@ -263,12 +258,12 @@ export default function AdminUtilisateursPage() {
       .eq('id', profileId)
 
     if (error) {
-      pushToast('error', `Erreur: ${error.message}`)
+      toast.error( `Erreur: ${error.message}`)
       setConfirmToggle(null)
       return
     }
 
-    pushToast('success', currentState ? 'Utilisateur suspendu.' : 'Utilisateur réactivé.')
+    toast.success( currentState ? 'Utilisateur suspendu.' : 'Utilisateur réactivé.')
     setConfirmToggle(null)
 
     await loadUsersData()
@@ -290,7 +285,7 @@ export default function AdminUtilisateursPage() {
     try {
       const token = await getSessionToken()
       if (!token) {
-        pushToast('error', 'Session expirée. Veuillez vous reconnecter.')
+        toast.error( 'Session expirée. Veuillez vous reconnecter.')
         setResetLoadingByUserId((prev) => ({ ...prev, [userId]: false }))
         return
       }
@@ -307,14 +302,14 @@ export default function AdminUtilisateursPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        pushToast('error', data.error || 'Erreur inconnue.')
+        toast.error( data.error || 'Erreur inconnue.')
         setResetLoadingByUserId((prev) => ({ ...prev, [userId]: false }))
         return
       }
 
-      pushToast('success', 'Courriel de réinitialisation envoyé!')
+      toast.success( 'Courriel de réinitialisation envoyé!')
     } catch (err: any) {
-      pushToast('error', err.message || 'Erreur réseau.')
+      toast.error( err.message || 'Erreur réseau.')
     } finally {
       setResetLoadingByUserId((prev) => ({ ...prev, [userId]: false }))
     }
@@ -373,7 +368,7 @@ export default function AdminUtilisateursPage() {
         return
       }
 
-      pushToast('success', 'Utilisateur créé. Invitation envoyée par courriel.')
+      toast.success( 'Utilisateur créé. Invitation envoyée par courriel.')
       setCreateSaving(false)
       setShowCreateModal(false)
 
@@ -916,24 +911,6 @@ export default function AdminUtilisateursPage() {
         confirmText={confirmToggle?.currentState ? 'Suspendre' : 'Réactiver'}
         confirmVariant={confirmToggle?.currentState ? 'danger' : 'primary'}
       />
-
-      {/* Toast notifications */}
-      {toast && (
-        <div
-          className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl px-5 py-4 shadow-2xl backdrop-blur-sm transition-all ${
-            toast.type === 'success'
-              ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
-              : 'border border-rose-200 bg-rose-50 text-rose-800'
-          }`}
-        >
-          {toast.type === 'success' ? (
-            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-          ) : (
-            <Ban className="h-5 w-5 text-rose-600" />
-          )}
-          <span className="text-sm font-semibold">{toast.message}</span>
-        </div>
-      )}
     </section>
   )
 }
