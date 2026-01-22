@@ -48,6 +48,7 @@ type ListeChoix = {
   categorie: string
   label: string | null
   couleur: string | null
+  ordre: number | null
 }
 
 type UserProfileRow = {
@@ -199,7 +200,7 @@ export default function ClientBassinsPage() {
       // 3) Listes de choix (états / durées de vie)
       const { data: listesData, error: listesError } = await supabaseBrowser
         .from('listes_choix')
-        .select('id, categorie, label, couleur')
+        .select('id, categorie, label, couleur, ordre')
 
       if (listesError) {
         setErrorMsg(listesError.message)
@@ -304,27 +305,36 @@ export default function ClientBassinsPage() {
 
     const getEtatLabel = (b: BassinRow) => labelEtat(b.etat_id) ?? 'Non évalué'
 
+    const getEtatOrdre = (b: BassinRow) => {
+      if (!b.etat_id) return 999 // Non évalué en dernier
+      const etat = etatsBassin.find((e) => e.id === b.etat_id)
+      return etat?.ordre ?? 999
+    }
+
     const getDureeVieLabel = (b: BassinRow) => labelDuree(b) ?? 'Non définie'
 
     arr.sort((a, b) => {
-      let av = ''
-      let bv = ''
+      let cmp = 0
 
       if (sortKey === 'batiment') {
-        av = getBatimentName(a)
-        bv = getBatimentName(b)
+        const av = getBatimentName(a)
+        const bv = getBatimentName(b)
+        cmp = av.localeCompare(bv, 'fr', { sensitivity: 'base' })
       } else if (sortKey === 'client') {
-        av = getClientName(a)
-        bv = getClientName(b)
+        const av = getClientName(a)
+        const bv = getClientName(b)
+        cmp = av.localeCompare(bv, 'fr', { sensitivity: 'base' })
       } else if (sortKey === 'etat') {
-        av = getEtatLabel(a)
-        bv = getEtatLabel(b)
+        // Tri par ordre de listes_choix au lieu de tri alphabétique
+        const aOrdre = getEtatOrdre(a)
+        const bOrdre = getEtatOrdre(b)
+        cmp = aOrdre - bOrdre
       } else if (sortKey === 'duree_vie') {
-        av = getDureeVieLabel(a)
-        bv = getDureeVieLabel(b)
+        const av = getDureeVieLabel(a)
+        const bv = getDureeVieLabel(b)
+        cmp = av.localeCompare(bv, 'fr', { sensitivity: 'base' })
       }
 
-      const cmp = av.localeCompare(bv, 'fr', { sensitivity: 'base' })
       return sortDir === 'asc' ? cmp : -cmp
     })
 
@@ -547,7 +557,7 @@ export default function ClientBassinsPage() {
                 <thead>
                   <tr className="border-b border-slate-200">
                     <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Bassin
+                      BASSIN
                     </th>
                     <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                       <button
@@ -555,7 +565,7 @@ export default function ClientBassinsPage() {
                         onClick={() => toggleSort('batiment')}
                         className="inline-flex items-center gap-1 hover:text-[#1F4E79] transition-colors"
                       >
-                        Bâtiment
+                        BÂTIMENT
                         <SortIcon col="batiment" />
                       </button>
                     </th>
@@ -565,15 +575,15 @@ export default function ClientBassinsPage() {
                         onClick={() => toggleSort('client')}
                         className="inline-flex items-center gap-1 hover:text-[#1F4E79] transition-colors"
                       >
-                        Client
+                        CLIENT
                         <SortIcon col="client" />
                       </button>
                     </th>
                     <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Adresse
+                      ADRESSE
                     </th>
                     <th className="pb-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Surface
+                      SURFACE
                     </th>
                     <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                       <button
@@ -581,7 +591,7 @@ export default function ClientBassinsPage() {
                         onClick={() => toggleSort('etat')}
                         className="inline-flex items-center gap-1 hover:text-[#1F4E79] transition-colors"
                       >
-                        État
+                        ÉTAT
                         <SortIcon col="etat" />
                       </button>
                     </th>
@@ -591,7 +601,7 @@ export default function ClientBassinsPage() {
                         onClick={() => toggleSort('duree_vie')}
                         className="inline-flex items-center gap-1 hover:text-[#1F4E79] transition-colors"
                       >
-                        Durée de vie
+                        DURÉE DE VIE
                         <SortIcon col="duree_vie" />
                       </button>
                     </th>
