@@ -80,6 +80,7 @@ export default function AdminBassinsPage() {
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
 
   const [sortKey, setSortKey] = useState<'batiment' | 'client' | 'etat' | 'duree_vie' | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -88,6 +89,15 @@ export default function AdminBassinsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
+
+  // Debounce du champ de recherche
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [search])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -139,8 +149,8 @@ export default function AdminBassinsPage() {
           )
 
         // Recherche côté serveur (nom bassin)
-        if (search.trim()) {
-          query = query.ilike('name', `%${search.trim()}%`)
+        if (debouncedSearch.trim()) {
+          query = query.ilike('name', `%${debouncedSearch.trim()}%`)
         }
 
         // Tri côté serveur (simplifié sur nom par défaut)
@@ -182,7 +192,7 @@ export default function AdminBassinsPage() {
 
     void fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, search, sortDir])
+  }, [currentPage, debouncedSearch, sortDir])
 
   const etatsBassin = useMemo(
     () =>
