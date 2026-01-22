@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
-import { Pagination } from '@/components/ui/Pagination'
+import { Pagination, usePagination } from '@/components/ui/Pagination'
 import {
   Layers,
   Search,
@@ -69,8 +69,6 @@ function mapEtatToStateBadge(etat: string | null): BassinState {
   return 'non_evalue'
 }
 
-const ITEMS_PER_PAGE = 20
-
 export default function AdminBassinsPage() {
   const router = useRouter()
 
@@ -80,24 +78,9 @@ export default function AdminBassinsPage() {
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
 
   const [sortKey, setSortKey] = useState<'batiment' | 'client' | 'etat' | 'duree_vie' | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-
-  // Pagination côté serveur
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalCount, setTotalCount] = useState(0)
-  const [totalPages, setTotalPages] = useState(0)
-
-  // Debounce du champ de recherche
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search)
-    }, 500)
-
-    return () => clearTimeout(timer)
-  }, [search])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -105,23 +88,21 @@ export default function AdminBassinsPage() {
       setErrorMsg(null)
 
       try {
-        // Listes de choix (chargées une seule fois, pas paginées)
-        if (listes.length === 0) {
-          const { data: listesData, error: listesError } = await supabaseBrowser
-            .from('listes_choix')
-            .select('id, categorie, label, couleur')
+        // Listes de choix
+        const { data: listesData, error: listesError } = await supabaseBrowser
+          .from('listes_choix')
+          .select('id, categorie, label, couleur')
 
-          if (listesError) {
-            setErrorMsg(listesError.message)
-            setLoading(false)
-            return
-          }
-
-          setListes(listesData || [])
+        if (listesError) {
+          setErrorMsg(listesError.message)
+          setLoading(false)
+          return
         }
 
-        // Bassins avec pagination côté serveur
-        let query = supabaseBrowser
+        setListes(listesData || [])
+
+        // Charger TOUS les bassins (pas de pagination côté serveur)
+        const { data: bassinsData, error: bassinsError } = await supabaseBrowser
           .from('bassins')
           .select(
             `
@@ -144,24 +125,9 @@ export default function AdminBassinsPage() {
               client_id,
               clients ( id, name )
             )
-          `,
-            { count: 'exact' }
+          `
           )
-
-        // Recherche côté serveur (nom bassin)
-        if (debouncedSearch.trim()) {
-          query = query.ilike('name', `%${debouncedSearch.trim()}%`)
-        }
-
-        // Tri côté serveur (simplifié sur nom par défaut)
-        query = query.order('name', { ascending: sortDir === 'asc' })
-
-        // Pagination avec .range()
-        const start = (currentPage - 1) * ITEMS_PER_PAGE
-        const end = start + ITEMS_PER_PAGE - 1
-        query = query.range(start, end)
-
-        const { data: bassinsData, error: bassinsError, count } = await query
+          .order('name', { ascending: true })
 
         if (bassinsError) {
           setErrorMsg(bassinsError.message)
@@ -171,10 +137,8 @@ export default function AdminBassinsPage() {
 
         const bassinsList = (bassinsData || []) as BassinRow[]
         setBassins(bassinsList)
-        setTotalCount(count || 0)
-        setTotalPages(Math.ceil((count || 0) / ITEMS_PER_PAGE))
 
-        // Bâtiments pour la page actuelle seulement
+        // Bâtiments
         const batimentsFromBassins = bassinsList
           .map((b: any) => b.batiments)
           .filter((bat): bat is BatimentRow => bat !== null)
@@ -191,8 +155,7 @@ export default function AdminBassinsPage() {
     }
 
     void fetchData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, debouncedSearch, sortDir])
+  }, [])
 
   const etatsBassin = useMemo(
     () =>
@@ -239,12 +202,90 @@ export default function AdminBassinsPage() {
 
   const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value)
-    setCurrentPage(1) // Reset à la page 1 lors d'une recherche
   }
 
-  // Calcul des indices pour l'affichage de pagination
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE + 1
-  const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, totalCount)
+  // Filtrage côté client
+  const filteredBassins = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return bassins
+
+    return bassins.filter((b) => {
+      const bat = b.batiment_id ? batimentById.get(b.batiment_id) : undefined
+      const clientName = bat?.clients
+        ? Array.isArray(bat.clients)
+          ? bat.clients[0]?.name ?? ''
+          : bat.clients.name ?? ''
+        : ''
+      const hay = [
+        b.name ?? '',
+        b.reference_interne ?? '',
+        bat?.name ?? '',
+        clientName,
+        bat?.address ?? '',
+        bat?.city ?? '',
+        bat?.postal_code ?? '',
+      ].join(' ').toLowerCase()
+      return hay.includes(q)
+    })
+  }, [bassins, batimentById, search])
+
+  // Tri côté client
+  const sortedBassins = useMemo(() => {
+    const arr = [...filteredBassins]
+    if (!sortKey) return arr
+
+    const getBatimentName = (b: BassinRow) => {
+      const bat = b.batiment_id ? batimentById.get(b.batiment_id) : undefined
+      return bat?.name ?? ''
+    }
+
+    const getClientName = (b: BassinRow) => {
+      const bat = b.batiment_id ? batimentById.get(b.batiment_id) : undefined
+      if (!bat?.clients) return ''
+      return Array.isArray(bat.clients)
+        ? bat.clients[0]?.name ?? ''
+        : bat.clients.name ?? ''
+    }
+
+    const getEtatLabel = (b: BassinRow) => labelEtat(b.etat_id) ?? 'Non évalué'
+
+    const getDureeVieLabel = (b: BassinRow) => labelDuree(b) ?? 'Non définie'
+
+    arr.sort((a, b) => {
+      let av = ''
+      let bv = ''
+
+      if (sortKey === 'batiment') {
+        av = getBatimentName(a)
+        bv = getBatimentName(b)
+      } else if (sortKey === 'client') {
+        av = getClientName(a)
+        bv = getClientName(b)
+      } else if (sortKey === 'etat') {
+        av = getEtatLabel(a)
+        bv = getEtatLabel(b)
+      } else if (sortKey === 'duree_vie') {
+        av = getDureeVieLabel(a)
+        bv = getDureeVieLabel(b)
+      }
+
+      const cmp = av.localeCompare(bv, 'fr', { sensitivity: 'base' })
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+
+    return arr
+  }, [filteredBassins, sortKey, sortDir, batimentById])
+
+  // Pagination côté client
+  const {
+    currentPage,
+    totalPages,
+    currentItems,
+    setCurrentPage,
+    startIndex,
+    endIndex,
+    totalItems,
+  } = usePagination(sortedBassins, 20)
 
   const toggleSort = (key: 'batiment' | 'client' | 'etat' | 'duree_vie') => {
     if (sortKey === key) {
@@ -265,8 +306,8 @@ export default function AdminBassinsPage() {
     )
   }
 
-  // Statistiques (Note: totalBatiments, totalClients et totalSurfaceFt2 sont calculés sur la page actuelle uniquement)
-  const totalBassins = totalCount
+  // Statistiques
+  const totalBassins = bassins.length
   const totalBatiments = new Set(bassins.map((b) => b.batiment_id).filter(Boolean)).size
   const totalClients = new Set(
     batiments
@@ -429,7 +470,7 @@ export default function AdminBassinsPage() {
                   Liste des bassins
                 </h2>
                 <p className="text-xs text-slate-500">
-                  {totalCount} bassin{totalCount > 1 ? 's' : ''} trouvé{totalCount > 1 ? 's' : ''}
+                  {filteredBassins.length} bassin{filteredBassins.length > 1 ? 's' : ''} trouvé{filteredBassins.length > 1 ? 's' : ''}
                 </p>
               </div>
             </div>
@@ -437,7 +478,7 @@ export default function AdminBassinsPage() {
         </div>
 
         <div className="p-5">
-          {totalCount === 0 ? (
+          {sortedBassins.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 mb-4">
                 <Layers className="h-8 w-8 text-slate-400" />
@@ -502,7 +543,7 @@ export default function AdminBassinsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {bassins.map((bassin) => {
+                  {currentItems.map((bassin) => {
                     const bat = bassin.batiment_id
                       ? batimentById.get(bassin.batiment_id)
                       : undefined
@@ -604,20 +645,18 @@ export default function AdminBassinsPage() {
           )}
 
           {/* Pagination info */}
-          {totalCount > 0 && (
+          {sortedBassins.length > 0 && (
             <div className="mt-4 text-sm text-ct-gray text-center">
-              Affichage de {startIndex} à {endIndex} sur {totalCount} bassin{totalCount > 1 ? 's' : ''}
+              Affichage de {startIndex} à {endIndex} sur {totalItems} bassin{totalItems > 1 ? 's' : ''}
             </div>
           )}
 
           {/* Pagination controls */}
-          {totalPages > 1 && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-            />
-          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
         </div>
       </div>
     </section>

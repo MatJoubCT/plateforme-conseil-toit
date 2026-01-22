@@ -1,15 +1,14 @@
 'use client'
 
-import { useEffect, useState, ChangeEvent, FormEvent } from 'react'
+import { useEffect, useState, useMemo, ChangeEvent, FormEvent } from 'react'
 import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import { validateCoordinates } from '@/lib/utils/validation'
-import { Pagination } from '@/components/ui/Pagination'
+import { Pagination, usePagination } from '@/components/ui/Pagination'
 import { LoadingState } from '@/components/ui/LoadingState'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { SearchInput } from '@/components/ui/SearchInput'
-import { useServerPagination } from '@/lib/hooks/useServerPagination'
 import {
   Building2,
   Plus,
@@ -42,7 +41,6 @@ type ClientSelectOption = {
 const DEFAULT_BATIMENT_STATE: BassinState = 'non_evalue'
 
 export default function AdminBatimentsPage() {
-  const pagination = useServerPagination(20)
 
   const [batiments, setBatiments] = useState<BatimentRow[]>([])
   const [clients, setClients] = useState<ClientSelectOption[]>([])
@@ -72,8 +70,8 @@ export default function AdminBatimentsPage() {
     setErrorMsg(null)
 
     try {
-      // Pagination côté serveur pour les bâtiments
-      let query = supabaseBrowser
+      // Charger TOUS les bâtiments (pas de pagination côté serveur)
+      const { data: batimentsData, error: batimentsError } = await supabaseBrowser
         .from('batiments')
         .select(
           `
@@ -85,32 +83,9 @@ export default function AdminBatimentsPage() {
           client_id,
           clients ( name ),
           bassins ( count )
-        `,
-          { count: 'exact' }
+        `
         )
-
-      // Recherche côté serveur (nom OU adresse)
-      if (search.trim()) {
-        query = query.or(`name.ilike.%${search.trim()}%,address.ilike.%${search.trim()}%`)
-      }
-
-      // Filtre par client
-      if (clientFilter !== 'all') {
-        query = query.eq('client_id', clientFilter)
-      }
-
-      // Filtre par ville
-      if (cityFilter !== 'all') {
-        query = query.eq('city', cityFilter)
-      }
-
-      // Tri côté serveur
-      query = query.order('name', { ascending: true })
-
-      // Pagination avec .range()
-      query = query.range(pagination.startOffset, pagination.endOffset)
-
-      const { data: batimentsData, error: batimentsError, count } = await query
+        .order('name', { ascending: true })
 
       if (batimentsError) {
         if (process.env.NODE_ENV === 'development') {
@@ -133,23 +108,20 @@ export default function AdminBatimentsPage() {
       }))
 
       setBatiments(formattedBatiments)
-      pagination.setTotalCount(count || 0)
 
-      // Clients pour sélecteurs (chargés une seule fois, pas de pagination)
-      if (clients.length === 0) {
-        const { data: clientsData, error: clientsError } = await supabaseBrowser
-          .from('clients')
-          .select('id, name')
-          .order('name', { ascending: true })
+      // Clients pour sélecteurs
+      const { data: clientsData, error: clientsError } = await supabaseBrowser
+        .from('clients')
+        .select('id, name')
+        .order('name', { ascending: true })
 
-        if (!clientsError && clientsData) {
-          setClients(
-            clientsData.map((c: any) => ({
-              id: c.id as string,
-              name: (c.name as string) ?? '(Sans nom)',
-            }))
-          )
-        }
+      if (!clientsError && clientsData) {
+        setClients(
+          clientsData.map((c: any) => ({
+            id: c.id as string,
+            name: (c.name as string) ?? '(Sans nom)',
+          }))
+        )
       }
 
       setLoading(false)
@@ -164,22 +136,63 @@ export default function AdminBatimentsPage() {
 
   useEffect(() => {
     void loadData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.currentPage, search, clientFilter, cityFilter])
+  }, [])
+
+  // Filtrage côté client
+  const filteredBatiments = useMemo(() => {
+    let result = [...batiments]
+
+    // Filtre par recherche (nom, adresse, ville, client)
+    const q = search.trim().toLowerCase()
+    if (q) {
+      result = result.filter((b) => {
+        const hay = [
+          b.name ?? '',
+          b.address ?? '',
+          b.city ?? '',
+          b.client_name ?? '',
+        ].join(' ').toLowerCase()
+        return hay.includes(q)
+      })
+    }
+
+    // Filtre par client
+    if (clientFilter !== 'all') {
+      result = result.filter((b) => b.client_id === clientFilter)
+    }
+
+    // Filtre par ville
+    if (cityFilter !== 'all') {
+      result = result.filter((b) => b.city === cityFilter)
+    }
+
+    return result
+  }, [batiments, search, clientFilter, cityFilter])
+
+  // Pagination côté client
+  const {
+    currentPage,
+    totalPages,
+    currentItems,
+    setCurrentPage,
+    startIndex,
+    endIndex,
+    totalItems,
+  } = usePagination(filteredBatiments, 20)
 
   const handleSearchChange = (value: string) => {
     setSearch(value)
-    pagination.resetPage()
+    setCurrentPage(1)
   }
 
   const handleClientFilterChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setClientFilter(e.target.value)
-    pagination.resetPage()
+    setCurrentPage(1)
   }
 
   const handleCityFilterChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setCityFilter(e.target.value)
-    pagination.resetPage()
+    setCurrentPage(1)
   }
 
   const clientOptions = Array.from(
@@ -200,7 +213,7 @@ export default function AdminBatimentsPage() {
   ).sort((a, b) => a.localeCompare(b, 'fr-CA'))
 
   // Statistiques
-  const totalBatiments = pagination.totalCount
+  const totalBatiments = batiments.length
   const totalBassins = batiments.reduce((sum, b) => sum + b.nb_bassins, 0)
   const totalClients = new Set(batiments.map((b) => b.client_id).filter(Boolean)).size
   const totalVilles = cityOptions.length
@@ -428,7 +441,7 @@ export default function AdminBatimentsPage() {
                     Liste des bâtiments
                   </h2>
                   <p className="text-xs text-slate-500">
-                    {pagination.totalCount} bâtiment{pagination.totalCount > 1 ? 's' : ''} trouvé{pagination.totalCount > 1 ? 's' : ''}
+                    {filteredBatiments.length} bâtiment{filteredBatiments.length > 1 ? 's' : ''} trouvé{filteredBatiments.length > 1 ? 's' : ''}
                   </p>
                 </div>
               </div>
@@ -436,7 +449,7 @@ export default function AdminBatimentsPage() {
           </div>
 
           <div className="p-5">
-            {pagination.totalCount === 0 ? (
+            {filteredBatiments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 mb-4">
                   <Building2 className="h-8 w-8 text-slate-400" />
@@ -464,7 +477,7 @@ export default function AdminBatimentsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {batiments.map((b) => (
+                    {currentItems.map((b) => (
                     <tr
                       key={b.id}
                       className="group hover:bg-slate-50 transition-colors cursor-pointer"
@@ -533,16 +546,18 @@ export default function AdminBatimentsPage() {
             )}
 
             {/* Pagination info */}
-            {pagination.totalCount > 0 && (
+            {filteredBatiments.length > 0 && (
               <div className="mt-4 text-sm text-ct-gray text-center">
-                Affichage de {pagination.startIndex} à {pagination.endIndex} sur {pagination.totalCount} bâtiment{pagination.totalCount > 1 ? 's' : ''}
+                Affichage de {startIndex} à {endIndex} sur {totalItems} bâtiment{totalItems > 1 ? 's' : ''}
               </div>
             )}
 
             {/* Pagination controls */}
-            {pagination.hasMultiplePages && (
-              <Pagination {...pagination.paginationProps} />
-            )}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
           </div>
         </div>
       </section>
