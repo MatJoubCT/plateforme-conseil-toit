@@ -145,6 +145,11 @@ type CompositionLineRow = {
     prix_cad: number
     actif: boolean
     categorie_id: string | null
+    manufacturier_entreprise_id: string | null
+    manufacturier?: {
+      id: string
+      nom: string
+    } | null
   } | null
 }
 
@@ -554,7 +559,12 @@ export default function ClientBassinDetailPage() {
               nom,
               prix_cad,
               actif,
-              categorie_id
+              categorie_id,
+              manufacturier_entreprise_id,
+              manufacturier:entreprises!manufacturier_entreprise_id (
+                id,
+                nom
+              )
             )
           `
           )
@@ -2287,18 +2297,26 @@ export default function ClientBassinDetailPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 bg-white">
-                      {compositionLines.map((row) => (
-                        <tr key={row.id} className="hover:bg-slate-50/50">
-                          <td className="px-3 py-2 align-middle">
-                            <div className="font-semibold text-slate-800">
-                              {row.materiau?.nom || 'Matériau'}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 align-middle text-slate-600">
-                            {getCategorieMateriauLabel(row.materiau?.categorie_id || null)}
-                          </td>
-                        </tr>
-                      ))}
+                      {compositionLines.map((row) => {
+                        const materiauNom = row.materiau?.nom || 'Matériau'
+                        const manufacturierNom = row.materiau?.manufacturier?.nom
+                        const displayNom = manufacturierNom
+                          ? `${materiauNom} de ${manufacturierNom}`
+                          : materiauNom
+
+                        return (
+                          <tr key={row.id} className="hover:bg-slate-50/50">
+                            <td className="px-3 py-2 align-middle">
+                              <div className="font-semibold text-slate-800">
+                                {displayNom}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 align-middle text-slate-600">
+                              {getCategorieMateriauLabel(row.materiau?.categorie_id || null)}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
