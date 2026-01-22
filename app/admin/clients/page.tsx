@@ -1,17 +1,20 @@
 'use client'
 
-import { useEffect, useState, ChangeEvent, FormEvent } from 'react'
+import { useEffect, useState, FormEvent, ChangeEvent } from 'react'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import {
   Users,
   Plus,
-  Search,
   SlidersHorizontal,
   Building2,
-  X,
   AlertTriangle,
+  X,
 } from 'lucide-react'
 import { Pagination } from '@/components/ui/Pagination'
+import { LoadingState } from '@/components/ui/LoadingState'
+import { ErrorState } from '@/components/ui/ErrorState'
+import { SearchInput } from '@/components/ui/SearchInput'
+import { useServerPagination } from '@/lib/hooks/useServerPagination'
 
 type ClientRow = {
   id: string
@@ -21,20 +24,15 @@ type ClientRow = {
 
 type SortDir = 'asc' | 'desc'
 
-const ITEMS_PER_PAGE = 20
-
 export default function AdminClientsPage() {
+  const pagination = useServerPagination(20)
+
   const [clients, setClients] = useState<ClientRow[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const [search, setSearch] = useState('')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
-
-  // Pagination côté serveur
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalCount, setTotalCount] = useState(0)
-  const [totalPages, setTotalPages] = useState(0)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [createName, setCreateName] = useState('')
@@ -60,9 +58,7 @@ export default function AdminClientsPage() {
       query = query.order('name', { ascending: sortDir === 'asc' })
 
       // Pagination avec .range()
-      const start = (currentPage - 1) * ITEMS_PER_PAGE
-      const end = start + ITEMS_PER_PAGE - 1
-      query = query.range(start, end)
+      query = query.range(pagination.startOffset, pagination.endOffset)
 
       const { data: clientsData, error: clientsError, count } = await query
 
@@ -82,8 +78,7 @@ export default function AdminClientsPage() {
       }))
 
       setClients(formattedClients)
-      setTotalCount(count || 0)
-      setTotalPages(Math.ceil((count || 0) / ITEMS_PER_PAGE))
+      pagination.setTotalCount(count || 0)
       setLoading(false)
     } catch (err: any) {
       if (process.env.NODE_ENV === 'development') {
@@ -97,16 +92,16 @@ export default function AdminClientsPage() {
   useEffect(() => {
     void fetchClients()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, search, sortDir])
+  }, [pagination.currentPage, search, sortDir])
 
-  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setSearch(e.target.value)
-    setCurrentPage(1) // Reset à la page 1 lors d'une recherche
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    pagination.resetPage()
   }
 
   const handleSortDirChange = (e: ChangeEvent<HTMLSelectElement>) => {
     setSortDir(e.target.value as SortDir)
-    setCurrentPage(1) // Reset à la page 1 lors d'un changement de tri
+    pagination.resetPage()
   }
 
   const openCreateModal = () => {
@@ -158,39 +153,15 @@ export default function AdminClientsPage() {
     }
   }
 
-  // Calculs pour l'affichage
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE + 1
-  const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, totalCount)
-
   // Stats de la page actuelle (pour affichage)
   const totalBatiments = clients.reduce((sum, c) => sum + c.nb_batiments, 0)
 
   if (loading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
-          </div>
-          <p className="text-sm font-medium text-slate-600">
-            Chargement des clients…
-          </p>
-        </div>
-      </div>
-    )
+    return <LoadingState message="Chargement des clients…" />
   }
 
   if (errorMsg) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-8 py-6 text-center shadow-sm">
-          <AlertTriangle className="mx-auto h-10 w-10 text-red-500 mb-3" />
-          <p className="text-sm font-medium text-red-700">
-            Erreur : {errorMsg}
-          </p>
-        </div>
-      </div>
-    )
+    return <ErrorState message={errorMsg} />
   }
 
   return (
@@ -226,7 +197,7 @@ export default function AdminClientsPage() {
                   <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
                     <Users className="h-4 w-4 text-white/70" />
                     <span className="text-sm text-white/90">
-                      {totalCount} client{totalCount > 1 ? 's' : ''}
+                      {pagination.totalCount} client{pagination.totalCount > 1 ? 's' : ''}
                     </span>
                   </div>
                   {totalBatiments > 0 && (
@@ -278,26 +249,12 @@ export default function AdminClientsPage() {
                 <label className="block text-sm font-semibold text-slate-700">
                   Recherche
                 </label>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={handleSearchChange}
-                    placeholder="Nom du client..."
-                    className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pr-10 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-                    style={{ paddingLeft: '3rem' }}
-                  />
-                  {search && (
-                    <button
-                      type="button"
-                      onClick={() => setSearch('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
+                <SearchInput
+                  value={search}
+                  onChange={handleSearchChange}
+                  placeholder="Nom du client..."
+                  className="w-full"
+                />
               </div>
 
               {/* Ordre */}
@@ -330,16 +287,16 @@ export default function AdminClientsPage() {
                   Liste des clients
                 </h2>
                 <p className="text-xs text-slate-500">
-                  {totalCount} client
-                  {totalCount > 1 ? 's' : ''} trouvé
-                  {totalCount > 1 ? 's' : ''}.
+                  {pagination.totalCount} client
+                  {pagination.totalCount > 1 ? 's' : ''} trouvé
+                  {pagination.totalCount > 1 ? 's' : ''}.
                 </p>
               </div>
             </div>
           </div>
 
           <div className="p-5">
-            {totalCount === 0 ? (
+            {pagination.totalCount === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 mb-4">
                   <Users className="h-8 w-8 text-slate-400" />
@@ -406,19 +363,15 @@ export default function AdminClientsPage() {
             )}
 
             {/* Pagination info */}
-            {totalCount > 0 && (
+            {pagination.totalCount > 0 && (
               <div className="mt-4 text-sm text-ct-gray text-center">
-                Affichage de {startIndex} à {endIndex} sur {totalCount} client{totalCount > 1 ? 's' : ''}
+                Affichage de {pagination.startIndex} à {pagination.endIndex} sur {pagination.totalCount} client{pagination.totalCount > 1 ? 's' : ''}
               </div>
             )}
 
             {/* Pagination controls */}
-            {totalPages > 1 && (
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-              />
+            {pagination.hasMultiplePages && (
+              <Pagination {...pagination.paginationProps} />
             )}
           </div>
         </div>
