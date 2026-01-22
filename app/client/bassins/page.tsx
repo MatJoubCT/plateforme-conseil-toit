@@ -416,9 +416,9 @@ export default function ClientBassinsPage() {
   }
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4 sm:space-y-6">
       {/* ========== HEADER ========== */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+      <div className="relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-4 sm:p-6 shadow-xl">
         {/* Décoration background */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
@@ -429,43 +429,43 @@ export default function ClientBassinsPage() {
           {/* Titre + actions */}
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex-1">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
-                  <Layers className="h-6 w-6 text-white" />
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-lg sm:rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
+                  <Layers className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-white">
+                  <h1 className="text-lg sm:text-2xl font-bold text-white">
                     Bassins de toiture
                   </h1>
-                  <p className="mt-0.5 text-sm text-white/70">
+                  <p className="mt-0.5 text-xs sm:text-sm text-white/70">
                     Vue d&apos;ensemble des bassins avec surfaces, états et durées de vie
                   </p>
                 </div>
               </div>
 
               {/* Stats rapides */}
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-                  <Layers className="h-4 w-4 text-white/70" />
-                  <span className="text-sm text-white/90">
+              <div className="mt-3 sm:mt-4 grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-2.5 sm:px-3 py-1.5 backdrop-blur-sm">
+                  <Layers className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white/70" />
+                  <span className="text-xs sm:text-sm text-white/90">
                     {totalBassins} bassin{totalBassins > 1 ? 's' : ''}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-                  <Building2 className="h-4 w-4 text-white/70" />
-                  <span className="text-sm text-white/90">
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-2.5 sm:px-3 py-1.5 backdrop-blur-sm">
+                  <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white/70" />
+                  <span className="text-xs sm:text-sm text-white/90">
                     {totalBatiments} bâtiment{totalBatiments > 1 ? 's' : ''}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-                  <Users className="h-4 w-4 text-white/70" />
-                  <span className="text-sm text-white/90">
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-2.5 sm:px-3 py-1.5 backdrop-blur-sm">
+                  <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white/70" />
+                  <span className="text-xs sm:text-sm text-white/90">
                     {totalClients} client{totalClients > 1 ? 's' : ''}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-                  <Ruler className="h-4 w-4 text-white/70" />
-                  <span className="text-sm text-white/90">
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-2.5 sm:px-3 py-1.5 backdrop-blur-sm">
+                  <Ruler className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white/70" />
+                  <span className="text-xs sm:text-sm text-white/90">
                     {totalSurfaceFt2.toLocaleString('fr-CA')} pi² total
                   </span>
                 </div>
@@ -476,36 +476,36 @@ export default function ClientBassinsPage() {
       </div>
 
       {/* ========== FILTRES ========== */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
-              <SlidersHorizontal className="h-5 w-5 text-[#1F4E79]" />
+      <div className="overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 sm:px-5 py-3 sm:py-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
+              <SlidersHorizontal className="h-4 w-4 sm:h-5 sm:w-5 text-[#1F4E79]" />
             </div>
             <div>
-              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+              <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wide text-slate-700">
                 Recherche
               </h2>
-              <p className="text-xs text-slate-500">Filtrez par bassin, bâtiment, client ou adresse</p>
+              <p className="text-xs text-slate-500 hidden sm:block">Filtrez par bassin, bâtiment, client ou adresse</p>
             </div>
           </div>
         </div>
 
-        <div className="p-5">
-          <div className="max-w-md">
+        <div className="p-4 sm:p-5">
+          <div className="w-full sm:max-w-md">
             <div className="space-y-1.5">
               <label className="block text-sm font-semibold text-slate-700">
                 Recherche
               </label>
               <div className="relative">
-                <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <Search className="absolute left-3 sm:left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
                   value={search}
                   onChange={handleSearchChange}
                   placeholder="Bassin, bâtiment, adresse…"
                   className="w-full rounded-xl border border-slate-300 bg-white py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  style={{ paddingLeft: '2.75rem', paddingRight: search ? '2.5rem' : '1rem' }}
+                  style={{ paddingLeft: '2.5rem', paddingRight: search ? '2.5rem' : '1rem' }}
                 />
                 {search && (
                   <button
@@ -523,15 +523,15 @@ export default function ClientBassinsPage() {
       </div>
 
       {/* ========== LISTE DES BASSINS ========== */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+      <div className="overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 sm:px-5 py-3 sm:py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
-                <Layers className="h-5 w-5 text-[#1F4E79]" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
+                <Layers className="h-4 w-4 sm:h-5 sm:w-5 text-[#1F4E79]" />
               </div>
               <div>
-                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
+                <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wide text-slate-700">
                   Liste des bassins
                 </h2>
                 <p className="text-xs text-slate-500">
@@ -542,7 +542,7 @@ export default function ClientBassinsPage() {
           </div>
         </div>
 
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           {sortedBassins.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 mb-4">
@@ -552,8 +552,106 @@ export default function ClientBassinsPage() {
               <p className="mt-1 text-xs text-slate-500">Modifiez votre recherche ou contactez votre administrateur</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <>
+              {/* Version mobile : Cards */}
+              <div className="md:hidden space-y-3">
+                {currentItems.map((bassin) => {
+                  const bat = bassin.batiment_id
+                    ? batimentById.get(bassin.batiment_id)
+                    : undefined
+
+                  const surfaceFt2 =
+                    bassin.surface_m2 != null
+                      ? Math.round(bassin.surface_m2 * 10.7639)
+                      : null
+
+                  const etatLibelle = labelEtat(bassin.etat_id)
+                  const etatCouleur = couleurEtat(bassin.etat_id)
+                  const dureeLibelle = labelDuree(bassin)
+
+                  return (
+                    <div
+                      key={bassin.id}
+                      onClick={() => router.push(`/client/bassins/${bassin.id}`)}
+                      className="rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer"
+                    >
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-sm font-semibold text-white shadow-sm">
+                            {(bassin.name ?? 'B')[0].toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-slate-800 truncate">
+                              {bassin.name ?? '(Sans nom)'}
+                            </div>
+                            {bassin.reference_interne && (
+                              <p className="text-xs text-slate-500 truncate">
+                                {bassin.reference_interne}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {etatLibelle ? (
+                          <StateBadge
+                            state={mapEtatToStateBadge(etatLibelle)}
+                            color={etatCouleur ?? null}
+                            label={etatLibelle ?? null}
+                          />
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500 whitespace-nowrap">
+                            Non évalué
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Infos */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Building2 className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                          <span className="text-slate-600 truncate">{bat?.name ?? '—'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Users className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                          <span className="text-slate-600 truncate">
+                            {bat?.clients
+                              ? Array.isArray(bat.clients)
+                                ? bat.clients[0]?.name ?? '—'
+                                : bat.clients.name ?? '—'
+                              : '—'}
+                          </span>
+                        </div>
+                        {bat && (bat.address || bat.city) && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <MapPin className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                            <span className="text-slate-600 truncate">
+                              {bat.address || ''}
+                              {bat.city ? `, ${bat.city}` : ''}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer */}
+                      <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-slate-100">
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <Ruler className="h-3.5 w-3.5" />
+                          <span className={`font-semibold ${surfaceFt2 != null ? 'text-[#1F4E79]' : ''}`}>
+                            {surfaceFt2 != null ? `${surfaceFt2.toLocaleString('fr-CA')} pi²` : 'n/d'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-600 truncate">
+                          {dureeLibelle || 'Non définie'}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Version desktop : Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-200">
                     <th className="pb-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -706,12 +804,13 @@ export default function ClientBassinsPage() {
                   })}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
 
           {/* Pagination info */}
           {sortedBassins.length > 0 && (
-            <div className="mt-4 text-sm text-ct-gray text-center">
+            <div className="mt-4 text-xs sm:text-sm text-ct-gray text-center">
               Affichage de {startIndex} à {endIndex} sur {totalItems} bassin{totalItems > 1 ? 's' : ''}
             </div>
           )}
