@@ -36,6 +36,28 @@ type BassinRow = {
   duree_vie_text: string | null
 }
 
+type GarantieRow = {
+  id: string
+  bassin_id: string | null
+  type_garantie_id: string | null
+  date_fin: string | null
+  fournisseur: string | null
+  bassins: {
+    id: string
+    name: string | null
+    batiment_id: string | null
+    batiments: {
+      id: string
+      name: string | null
+      client_id: string | null
+      clients: {
+        id: string
+        name: string | null
+      } | null
+    } | null
+  } | null
+}
+
 type ListeChoix = {
   id: string
   categorie: string
@@ -76,9 +98,11 @@ export default function ClientDashboardPage() {
   const [clients, setClients] = useState<ClientRow[]>([])
   const [batiments, setBatiments] = useState<BatimentRow[]>([])
   const [bassins, setBassins] = useState<BassinRow[]>([])
+  const [garanties, setGaranties] = useState<GarantieRow[]>([])
   const [listes, setListes] = useState<ListeChoix[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'prioritaires' | 'garanties'>('prioritaires')
 
   useEffect(() => {
     const fetchData = async () => {
@@ -139,7 +163,7 @@ export default function ClientDashboardPage() {
       }
 
       // 3. Récupérer les données filtrées
-      const [clientsRes, batimentsRes, bassinsRes, listesRes] =
+      const [clientsRes, batimentsRes, bassinsRes, garantiesRes, listesRes] =
         await Promise.all([
           supabaseBrowser
             .from('clients')
@@ -154,6 +178,28 @@ export default function ClientDashboardPage() {
             .select(
               'id, batiment_id, name, surface_m2, etat_id, duree_vie_id, duree_vie_text'
             ),
+          supabaseBrowser
+            .from('garanties')
+            .select(`
+              id,
+              bassin_id,
+              type_garantie_id,
+              date_fin,
+              fournisseur,
+              bassins!inner(
+                id,
+                name,
+                batiment_id,
+                batiments!inner(
+                  id,
+                  name,
+                  client_id,
+                  clients(id, name)
+                )
+              )
+            `)
+            .in('bassins.batiments.client_id', clientIdsArray)
+            .order('date_fin', { ascending: true }),
           supabaseBrowser
             .from('listes_choix')
             .select('id, categorie, code, label, couleur'),
@@ -174,6 +220,11 @@ export default function ClientDashboardPage() {
         setLoading(false)
         return
       }
+      if (garantiesRes.error) {
+        setErrorMsg(garantiesRes.error.message)
+        setLoading(false)
+        return
+      }
       if (listesRes.error) {
         setErrorMsg(listesRes.error.message)
         setLoading(false)
@@ -182,6 +233,7 @@ export default function ClientDashboardPage() {
 
       const allBatiments = (batimentsRes.data || []) as BatimentRow[]
       const allBassins = (bassinsRes.data || []) as BassinRow[]
+      const allGaranties = (garantiesRes.data || []) as GarantieRow[]
 
       // Filtrer les bassins pour ne garder que ceux des bâtiments autorisés
       const batimentIds = new Set(allBatiments.map((b) => b.id))
@@ -189,9 +241,16 @@ export default function ClientDashboardPage() {
         b.batiment_id ? batimentIds.has(b.batiment_id) : false
       )
 
+      // Filtrer les garanties pour ne garder que celles des bassins autorisés
+      const bassinIds = new Set(filteredBassins.map((b) => b.id))
+      const filteredGaranties = allGaranties.filter((g) =>
+        g.bassin_id ? bassinIds.has(g.bassin_id) : false
+      )
+
       setClients((clientsRes.data || []) as ClientRow[])
       setBatiments(allBatiments)
       setBassins(filteredBassins)
+      setGaranties(filteredGaranties)
       setListes((listesRes.data || []) as ListeChoix[])
       setLoading(false)
     }
@@ -213,6 +272,14 @@ export default function ClientDashboardPage() {
         ['duree_vie_bassin', 'duree_vie_toiture', 'duree_vie'].includes(
           l.categorie
         )
+      ),
+    [listes]
+  )
+
+  const typesGarantie = useMemo(
+    () =>
+      listes.filter((l) =>
+        ['type_garantie', 'garantie'].includes(l.categorie)
       ),
     [listes]
   )
@@ -282,6 +349,11 @@ export default function ClientDashboardPage() {
       if (fromList) return fromList
     }
     return b.duree_vie_text ?? null
+  }
+
+  const typeGarantieLibelleFromId = (id: string | null) => {
+    if (!id) return null
+    return typesGarantie.find((t) => t.id === id)?.label ?? null
   }
 
   // Agrégats globaux
@@ -578,7 +650,7 @@ export default function ClientDashboardPage() {
 
       {/* ========== GRILLE PRINCIPALE ========== */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,0.55fr)]">
-        {/* Liste des bassins à risque */}
+        {/* Liste des bassins à risque / Garanties */}
         <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
           <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
             <div className="flex items-center gap-3">
@@ -587,15 +659,16 @@ export default function ClientDashboardPage() {
               </div>
               <div className="flex-1">
                 <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">
-                  Bassins prioritaires
+                  {activeTab === 'prioritaires' ? 'Bassins prioritaires' : 'Garanties des bassins'}
                 </h2>
                 <p className="text-xs text-slate-500">
-                  {bassinsRisque.length} bassin
-                  {bassinsRisque.length > 1 ? 's' : ''} nécessitant une
-                  attention
+                  {activeTab === 'prioritaires'
+                    ? `${bassinsRisque.length} bassin${bassinsRisque.length > 1 ? 's' : ''} nécessitant une attention`
+                    : `${garanties.length} garantie${garanties.length > 1 ? 's' : ''} enregistrée${garanties.length > 1 ? 's' : ''}`
+                  }
                 </p>
               </div>
-              {totalBassinsNonBon > 0 && (
+              {activeTab === 'prioritaires' && totalBassinsNonBon > 0 && (
                 <div className="hidden sm:flex items-center gap-2 rounded-full bg-red-100 px-3 py-1.5">
                   <span className="text-xs font-bold text-red-700">
                     {pourcentageRisque}% à risque
@@ -605,109 +678,227 @@ export default function ClientDashboardPage() {
             </div>
           </div>
 
+          {/* Tab Navigation */}
+          <div className="border-b border-slate-200 bg-white px-5">
+            <div className="flex gap-1">
+              <button
+                onClick={() => setActiveTab('prioritaires')}
+                className={`px-4 py-3 text-sm font-semibold transition-all ${
+                  activeTab === 'prioritaires'
+                    ? 'border-b-2 border-ct-primary text-ct-primary'
+                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                Bassins prioritaires
+              </button>
+              <button
+                onClick={() => setActiveTab('garanties')}
+                className={`px-4 py-3 text-sm font-semibold transition-all ${
+                  activeTab === 'garanties'
+                    ? 'border-b-2 border-ct-primary text-ct-primary'
+                    : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                }`}
+              >
+                Garanties des bassins
+              </button>
+            </div>
+          </div>
+
           <div className="p-5">
-            {bassinsRisque.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mb-4">
-                  <CheckCircle2 className="h-8 w-8 text-green-600" />
+            {activeTab === 'prioritaires' ? (
+              // Contenu de l'onglet Bassins prioritaires
+              bassinsRisque.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mb-4">
+                    <CheckCircle2 className="h-8 w-8 text-green-600" />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-700">
+                    Excellent état général
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Aucun bassin à risque identifié pour le moment
+                  </p>
                 </div>
-                <p className="text-sm font-semibold text-slate-700">
-                  Excellent état général
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Aucun bassin à risque identifié pour le moment
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="pb-3 pl-0 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Bassin
-                      </th>
-                      <th className="pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        État
-                      </th>
-                      <th className="hidden lg:table-cell pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Bâtiment
-                      </th>
-                      <th className="hidden xl:table-cell pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Client
-                      </th>
-                      <th className="pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Durée
-                      </th>
-                      <th className="pb-3 pr-0 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Surface
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {bassinsRisque.map((b) => {
-                      const bat = b.batiment_id
-                        ? batimentById.get(b.batiment_id)
-                        : undefined
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-slate-200">
+                        <th className="pb-3 pl-0 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Bassin
+                        </th>
+                        <th className="pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          État
+                        </th>
+                        <th className="hidden lg:table-cell pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Bâtiment
+                        </th>
+                        <th className="hidden xl:table-cell pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Client
+                        </th>
+                        <th className="pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Durée
+                        </th>
+                        <th className="pb-3 pr-0 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Surface
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {bassinsRisque.map((b) => {
+                        const bat = b.batiment_id
+                          ? batimentById.get(b.batiment_id)
+                          : undefined
 
-                      const client = bat?.client_id
-                        ? clientById.get(bat.client_id)
-                        : undefined
+                        const client = bat?.client_id
+                          ? clientById.get(bat.client_id)
+                          : undefined
 
-                      const etatLib = etatLibelleFromId(b.etat_id)
-                      const etatCouleur = etatCouleurFromId(b.etat_id)
-                      const state = mapEtatToStateBadge(etatLib)
-                      const dureeLib = dureeLibelleFromBassin(b)
+                        const etatLib = etatLibelleFromId(b.etat_id)
+                        const etatCouleur = etatCouleurFromId(b.etat_id)
+                        const state = mapEtatToStateBadge(etatLib)
+                        const dureeLib = dureeLibelleFromBassin(b)
 
-                      const surfaceFt2 =
-                        b.surface_m2 != null
-                          ? Math.round(Number(b.surface_m2) * 10.7639)
-                          : null
+                        const surfaceFt2 =
+                          b.surface_m2 != null
+                            ? Math.round(Number(b.surface_m2) * 10.7639)
+                            : null
 
-                      return (
-                        <tr
-                          key={b.id}
-                          className="group cursor-pointer transition-colors hover:bg-slate-50"
-                          onClick={() => router.push(`/client/bassins/${b.id}`)}
-                        >
-                          <td className="py-3.5">
-                            <div className="flex items-center gap-2">
-                              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-xs font-semibold text-white">
-                                {(b.name ?? 'B')[0].toUpperCase()}
+                        return (
+                          <tr
+                            key={b.id}
+                            className="group cursor-pointer transition-colors hover:bg-slate-50"
+                            onClick={() => router.push(`/client/bassins/${b.id}`)}
+                          >
+                            <td className="py-3.5">
+                              <div className="flex items-center gap-2">
+                                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-xs font-semibold text-white">
+                                  {(b.name ?? 'B')[0].toUpperCase()}
+                                </div>
+                                <span className="font-semibold text-slate-800 transition-colors group-hover:text-ct-primary">
+                                  {b.name || '(Sans nom)'}
+                                </span>
                               </div>
-                              <span className="font-semibold text-slate-800 transition-colors group-hover:text-ct-primary">
-                                {b.name || '(Sans nom)'}
+                            </td>
+                            <td className="py-3.5 px-3">
+                              <StateBadge
+                                state={state}
+                                color={etatCouleur}
+                                label={etatLib}
+                              />
+                            </td>
+                            <td className="hidden lg:table-cell py-3.5 px-3 text-sm text-slate-600">
+                              {bat?.name || '—'}
+                            </td>
+                            <td className="hidden xl:table-cell py-3.5 px-3 text-sm text-slate-600">
+                              {client?.name || '—'}
+                            </td>
+                            <td className="py-3.5 px-3 text-sm text-slate-600">
+                              {dureeLib || 'Non définie'}
+                            </td>
+                            <td className="py-3.5 pr-0 text-right">
+                              <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                {surfaceFt2 != null
+                                  ? `${surfaceFt2.toLocaleString('fr-CA')} pi²`
+                                  : 'n/d'}
                               </span>
-                            </div>
-                          </td>
-                          <td className="py-3.5 px-3">
-                            <StateBadge
-                              state={state}
-                              color={etatCouleur}
-                              label={etatLib}
-                            />
-                          </td>
-                          <td className="hidden lg:table-cell py-3.5 px-3 text-sm text-slate-600">
-                            {bat?.name || '—'}
-                          </td>
-                          <td className="hidden xl:table-cell py-3.5 px-3 text-sm text-slate-600">
-                            {client?.name || '—'}
-                          </td>
-                          <td className="py-3.5 px-3 text-sm text-slate-600">
-                            {dureeLib || 'Non définie'}
-                          </td>
-                          <td className="py-3.5 pr-0 text-right">
-                            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                              {surfaceFt2 != null
-                                ? `${surfaceFt2.toLocaleString('fr-CA')} pi²`
-                                : 'n/d'}
-                            </span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : (
+              // Contenu de l'onglet Garanties
+              garanties.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 mb-4">
+                    <CheckCircle2 className="h-8 w-8 text-slate-400" />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-700">
+                    Aucune garantie enregistrée
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Il n'y a pas encore de garanties pour vos bassins
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-slate-200">
+                        <th className="pb-3 pl-0 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Bassin
+                        </th>
+                        <th className="hidden lg:table-cell pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Bâtiment
+                        </th>
+                        <th className="hidden xl:table-cell pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Client
+                        </th>
+                        <th className="pb-3 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Échéance
+                        </th>
+                        <th className="pb-3 pr-0 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Type de garantie
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {garanties.map((g) => {
+                        const bassinName = g.bassins?.name || '(Sans nom)'
+                        const batimentName = g.bassins?.batiments?.name || '—'
+                        const clientName = g.bassins?.batiments?.clients?.name || '—'
+                        const typeGarantieLabel = typeGarantieLibelleFromId(g.type_garantie_id)
+
+                        // Format date
+                        let dateFinFormatted = '—'
+                        if (g.date_fin) {
+                          const date = new Date(g.date_fin + 'T00:00:00')
+                          dateFinFormatted = date.toLocaleDateString('fr-CA', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })
+                        }
+
+                        return (
+                          <tr
+                            key={g.id}
+                            className="group cursor-pointer transition-colors hover:bg-slate-50"
+                            onClick={() => router.push(`/client/bassins/${g.bassin_id}`)}
+                          >
+                            <td className="py-3.5">
+                              <div className="flex items-center gap-2">
+                                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-xs font-semibold text-white">
+                                  {bassinName[0].toUpperCase()}
+                                </div>
+                                <span className="font-semibold text-slate-800 transition-colors group-hover:text-ct-primary">
+                                  {bassinName}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="hidden lg:table-cell py-3.5 px-3 text-sm text-slate-600">
+                              {batimentName}
+                            </td>
+                            <td className="hidden xl:table-cell py-3.5 px-3 text-sm text-slate-600">
+                              {clientName}
+                            </td>
+                            <td className="py-3.5 px-3 text-sm text-slate-600">
+                              {dateFinFormatted}
+                            </td>
+                            <td className="py-3.5 pr-0 text-sm text-slate-600">
+                              {typeGarantieLabel || 'Non défini'}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )
             )}
           </div>
         </div>
