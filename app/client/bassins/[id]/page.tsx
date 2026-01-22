@@ -26,6 +26,7 @@ import {
   Building2,
   Upload,
   Eye,
+  Download,
   StickyNote,
   Hash,
 } from 'lucide-react'
@@ -298,6 +299,12 @@ export default function ClientBassinDetailPage() {
   const [intPickEnabled, setIntPickEnabled] = useState(false)
   const [intNewFiles, setIntNewFiles] = useState<File[]>([])
   const [busyFileIds, setBusyFileIds] = useState<Record<string, boolean>>({})
+
+  // Modal images
+  const [modalImagesOpen, setModalImagesOpen] = useState(false)
+  const [selectedInterventionForImages, setSelectedInterventionForImages] =
+    useState<InterventionWithFiles | null>(null)
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (!bassinId) return
@@ -572,6 +579,56 @@ export default function ClientBassinDetailPage() {
 
     void fetchData()
   }, [bassinId])
+
+  // Charger les URLs signées des images lorsque le modal s'ouvre
+  useEffect(() => {
+    if (!modalImagesOpen || !selectedInterventionForImages) {
+      setImageUrls({})
+      return
+    }
+
+    const imageFiles = (selectedInterventionForImages.files || []).filter((f) =>
+      f.mime_type?.startsWith('image/')
+    )
+
+    if (imageFiles.length === 0) {
+      return
+    }
+
+    // Fonction pour obtenir l'URL signée d'une image
+    const getImageThumbnailUrl = async (filePath: string): Promise<string> => {
+      try {
+        const { data, error } = await supabaseBrowser.storage
+          .from('interventions')
+          .createSignedUrl(filePath, 3600) // URL valide pour 1 heure
+
+        if (error) throw error
+        return data.signedUrl
+      } catch (err) {
+        console.error('Erreur création URL signée:', err)
+        return ''
+      }
+    }
+
+    // Charger les URLs signées pour toutes les images
+    Promise.all(
+      imageFiles.map(async (file) => {
+        const url = await getImageThumbnailUrl(file.file_path)
+        return { id: file.id, url }
+      })
+    )
+      .then((results) => {
+        const urlMap = results.reduce((acc, { id, url }) => {
+          acc[id] = url
+          return acc
+        }, {} as Record<string, string>)
+        setImageUrls(urlMap)
+      })
+      .catch((err) => {
+        console.error('Erreur chargement URLs images:', err)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalImagesOpen, selectedInterventionForImages])
 
   // Listes de choix garanties / rapports
   const typesGarantie = listes.filter((l) => l.categorie === 'type_garantie')
@@ -967,6 +1024,36 @@ export default function ClientBassinDetailPage() {
     setRapports((prev) => prev.filter((r) => r.id !== rapport.id))
     setConfirmDeleteRapport(null)
     setDeletingRapport(false)
+  }
+
+  // Fonctions pour gérer les images
+  const handleOpenImagesModal = (intervention: InterventionWithFiles) => {
+    setSelectedInterventionForImages(intervention)
+    setModalImagesOpen(true)
+  }
+
+  const handleDownloadImage = async (file: InterventionFichierRow) => {
+    try {
+      const { data, error } = await supabaseBrowser.storage
+        .from('interventions')
+        .download(file.file_path)
+
+      if (error) throw error
+
+      // Créer un URL pour l'image et l'ouvrir dans un nouvel onglet
+      const url = URL.createObjectURL(data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = file.file_name || 'image.jpg'
+      link.target = '_blank'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Erreur téléchargement fichier:', err)
+      alert('Erreur lors du téléchargement du fichier.')
+    }
   }
 
   const openEditBassinModal = () => {
@@ -1700,6 +1787,27 @@ export default function ClientBassinDetailPage() {
                           </div>
 
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {(() => {
+                              const imageFiles = (it.files || []).filter((f) =>
+                                f.mime_type?.startsWith('image/')
+                              )
+                              if (imageFiles.length > 0) {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleOpenImagesModal(it)
+                                    }}
+                                    className="rounded-lg p-2 text-slate-400 hover:bg-ct-primary/10 hover:text-ct-primary"
+                                    title={`Voir les images (${imageFiles.length})`}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+                                )
+                              }
+                              return null
+                            })()}
                             <button
                               type="button"
                               onClick={(e) => {
@@ -2818,6 +2926,118 @@ export default function ClientBassinDetailPage() {
                   {deletingBassin ? 'Suppression…' : 'Confirmer la suppression'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal images */}
+      {modalImagesOpen && selectedInterventionForImages && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setModalImagesOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-4xl max-h-[90vh] overflow-auto bg-white rounded-2xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header du modal */}
+            <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    Images de l&apos;intervention
+                  </h2>
+                  <p className="text-sm text-slate-600 mt-1">
+                    {new Date(selectedInterventionForImages.date_intervention).toLocaleDateString('fr-FR', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                    {selectedInterventionForImages.commentaire && (
+                      <>
+                        {' — '}
+                        {selectedInterventionForImages.commentaire}
+                      </>
+                    )}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalImagesOpen(false)}
+                  className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Contenu du modal */}
+            <div className="p-6">
+              {(() => {
+                const imageFiles = (selectedInterventionForImages.files || []).filter((f) =>
+                  f.mime_type?.startsWith('image/')
+                )
+
+                if (imageFiles.length === 0) {
+                  return (
+                    <div className="text-center py-12">
+                      <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                      <p className="text-sm text-slate-600">
+                        Aucune image disponible pour cette intervention.
+                      </p>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {imageFiles.map((file) => {
+                      const imageUrl = imageUrls[file.id]
+
+                      return (
+                        <div
+                          key={file.id}
+                          className="group relative aspect-square overflow-hidden rounded-lg border-2 border-slate-200 hover:border-ct-primary transition-all cursor-pointer bg-slate-50"
+                          onClick={() => handleDownloadImage(file)}
+                        >
+                          {imageUrl ? (
+                            <>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={imageUrl}
+                                alt={file.file_name || 'Image'}
+                                className="h-full w-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Download className="h-8 w-8 text-white drop-shadow-lg" />
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="h-full w-full flex items-center justify-center">
+                              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
+                            </div>
+                          )}
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                            <p className="text-xs text-white truncate">
+                              {file.file_name || 'Image'}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* Footer du modal */}
+            <div className="sticky bottom-0 border-t border-slate-200 bg-slate-50 px-6 py-4">
+              <p className="text-xs text-slate-600 text-center">
+                Cliquez sur une image pour la télécharger et l&apos;ouvrir
+              </p>
             </div>
           </div>
         </div>
