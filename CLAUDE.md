@@ -12,11 +12,12 @@ This document provides comprehensive guidance for AI assistants (like Claude) wo
 6. [Code Conventions & Patterns](#code-conventions--patterns)
 7. [Component Patterns](#component-patterns)
 8. [API Development](#api-development)
-9. [Authentication & Authorization](#authentication--authorization)
-10. [Styling Guidelines](#styling-guidelines)
-11. [Common Tasks & Examples](#common-tasks--examples)
-12. [Testing & Debugging](#testing--debugging)
-13. [Important Gotchas](#important-gotchas)
+9. [Data Validation with Zod](#data-validation-with-zod)
+10. [Authentication & Authorization](#authentication--authorization)
+11. [Styling Guidelines](#styling-guidelines)
+12. [Common Tasks & Examples](#common-tasks--examples)
+13. [Testing & Debugging](#testing--debugging)
+14. [Important Gotchas](#important-gotchas)
 
 ---
 
@@ -69,6 +70,8 @@ The platform is **bilingual** (French/English) with French as the primary langua
 - **Linting**: ESLint 9 with Next.js config
 - **TypeScript Config**: Strict mode enabled
 - **Package Manager**: npm (default)
+- **Schema Validation**: Zod v4.3.5
+- **Supabase Helpers**: @supabase/auth-helpers-nextjs v0.10.0
 
 ---
 
@@ -82,6 +85,7 @@ The platform is **bilingual** (French/English) with French as the primary langua
 │   ├── admin/                    # Admin portal (protected)
 │   │   ├── page.tsx              # Admin dashboard
 │   │   ├── layout.tsx            # Admin layout with auth check
+│   │   ├── error.tsx             # Admin error boundary
 │   │   ├── clients/              # Client management
 │   │   ├── batiments/            # Building management
 │   │   ├── bassins/              # Basin management
@@ -109,17 +113,30 @@ The platform is **bilingual** (French/English) with French as the primary langua
 │   │   ├── callback/page.tsx     # OAuth callback
 │   │   └── set-password/page.tsx # Password setup
 │   │
+│   ├── login/                    # Login page
+│   │   └── page.tsx              # Login form
+│   │
+│   ├── test-supabase/            # Testing utilities
+│   │   └── page.tsx              # Supabase connection test
+│   │
 │   ├── globals.css               # Global styles + Tailwind theme
 │   ├── layout.tsx                # Root layout
 │   └── page.tsx                  # Landing page
 │
 ├── components/                   # React components
 │   ├── ui/                       # UI primitives
-│   │   ├── StateBadge.tsx        # Status badges
-│   │   ├── Card.tsx              # Card component
 │   │   ├── Button.tsx            # Button variants
+│   │   ├── Card.tsx              # Card component
+│   │   ├── ConfirmDialog.tsx     # Confirmation modal
 │   │   ├── DataTable.tsx         # Generic data table
-│   │   └── dialog.tsx            # Modal/dialog
+│   │   ├── dialog.tsx            # Modal/dialog
+│   │   ├── ErrorState.tsx        # Error display component
+│   │   ├── LoadingState.tsx      # Loading spinner component
+│   │   ├── Pagination.tsx        # Pagination controls
+│   │   ├── SearchInput.tsx       # Search input with debounce
+│   │   ├── StateBadge.tsx        # Status badges
+│   │   └── Toast.tsx             # Toast notifications
+│   ├── admin/                    # Admin-specific components
 │   ├── maps/                     # Map components
 │   │   ├── BassinMap.tsx
 │   │   └── BatimentBassinsMap.tsx
@@ -129,19 +146,34 @@ The platform is **bilingual** (French/English) with French as the primary langua
 │   ├── supabaseBrowser.ts        # Client-side Supabase
 │   ├── supabaseClient.ts         # Server-side Supabase
 │   ├── supabaseAdmin.ts          # Admin Supabase (service role)
+│   ├── auth-middleware.ts        # Authentication middleware
+│   ├── toast-context.tsx         # Toast notification context provider
+│   ├── units.ts                  # Unit conversion utilities
 │   ├── utils.ts                  # Helper functions (cn, etc.)
 │   ├── constants/                # Constants
 │   │   └── map-colors.ts         # Color/state mappings
+│   ├── hooks/                    # Custom React hooks
+│   │   ├── useServerPagination.ts # Server-side pagination hook
+│   │   └── useUsersData.ts       # User data management hook
+│   ├── schemas/                  # Zod validation schemas
+│   │   ├── bassin.schema.ts      # Basin validation
+│   │   ├── batiment.schema.ts    # Building validation
+│   │   ├── client.schema.ts      # Client validation
+│   │   ├── entreprise.schema.ts  # Company validation
+│   │   ├── liste.schema.ts       # List/dropdown validation
+│   │   ├── materiau.schema.ts    # Material validation
+│   │   └── user.schema.ts        # User validation
 │   └── utils/                    # Utility functions
 │       └── map-utils.ts          # Google Maps helpers
 │
 ├── public/                       # Static assets
+├── types/                        # TypeScript type definitions
+│   └── maps.ts                   # Google Maps type definitions
 ├── package.json                  # Dependencies
 ├── tsconfig.json                 # TypeScript config
 ├── next.config.ts                # Next.js config
 ├── eslint.config.mjs             # ESLint config
 ├── postcss.config.mjs            # PostCSS config
-├── tailwind.config.ts            # Tailwind config (if separate)
 └── .env.local                    # Environment variables (gitignored)
 ```
 
@@ -530,6 +562,108 @@ const [isOpen, setIsOpen] = useState(false);
 </Dialog>
 ```
 
+### Loading and Error States
+
+**Use dedicated components for consistent UX:**
+
+```typescript
+import LoadingState from '@/components/ui/LoadingState';
+import ErrorState from '@/components/ui/ErrorState';
+
+// In your component
+if (loading) return <LoadingState />;
+if (error) return <ErrorState message={error} />;
+```
+
+### Toast Notifications
+
+**Use the toast context for user feedback:**
+
+```typescript
+'use client';
+
+import { useToast } from '@/lib/toast-context';
+
+export default function MyComponent() {
+  const { showToast } = useToast();
+
+  const handleAction = async () => {
+    try {
+      // Perform action
+      showToast('Opération réussie!', 'success');
+    } catch (error) {
+      showToast('Une erreur est survenue', 'error');
+    }
+  };
+
+  // Toast types: 'success', 'error', 'warning', 'info'
+}
+```
+
+### Pagination Pattern
+
+**Server-side pagination with custom hook:**
+
+```typescript
+'use client';
+
+import { useServerPagination } from '@/lib/hooks/useServerPagination';
+import Pagination from '@/components/ui/Pagination';
+
+export default function MyListPage() {
+  const { data, loading, error, currentPage, totalPages, goToPage } =
+    useServerPagination('table_name', 20); // 20 items per page
+
+  return (
+    <>
+      {/* Render data */}
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={goToPage}
+      />
+    </>
+  );
+}
+```
+
+### Search Input with Debounce
+
+**Use SearchInput component for optimized search:**
+
+```typescript
+import SearchInput from '@/components/ui/SearchInput';
+
+const [searchTerm, setSearchTerm] = useState('');
+
+<SearchInput
+  value={searchTerm}
+  onChange={setSearchTerm}
+  placeholder="Rechercher..."
+  debounceMs={300} // Optional, defaults to 300ms
+/>
+```
+
+### Confirmation Dialog
+
+**Use ConfirmDialog for destructive actions:**
+
+```typescript
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+
+const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
+<ConfirmDialog
+  open={isConfirmOpen}
+  onOpenChange={setIsConfirmOpen}
+  title="Confirmer la suppression"
+  description="Êtes-vous sûr de vouloir supprimer cet élément?"
+  onConfirm={handleDelete}
+  confirmText="Supprimer"
+  cancelText="Annuler"
+/>
+```
+
 ---
 
 ## API Development
@@ -620,6 +754,103 @@ const { data: profile } = await supabase
   .select('role, is_active')
   .eq('user_id', user.id)
   .single();
+```
+
+---
+
+## Data Validation with Zod
+
+The project uses **Zod** for runtime type checking and validation of data structures. All schemas are located in `lib/schemas/`.
+
+### Available Schemas
+
+- **bassin.schema.ts** - Basin/roof pool validation
+- **batiment.schema.ts** - Building validation
+- **client.schema.ts** - Client validation
+- **entreprise.schema.ts** - Company validation
+- **liste.schema.ts** - List/dropdown validation
+- **materiau.schema.ts** - Material validation
+- **user.schema.ts** - User validation
+
+### Using Schemas
+
+**Server-side validation in API routes:**
+
+```typescript
+import { bassinSchema } from '@/lib/schemas/bassin.schema';
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+
+    // Validate with Zod
+    const validatedData = bassinSchema.parse(body);
+
+    // Use validated data
+    const { data, error } = await supabase
+      .from('bassins')
+      .insert(validatedData);
+
+    return NextResponse.json({ ok: true, data });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: error.errors },
+        { status: 400 }
+      );
+    }
+    // Handle other errors
+  }
+}
+```
+
+**Client-side validation in forms:**
+
+```typescript
+import { batimentSchema } from '@/lib/schemas/batiment.schema';
+
+const handleSubmit = async (formData: FormData) => {
+  try {
+    const data = Object.fromEntries(formData);
+
+    // Validate before sending
+    const validatedData = batimentSchema.parse(data);
+
+    // Submit to API
+    const response = await fetch('/api/admin/batiments', {
+      method: 'POST',
+      body: JSON.stringify(validatedData),
+    });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      // Display validation errors to user
+      console.error('Validation errors:', error.errors);
+    }
+  }
+};
+```
+
+### Schema Definition Pattern
+
+**Example schema structure:**
+
+```typescript
+import { z } from 'zod';
+
+export const batimentSchema = z.object({
+  name: z.string().min(1, 'Le nom est requis'),
+  address: z.string().min(1, 'L\'adresse est requise'),
+  city: z.string().min(1, 'La ville est requise'),
+  postal_code: z.string().regex(/^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/, 'Code postal invalide'),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
+  client_id: z.string().uuid('ID client invalide'),
+  notes: z.string().optional().nullable(),
+});
+
+// Type inference from schema
+export type BatimentInput = z.infer<typeof batimentSchema>;
 ```
 
 ---
@@ -821,6 +1052,29 @@ const { data: etatData } = await supabase
 
 ## Common Tasks & Examples
 
+### Setting Up Toast Notifications in Layout
+
+**The toast context should be wrapped around the application in the root layout:**
+
+```typescript
+// app/layout.tsx
+import { ToastProvider } from '@/lib/toast-context';
+import Toast from '@/components/ui/Toast';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="fr">
+      <body>
+        <ToastProvider>
+          {children}
+          <Toast />
+        </ToastProvider>
+      </body>
+    </html>
+  );
+}
+```
+
 ### Adding a New Page
 
 1. **Create page file:**
@@ -934,6 +1188,78 @@ const coordinates = bassin.polygone_geojson?.coordinates[0].map(
     }}
   />
 </GoogleMap>
+```
+
+### Using Custom Hooks
+
+**Server-side pagination:**
+```typescript
+import { useServerPagination } from '@/lib/hooks/useServerPagination';
+
+// In your component
+const {
+  data,
+  loading,
+  error,
+  currentPage,
+  totalPages,
+  itemsPerPage,
+  totalItems,
+  goToPage,
+  nextPage,
+  previousPage,
+  refresh
+} = useServerPagination('bassins', 20, {
+  orderBy: { column: 'created_at', ascending: false },
+  filters: { client_id: 'xxx' }
+});
+```
+
+**User data management:**
+```typescript
+import { useUsersData } from '@/lib/hooks/useUsersData';
+
+// In admin user management page
+const {
+  users,
+  loading,
+  error,
+  refresh,
+  createUser,
+  updateUser,
+  deleteUser
+} = useUsersData();
+
+// Create a new user
+await createUser({
+  email: 'user@example.com',
+  full_name: 'John Doe',
+  role: 'client',
+  client_id: 'xxx'
+});
+```
+
+### Creating Custom Type Definitions
+
+**Add types to `/types/` directory:**
+
+```typescript
+// types/database.ts
+export interface DatabaseBatiment {
+  id: string;
+  client_id: string;
+  name: string;
+  address: string;
+  city: string;
+  postal_code: string;
+  latitude: number | null;
+  longitude: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+// Use in components
+import type { DatabaseBatiment } from '@/types/database';
 ```
 
 ---
@@ -1098,6 +1424,43 @@ const { data } = await supabase
 // Access: data.clients.name
 ```
 
+### 11. Data Validation
+
+**Always validate user input with Zod schemas:**
+
+```typescript
+// WRONG - No validation
+const body = await request.json();
+await supabase.from('bassins').insert(body);
+
+// CORRECT - Use Zod schema
+import { bassinSchema } from '@/lib/schemas/bassin.schema';
+
+const body = await request.json();
+const validatedData = bassinSchema.parse(body); // Throws if invalid
+await supabase.from('bassins').insert(validatedData);
+```
+
+**All schemas are in `lib/schemas/`** - use them for both client and server validation.
+
+### 12. Toast Context Setup
+
+**Toast notifications require provider setup:**
+
+The `ToastProvider` must be set up in the root layout (`app/layout.tsx`) for toast notifications to work throughout the application.
+
+```typescript
+// app/layout.tsx
+import { ToastProvider } from '@/lib/toast-context';
+import Toast from '@/components/ui/Toast';
+
+// Wrap children with ToastProvider
+<ToastProvider>
+  {children}
+  <Toast />
+</ToastProvider>
+```
+
 ---
 
 ## Quick Reference
@@ -1111,7 +1474,10 @@ const { data } = await supabase
 | Create API endpoint | `app/api/[path]/route.ts` |
 | Add UI component | `components/ui/[Component].tsx` |
 | Add utility function | `lib/utils.ts` or `lib/utils/[feature].ts` |
-| Define type | Inline in file or create `types.ts` |
+| Define type | `types/[feature].ts` |
+| Add Zod schema | `lib/schemas/[table].schema.ts` |
+| Add custom hook | `lib/hooks/[hookName].ts` |
+| Add constant | `lib/constants/[category].ts` |
 | Add global styles | `app/globals.css` |
 
 ### Useful Commands
@@ -1182,6 +1548,6 @@ For updates to this document, please ensure changes reflect the current state of
 
 ---
 
-**Last Updated:** 2026-01-17
+**Last Updated:** 2026-01-23
 **Project Version:** 0.1.0
 **Maintainer:** Development Team
