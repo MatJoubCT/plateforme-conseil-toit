@@ -2,8 +2,9 @@
 
 import { useEffect, useState, ChangeEvent, FormEvent } from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { useValidatedId } from '@/lib/hooks/useValidatedId'
 import { validateCoordinates } from '@/lib/utils/validation'
 import {
   Users,
@@ -48,9 +49,8 @@ type BatimentRecord = {
 }
 
 export default function AdminClientDetailPage() {
-  const params = useParams()
   const router = useRouter()
-  const clientId = (params?.id as string) ?? ''
+  const clientId = useValidatedId('/admin/clients')
 
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -428,6 +428,20 @@ export default function AdminClientDetailPage() {
   ]
     .filter(Boolean)
     .join(', ')
+
+  // Validation UUID en cours
+  if (!clientId) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">Validation…</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>

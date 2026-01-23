@@ -1,0 +1,164 @@
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+
+/**
+ * Middleware Next.js pour l'authentification côté serveur
+ * Protège les routes /admin et /client avant même le rendu
+ */
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Créer une réponse modifiable
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  // Créer un client Supabase avec gestion des cookies
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value
+        },
+        set(name: string, value: string, options: { path?: string; domain?: string; maxAge?: number; secure?: boolean; httpOnly?: boolean; sameSite?: 'lax' | 'strict' | 'none' }) {
+          request.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+        },
+        remove(name: string, options: { path?: string; domain?: string }) {
+          request.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+        },
+      },
+    }
+  )
+
+  // Vérifier la session utilisateur
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  // Routes protégées Admin
+  if (pathname.startsWith('/admin')) {
+    if (!user) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      url.searchParams.set('redirect', pathname)
+      return NextResponse.redirect(url)
+    }
+
+    // Vérifier le rôle admin
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('role, is_active')
+      .eq('user_id', user.id)
+      .single()
+
+    if (!profile || profile.role !== 'admin') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
+
+    if (!profile.is_active) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      url.searchParams.set('error', 'account_suspended')
+      return NextResponse.redirect(url)
+    }
+  }
+
+  // Routes protégées Client
+  if (pathname.startsWith('/client')) {
+    if (!user) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      url.searchParams.set('redirect', pathname)
+      return NextResponse.redirect(url)
+    }
+
+    // Vérifier le rôle client et le statut actif
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('role, is_active')
+      .eq('user_id', user.id)
+      .single()
+
+    if (!profile || profile.role !== 'client') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
+
+    if (!profile.is_active) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      url.searchParams.set('error', 'account_suspended')
+      return NextResponse.redirect(url)
+    }
+  }
+
+  // Utilisateur déjà connecté qui tente d'accéder au login
+  if (pathname === '/login' && user) {
+    // Rediriger selon le rôle
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single()
+
+    const url = request.nextUrl.clone()
+    url.pathname = profile?.role === 'admin' ? '/admin' : '/client'
+    return NextResponse.redirect(url)
+  }
+
+  return response
+}
+
+/**
+ * Configuration du matcher pour les routes à protéger
+ * Exclut les routes statiques et API
+ */
+export const config = {
+  matcher: [
+    /*
+     * Match toutes les routes sauf:
+     * - api (API routes)
+     * - _next/static (fichiers statiques)
+     * - _next/image (optimisation d'images)
+     * - favicon.ico, sitemap.xml, robots.txt (fichiers publics)
+     * - *.png, *.jpg, *.jpeg, *.gif, *.svg, *.ico (images)
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:png|jpg|jpeg|gif|svg|ico)).*)',
+  ],
+}

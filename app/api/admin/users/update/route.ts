@@ -1,14 +1,41 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireAdmin } from '@/lib/auth-middleware'
 import { updateUserSchema } from '@/lib/schemas/user.schema'
+import { checkCsrf } from '@/lib/csrf'
+import { rateLimit, RATE_LIMITS } from '@/lib/rate-limit'
+import { sanitizeError, logError, GENERIC_ERROR_MESSAGES } from '@/lib/validation'
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  let authenticatedUser: { id: string; email: string | undefined } | null = null
+
   try {
-    // Vérification d'authentification et de rôle admin
+    // 1. Vérification CSRF
+    const csrfError = checkCsrf(req)
+    if (csrfError) return csrfError
+
+    // 2. Vérification d'authentification et de rôle admin
     const { error: authError, user } = await requireAdmin(req)
     if (authError) return authError
+    authenticatedUser = user
+
+    // 3. Rate limiting
+    const rateLimitResult = await rateLimit(req, RATE_LIMITS.API_GENERAL, user!.id)
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: GENERIC_ERROR_MESSAGES.RATE_LIMIT },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': String(RATE_LIMITS.API_GENERAL.maxRequests),
+            'X-RateLimit-Remaining': String(rateLimitResult.remaining),
+            'X-RateLimit-Reset': String(rateLimitResult.resetAt),
+            'Retry-After': String(rateLimitResult.retryAfter || 60),
+          },
+        }
+      )
+    }
 
     const body = await req.json()
 
@@ -43,20 +70,41 @@ export async function POST(req: Request) {
       .single()
 
     if (upErr) {
-      return NextResponse.json({ error: `user_profiles.update() refusé : ${upErr.message}` }, { status: 400 })
+      logError('API /admin/users/update - profile update', upErr, {
+        userId: authenticatedUser?.id,
+        profileId,
+      })
+      return NextResponse.json(
+        { error: 'Impossible de mettre à jour le profil utilisateur.' },
+        { status: 400 }
+      )
     }
 
     // 2) user_clients (delete + insert)
     const { error: delUcErr } = await supabaseAdmin.from('user_clients').delete().eq('user_id', userId)
     if (delUcErr) {
-      return NextResponse.json({ error: `Suppression user_clients refusée : ${delUcErr.message}` }, { status: 400 })
+      logError('API /admin/users/update - delete user_clients', delUcErr, {
+        userId: authenticatedUser?.id,
+        targetUserId: userId,
+      })
+      return NextResponse.json(
+        { error: 'Erreur lors de la mise à jour des accès clients.' },
+        { status: 400 }
+      )
     }
 
     if (uniqClients.length > 0) {
       const rows = uniqClients.map((client_id: string) => ({ user_id: userId, client_id }))
       const { error: insUcErr } = await supabaseAdmin.from('user_clients').insert(rows)
       if (insUcErr) {
-        return NextResponse.json({ error: `Insertion user_clients refusée : ${insUcErr.message}` }, { status: 400 })
+        logError('API /admin/users/update - insert user_clients', insUcErr, {
+          userId: authenticatedUser?.id,
+          targetUserId: userId,
+        })
+        return NextResponse.json(
+          { error: 'Erreur lors de la mise à jour des accès clients.' },
+          { status: 400 }
+        )
       }
     }
 
@@ -67,9 +115,13 @@ export async function POST(req: Request) {
       .eq('user_id', userId)
 
     if (delUbaErr) {
+      logError('API /admin/users/update - delete user_batiments_access', delUbaErr, {
+        userId: authenticatedUser?.id,
+        targetUserId: userId,
+      })
       return NextResponse.json(
-        { error: `Suppression user_batiments_access refusée : ${delUbaErr.message}` },
-        { status: 400 },
+        { error: 'Erreur lors de la mise à jour des accès bâtiments.' },
+        { status: 400 }
       )
     }
 
@@ -77,15 +129,21 @@ export async function POST(req: Request) {
       const rows = uniqBatiments.map((batiment_id: string) => ({ user_id: userId, batiment_id }))
       const { error: insUbaErr } = await supabaseAdmin.from('user_batiments_access').insert(rows)
       if (insUbaErr) {
+        logError('API /admin/users/update - insert user_batiments_access', insUbaErr, {
+          userId: authenticatedUser?.id,
+          targetUserId: userId,
+        })
         return NextResponse.json(
-          { error: `Insertion user_batiments_access refusée : ${insUbaErr.message}` },
-          { status: 400 },
+          { error: 'Erreur lors de la mise à jour des accès bâtiments.' },
+          { status: 400 }
         )
       }
     }
 
     return NextResponse.json({ ok: true, profile: updatedProfile })
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Erreur serveur' }, { status: 500 })
+  } catch (e: unknown) {
+    logError('API /admin/users/update', e, { userId: authenticatedUser?.id })
+    const errorMessage = sanitizeError(e, GENERIC_ERROR_MESSAGES.SERVER_ERROR)
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

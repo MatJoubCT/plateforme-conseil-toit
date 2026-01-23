@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState, FormEvent, ChangeEvent } from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { useValidatedId } from '@/lib/hooks/useValidatedId'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import BassinMap, { InterventionMarker } from '@/components/maps/BassinMap'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -214,9 +215,8 @@ function sanitizeStorageKey(name: string) {
 }
 
 export default function ClientBassinDetailPage() {
-  const params = useParams()
   const router = useRouter()
-  const bassinId = params?.id as string
+  const bassinId = useValidatedId('/client/bassins')
 
   const [bassin, setBassin] = useState<BassinRow | null>(null)
   const [batiment, setBatiment] = useState<BatimentRow | null>(null)
@@ -1568,6 +1568,20 @@ export default function ClientBassinDetailPage() {
     : null
 
   const membraneLabel = membranesBassin.find((l) => l.id === bassin.membrane_type_id)?.label ?? null
+
+  // Validation UUID en cours
+  if (!bassinId) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">Validation…</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <section className="space-y-6">

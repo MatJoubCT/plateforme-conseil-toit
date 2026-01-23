@@ -1,8 +1,11 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireAdmin, getValidatedOrigin } from '@/lib/auth-middleware'
 import { createUserSchema } from '@/lib/schemas/user.schema'
+import { checkCsrf } from '@/lib/csrf'
+import { rateLimit, RATE_LIMITS } from '@/lib/rate-limit'
+import { sanitizeError, logError, GENERIC_ERROR_MESSAGES } from '@/lib/validation'
 
 async function findUserIdByEmail(email: string): Promise<string | null> {
   const { data, error } = await supabaseAdmin.auth.admin.listUsers()
@@ -11,11 +14,35 @@ async function findUserIdByEmail(email: string): Promise<string | null> {
   return found?.id ?? null
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  let authenticatedUser: { id: string; email: string | undefined } | null = null
+
   try {
-    // Vérification d'authentification et de rôle admin
+    // 1. Vérification CSRF
+    const csrfError = checkCsrf(req)
+    if (csrfError) return csrfError
+
+    // 2. Vérification d'authentification et de rôle admin
     const { error: authError, user } = await requireAdmin(req)
     if (authError) return authError
+    authenticatedUser = user
+
+    // 3. Rate limiting (limiter par user ID)
+    const rateLimitResult = await rateLimit(req, RATE_LIMITS.USER_CREATION, user!.id)
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: GENERIC_ERROR_MESSAGES.RATE_LIMIT },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': String(RATE_LIMITS.USER_CREATION.maxRequests),
+            'X-RateLimit-Remaining': String(rateLimitResult.remaining),
+            'X-RateLimit-Reset': String(rateLimitResult.resetAt),
+            'Retry-After': String(rateLimitResult.retryAfter || 60),
+          },
+        }
+      )
+    }
 
     const body = await req.json()
 
@@ -113,7 +140,12 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ ok: true, profile })
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Erreur serveur' }, { status: 500 })
+  } catch (e: unknown) {
+    // Log détaillé côté serveur
+    logError('API /admin/users/create', e, { userId: authenticatedUser?.id })
+
+    // Message générique pour l'utilisateur
+    const errorMessage = sanitizeError(e, GENERIC_ERROR_MESSAGES.SERVER_ERROR)
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

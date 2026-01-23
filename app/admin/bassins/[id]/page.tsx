@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState, FormEvent, ChangeEvent } from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { useValidatedId } from '@/lib/hooks/useValidatedId'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import BassinMap, { InterventionMarker } from '@/components/maps/BassinMap'
 import BassinCompositionCard from '@/components/bassins/BassinCompositionCard'
@@ -180,9 +181,8 @@ function sanitizeStorageKey(name: string) {
 }
 
 export default function AdminBassinDetailPage() {
-  const params = useParams()
   const router = useRouter()
-  const bassinId = params?.id as string
+  const bassinId = useValidatedId('/admin/bassins')
 
   const [bassin, setBassin] = useState<BassinRow | null>(null)
   const [batiment, setBatiment] = useState<BatimentRow | null>(null)
@@ -1459,6 +1459,20 @@ export default function AdminBassinDetailPage() {
     if (diffJours <= 90) return 'bg-orange-100/90 text-orange-700 border-orange-200'
     if (diffJours <= 180) return 'bg-yellow-100/90 text-yellow-700 border-yellow-200'
     return 'bg-green-100/90 text-green-700 border-green-200'
+  }
+
+  // Validation UUID en cours
+  if (!bassinId) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">Validation…</p>
+        </div>
+      </div>
+    )
   }
 
   if (loading) {

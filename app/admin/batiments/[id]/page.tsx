@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState, FormEvent, useRef, useMemo } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { useValidatedId } from '@/lib/hooks/useValidatedId'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import { validateCoordinates } from '@/lib/utils/validation'
 import { GoogleMap, Polygon, useLoadScript } from '@react-google-maps/api'
@@ -100,9 +101,8 @@ function mapEtatToStateBadge(etat: string | null): BassinState {
 }
 
 export default function AdminBatimentDetailPage() {
-  const params = useParams()
   const router = useRouter()
-  const batimentId = typeof params?.id === 'string' ? params.id : ''
+  const batimentId = useValidatedId('/admin/batiments')
 
   const [batiment, setBatiment] = useState<BatimentRow | null>(null)
   const [listes, setListes] = useState<ListeChoix[]>([])
@@ -230,14 +230,15 @@ export default function AdminBatimentDetailPage() {
     void fetchData()
   }, [batimentId])
 
+  // Validation UUID en cours
   if (!batimentId) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-8 py-6 text-center shadow-sm">
-          <AlertTriangle className="mx-auto h-10 w-10 text-red-500 mb-3" />
-          <p className="text-sm font-medium text-red-700">
-            Identifiant du bâtiment manquant dans l'URL.
-          </p>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">Validation…</p>
         </div>
       </div>
     )

@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { useValidatedId } from '@/lib/hooks/useValidatedId'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import { GoogleMap, Polygon, useLoadScript } from '@react-google-maps/api'
 import {
@@ -100,9 +101,8 @@ function mapEtatToStateBadge(etat: string | null): BassinState {
 }
 
 export default function ClientBatimentDetailPage() {
-  const params = useParams()
   const router = useRouter()
-  const batimentId = typeof params?.id === 'string' ? params.id : ''
+  const batimentId = useValidatedId('/client/batiments')
 
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -358,6 +358,20 @@ export default function ClientBatimentDetailPage() {
       b.polygone_geojson.coordinates &&
       b.polygone_geojson.coordinates[0]?.length > 0
   ).length
+
+  // Validation UUID en cours
+  if (!batimentId) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] shadow-lg animate-pulse" />
+          </div>
+          <p className="text-sm font-medium text-slate-600">Validation…</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <section className="space-y-6">

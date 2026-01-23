@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { validatePassword } from '@/lib/validation'
 
 export default function SetPasswordPage() {
   const router = useRouter()
@@ -79,12 +80,17 @@ export default function SetPasswordPage() {
     e.preventDefault()
     setError(null)
 
-    if (password.length < 8) {
-      setError('Mot de passe trop court (min 8 caractères).')
-      return
-    }
+    // Validation de correspondance
     if (password !== password2) {
       setError('Les mots de passe ne correspondent pas.')
+      return
+    }
+
+    // Validation de la politique de mot de passe renforcée
+    const passwordValidation = validatePassword(password)
+    if (!passwordValidation.success) {
+      // Afficher toutes les erreurs de validation
+      setError(passwordValidation.errors.join(' '))
       return
     }
 
@@ -151,6 +157,16 @@ export default function SetPasswordPage() {
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
           />
+          <div className="mt-2 text-xs text-ct-gray space-y-1">
+            <p className="font-medium">Le mot de passe doit contenir:</p>
+            <ul className="list-disc list-inside space-y-0.5 ml-1">
+              <li>Au moins 12 caractères</li>
+              <li>Au moins une lettre majuscule (A-Z)</li>
+              <li>Au moins une lettre minuscule (a-z)</li>
+              <li>Au moins un chiffre (0-9)</li>
+              <li>Au moins un caractère spécial (!@#$%^&*...)</li>
+            </ul>
+          </div>
         </div>
 
         <div className="space-y-1">
