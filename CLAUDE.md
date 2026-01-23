@@ -73,6 +73,15 @@ The platform is **bilingual** (French/English) with French as the primary langua
 - **Schema Validation**: Zod v4.3.5
 - **Supabase Helpers**: @supabase/auth-helpers-nextjs v0.10.0
 
+### Testing Tools
+
+- **Test Framework**: Vitest v4.0.18
+- **Component Testing**: React Testing Library v16.3.2
+- **DOM Matchers**: @testing-library/jest-dom v6.9.1
+- **User Interactions**: @testing-library/user-event v14.6.1
+- **Test Environment**: jsdom v27.4.0
+- **Coverage**: 101 tests (59 schema tests, 42 UI tests)
+
 ---
 
 ## Architecture & Codebase Structure
@@ -1266,6 +1275,62 @@ import type { DatabaseBatiment } from '@/types/database';
 
 ## Testing & Debugging
 
+### Automated Testing
+
+The project uses **Vitest** with **React Testing Library** for comprehensive test coverage.
+
+**Test Infrastructure:**
+- ✅ 59 tests for Zod schemas (data validation)
+- ✅ 42 tests for UI components
+- ✅ Total: 101 tests passing
+
+**Running tests:**
+```bash
+# Run all tests once
+npm test
+# or
+npm run test:run
+
+# Watch mode (auto-rerun on changes)
+npm run test:watch
+
+# Generate coverage report
+npm run test:coverage
+
+# Run specific test file
+npx vitest run components/ui/__tests__/Button.test.tsx
+```
+
+**Test locations:**
+- `lib/schemas/__tests__/` - Zod schema validation tests
+- `components/ui/__tests__/` - UI component tests
+
+**Writing new tests:**
+
+```typescript
+// Schema test example
+import { describe, it, expect } from 'vitest';
+import { createClientSchema } from '../client.schema';
+
+describe('Schema Validation', () => {
+  it('devrait valider des données valides', () => {
+    const result = createClientSchema.safeParse({ name: 'Test' });
+    expect(result.success).toBe(true);
+  });
+});
+
+// Component test example
+import { render, screen } from '@testing-library/react';
+import { Button } from '../Button';
+
+it('devrait afficher le texte', () => {
+  render(<Button>Click me</Button>);
+  expect(screen.getByRole('button')).toBeInTheDocument();
+});
+```
+
+**See `tests/README.md` for detailed testing documentation.**
+
 ### Development Testing
 
 **Test Supabase connection:**
@@ -1309,6 +1374,11 @@ console.error('API Error:', error);
 - Verify `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is set
 - Check if GeoJSON data is valid
 - Ensure coordinates are in [longitude, latitude] order
+
+**Tests failing:**
+- Run `npm test` to identify failing tests
+- Check `tests/README.md` for troubleshooting
+- Ensure mocks are properly configured in `tests/setup.ts`
 
 ---
 
