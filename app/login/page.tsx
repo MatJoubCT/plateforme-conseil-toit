@@ -18,46 +18,52 @@ export default function LoginPage() {
     setErrorMsg(null)
     setLoading(true)
 
-    // 1) Authentification Supabase
-    const { data: signInData, error: signInError } =
-      await supabaseBrowser.auth.signInWithPassword({
-        email,
-        password,
+    try {
+      // 1) Appeler l'API de login avec rate limiting
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
       })
 
-    if (signInError) {
+      const data = await response.json()
+
+      if (!response.ok) {
+        setLoading(false)
+        setErrorMsg(data.error || 'Erreur lors de la connexion')
+        return
+      }
+
+      // 2) Définir la session Supabase côté client
+      if (data.session) {
+        const { error: sessionError } = await supabaseBrowser.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        })
+
+        if (sessionError) {
+          setLoading(false)
+          setErrorMsg('Erreur lors de la configuration de la session')
+          return
+        }
+      }
+
       setLoading(false)
-      setErrorMsg(signInError.message)
-      return
-    }
 
-    const user = signInData.user
-    if (!user) {
+      // 3) Redirection selon le rôle
+      if (data.user.role === 'admin') {
+        router.push('/admin')
+      } else if (data.user.role === 'client') {
+        router.push('/client')
+      } else {
+        setErrorMsg(`Rôle inconnu : ${data.user.role}`)
+      }
+    } catch (error) {
       setLoading(false)
-      setErrorMsg('Authentification échouée.')
-      return
-    }
-
-    // 2) Aller chercher le profil pour connaître le rôle
-    const { data: profile, error: profileFetchError } = await supabaseBrowser
-      .from('user_profiles')
-      .select('role, client_id')
-      .eq('user_id', user.id)
-      .single()
-
-    setLoading(false)
-
-    if (profileFetchError || !profile) {
-      setErrorMsg("Impossible de trouver le profil associé à cet utilisateur.")
-      return
-    }
-
-    if (profile.role === 'admin') {
-      router.push('/admin')
-    } else if (profile.role === 'client') {
-      router.push('/client')
-    } else {
-      setErrorMsg(`Rôle inconnu : ${profile.role}`)
+      setErrorMsg('Une erreur est survenue lors de la connexion')
+      console.error('Login error:', error)
     }
   }
 
