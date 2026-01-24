@@ -107,31 +107,84 @@ export const updateBassinSchema = createBassinSchema.extend({
  */
 export const createInterventionSchema = z.object({
   bassinId: z
-    .string().min(1, 'ID bassin requis')
+    .string()
+    .min(1, 'ID bassin requis')
     .uuid('ID bassin invalide'),
 
   dateIntervention: z
-    .string().min(1, 'La date d\'intervention est obligatoire')
+    .string()
+    .min(1, 'La date d\'intervention est obligatoire')
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format de date invalide (YYYY-MM-DD)'),
 
-  typeIntervention: z
+  typeInterventionId: z
     .string()
-    .max(100, 'Type d\'intervention trop long (max 100 caractères)')
+    .uuid('Type d\'intervention invalide')
     .nullable()
     .optional(),
 
-  description: z
+  commentaire: z
     .string()
-    .max(2000, 'La description est trop longue (max 2000 caractères)')
+    .max(2000, 'Le commentaire est trop long (max 2000 caractères)')
     .nullable()
     .optional(),
 
-  cout: z
-    .number()
-    .nonnegative('Le coût ne peut pas être négatif')
-    .max(10000000, 'Le coût est trop élevé')
+  locationGeojson: z
+    .object({
+      type: z.literal('Point'),
+      coordinates: z.array(z.number()).length(2),
+    })
     .nullable()
     .optional(),
+})
+
+/**
+ * Schéma de validation pour la mise à jour d'une intervention
+ */
+export const updateInterventionSchema = createInterventionSchema.extend({
+  id: z
+    .string()
+    .min(1, 'ID intervention requis')
+    .uuid('ID intervention invalide'),
+})
+
+/**
+ * Schéma pour la suppression d'une intervention
+ */
+export const deleteInterventionSchema = z.object({
+  id: z
+    .string()
+    .min(1, 'ID intervention requis')
+    .uuid('ID intervention invalide'),
+})
+
+/**
+ * Schéma pour l'upload de fichier d'intervention
+ */
+export const uploadInterventionFileSchema = z.object({
+  interventionId: z
+    .string()
+    .min(1, 'ID intervention requis')
+    .uuid('ID intervention invalide'),
+  fileName: z
+    .string()
+    .max(255, 'Nom de fichier trop long (max 255 caractères)')
+    .nullable()
+    .optional(),
+  mimeType: z
+    .string()
+    .max(100, 'Type MIME trop long')
+    .nullable()
+    .optional(),
+})
+
+/**
+ * Schéma pour la suppression de fichier d'intervention
+ */
+export const deleteInterventionFileSchema = z.object({
+  fileId: z
+    .string()
+    .min(1, 'ID fichier requis')
+    .uuid('ID fichier invalide'),
 })
 
 /**
@@ -140,3 +193,7 @@ export const createInterventionSchema = z.object({
 export type CreateBassinInput = z.infer<typeof createBassinSchema>
 export type UpdateBassinInput = z.infer<typeof updateBassinSchema>
 export type CreateInterventionInput = z.infer<typeof createInterventionSchema>
+export type UpdateInterventionInput = z.infer<typeof updateInterventionSchema>
+export type DeleteInterventionInput = z.infer<typeof deleteInterventionSchema>
+export type UploadInterventionFileInput = z.infer<typeof uploadInterventionFileSchema>
+export type DeleteInterventionFileInput = z.infer<typeof deleteInterventionFileSchema>
