@@ -1,8 +1,19 @@
 'use client'
 
 import { useEffect, useMemo, useState, FormEvent, ChangeEvent } from 'react'
-import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { supabaseBrowser, createBrowserClient } from '@/lib/supabaseBrowser'
 import { Pagination, usePagination } from '@/components/ui/Pagination'
+
+/**
+ * Helper pour obtenir le token de session
+ */
+async function getSessionToken(): Promise<string | null> {
+  const supabase = createBrowserClient()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  return session?.access_token || null
+}
 import {
   Layers,
   Plus,
@@ -266,10 +277,27 @@ export default function AdminMateriauxPage() {
     }
 
     try {
+      const token = await getSessionToken()
+      if (!token) {
+        setErrorMsg('Session expirée. Veuillez vous reconnecter.')
+        setSavingModal(false)
+        return
+      }
+
       if (modalMode === 'create') {
-        const ins = await supabaseBrowser.from('materiaux').insert(payload)
-        if (ins.error) {
-          setErrorMsg(ins.error.message)
+        const res = await fetch('/api/admin/materiaux/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          setErrorMsg(data.error || 'Erreur lors de la création.')
           setSavingModal(false)
           return
         }
@@ -279,9 +307,20 @@ export default function AdminMateriauxPage() {
           setSavingModal(false)
           return
         }
-        const up = await supabaseBrowser.from('materiaux').update(payload).eq('id', editing.id)
-        if (up.error) {
-          setErrorMsg(up.error.message)
+
+        const res = await fetch('/api/admin/materiaux/update', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ ...payload, id: editing.id }),
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          setErrorMsg(data.error || 'Erreur lors de la modification.')
           setSavingModal(false)
           return
         }
@@ -307,16 +346,41 @@ export default function AdminMateriauxPage() {
     setDeleting(true)
     setErrorMsg(null)
 
-    const del = await supabaseBrowser.from('materiaux').delete().eq('id', confirmDeleteId)
-    if (del.error) {
-      setErrorMsg(del.error.message)
-      setDeleting(false)
-      return
-    }
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        setErrorMsg('Session expirée. Veuillez vous reconnecter.')
+        setDeleting(false)
+        return
+      }
 
-    setConfirmDeleteId(null)
-    setDeleting(false)
-    await fetchAll()
+      const res = await fetch('/api/admin/materiaux/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: confirmDeleteId }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setErrorMsg(data.error || 'Erreur lors de la suppression.')
+        setDeleting(false)
+        return
+      }
+
+      setConfirmDeleteId(null)
+      setDeleting(false)
+      await fetchAll()
+    } catch (err: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur delete materiaux', err)
+      }
+      setErrorMsg(err.message || 'Erreur inattendue.')
+      setDeleting(false)
+    }
   }
 
   return (

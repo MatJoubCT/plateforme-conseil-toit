@@ -7,7 +7,19 @@ import {
   ChangeEvent,
   FormEvent,
 } from 'react'
-import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { supabaseBrowser, createBrowserClient } from '@/lib/supabaseBrowser'
+
+/**
+ * Helper pour obtenir le token de session
+ */
+async function getSessionToken(): Promise<string | null> {
+  const supabase = createBrowserClient()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  return session?.access_token || null
+}
+
 import {
   ListChecks,
   Plus,
@@ -222,6 +234,13 @@ export default function AdminListesChoixPage() {
     setSavingModal(true)
 
     try {
+      const token = await getSessionToken()
+      if (!token) {
+        setToast({ type: 'error', message: 'Session expirée. Veuillez vous reconnecter.' })
+        setSavingModal(false)
+        return
+      }
+
       if (modalMode === 'create') {
         // prochain ordre dans cette catégorie
         const maxOrdre =
@@ -240,46 +259,58 @@ export default function AdminListesChoixPage() {
           ordre: newOrdre,
         }
 
-        const { data, error } = await supabaseBrowser
-          .from('listes_choix')
-          .insert(payload)
-          .select('id, categorie, code, label, couleur, ordre, actif')
-          .single()
+        const res = await fetch('/api/admin/listes/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        })
 
-        if (error) {
+        const data = await res.json()
+
+        if (!res.ok) {
           if (process.env.NODE_ENV === 'development') {
-            console.error('Erreur insert listes_choix', error)
+            console.error('Erreur insert listes_choix', data.error)
           }
-          setToast({ type: 'error', message: "Erreur lors de la création de l'élément : " + (error.message ?? 'Erreur inconnue') })
+          setToast({ type: 'error', message: "Erreur lors de la création de l'élément : " + (data.error ?? 'Erreur inconnue') })
+          setSavingModal(false)
           return
         }
 
-        const newItem = data as ListeChoixRow
+        const newItem = data.data as ListeChoixRow
         setAllItems((prev) => [...prev, newItem])
       } else if (modalMode === 'edit' && editingItem) {
         const payload = {
+          id: editingItem.id,
           code: formCode.trim() || null,
           label: trimmedLabel,
           couleur: trimmedColor || null,
           actif: formActif,
         }
 
-        const { data, error } = await supabaseBrowser
-          .from('listes_choix')
-          .update(payload)
-          .eq('id', editingItem.id)
-          .select('id, categorie, code, label, couleur, ordre, actif')
-          .single()
+        const res = await fetch('/api/admin/listes/update', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        })
 
-        if (error) {
+        const data = await res.json()
+
+        if (!res.ok) {
           if (process.env.NODE_ENV === 'development') {
-            console.error('Erreur update listes_choix', error)
+            console.error('Erreur update listes_choix', data.error)
           }
-          setToast({ type: 'error', message: "Erreur lors de la mise à jour de l'élément : " + (error.message ?? 'Erreur inconnue') })
+          setToast({ type: 'error', message: "Erreur lors de la mise à jour de l'élément : " + (data.error ?? 'Erreur inconnue') })
+          setSavingModal(false)
           return
         }
 
-        const updated = data as ListeChoixRow
+        const updated = data.data as ListeChoixRow
         setAllItems((prev) =>
           prev.map((i) => (i.id === updated.id ? updated : i))
         )
@@ -287,6 +318,11 @@ export default function AdminListesChoixPage() {
 
       setShowModal(false)
       setEditingItem(null)
+    } catch (err: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur inattendue listes_choix:', err)
+      }
+      setToast({ type: 'error', message: err.message || 'Erreur inattendue.' })
     } finally {
       setSavingModal(false)
     }
@@ -490,25 +526,45 @@ export default function AdminListesChoixPage() {
       const { used, message } = await checkItemUsed(itemToDelete)
       if (used) {
         setToast({ type: 'error', message: message || 'Cet élément est utilisé et ne peut pas être supprimé.' })
+        setDeletingId(null)
         return
       }
 
-      const { error } = await supabaseBrowser
-        .from('listes_choix')
-        .delete()
-        .eq('id', itemToDelete.id)
+      const token = await getSessionToken()
+      if (!token) {
+        setToast({ type: 'error', message: 'Session expirée. Veuillez vous reconnecter.' })
+        setDeletingId(null)
+        return
+      }
 
-      if (error) {
+      const res = await fetch('/api/admin/listes/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: itemToDelete.id }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur delete listes_choix', error)
+          console.error('Erreur delete listes_choix', data.error)
         }
-        setToast({ type: 'error', message: "Erreur lors de la suppression de l'élément : " + (error.message ?? 'Erreur inconnue') })
+        setToast({ type: 'error', message: "Erreur lors de la suppression de l'élément : " + (data.error ?? 'Erreur inconnue') })
+        setDeletingId(null)
         return
       }
 
       setAllItems((prev) => prev.filter((i) => i.id !== itemToDelete.id))
       setToast({ type: 'success', message: 'Élément supprimé avec succès.' })
       setItemToDelete(null)
+    } catch (err: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur inattendue delete listes_choix:', err)
+      }
+      setToast({ type: 'error', message: err.message || 'Erreur inattendue.' })
     } finally {
       setDeletingId(null)
     }

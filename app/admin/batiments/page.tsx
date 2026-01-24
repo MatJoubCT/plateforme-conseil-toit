@@ -2,7 +2,19 @@
 
 import { useEffect, useState, useMemo, ChangeEvent, FormEvent } from 'react'
 import Link from 'next/link'
-import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { supabaseBrowser, createBrowserClient } from '@/lib/supabaseBrowser'
+
+/**
+ * Helper pour obtenir le token de session
+ */
+async function getSessionToken(): Promise<string | null> {
+  const supabase = createBrowserClient()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  return session?.access_token || null
+}
+
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import { validateCoordinates } from '@/lib/utils/validation'
 import { Pagination, usePagination } from '@/components/ui/Pagination'
@@ -251,29 +263,55 @@ export default function AdminBatimentsPage() {
       return
     }
 
-    const { error: insertError } = await supabaseBrowser.from('batiments').insert({
-      name: addName.trim(),
-      client_id: addClientId,
-      address: addAddress.trim() || null,
-      city: addCity.trim() || null,
-      postal_code: addPostalCode.trim() || null,
-      latitude,
-      longitude,
-      notes: addNotes.trim() || null,
-    })
-
-    setAddSaving(false)
-
-    if (insertError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur insert batiment:', insertError)
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        setAddError('Session expirée. Veuillez vous reconnecter.')
+        setAddSaving(false)
+        return
       }
-      setAddError(insertError.message)
-      return
-    }
 
-    closeAddModal()
-    void loadData()
+      const payload = {
+        name: addName.trim(),
+        client_id: addClientId,
+        address: addAddress.trim() || null,
+        city: addCity.trim() || null,
+        postal_code: addPostalCode.trim() || null,
+        latitude,
+        longitude,
+        notes: addNotes.trim() || null,
+      }
+
+      const res = await fetch('/api/admin/batiments/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json()
+
+      setAddSaving(false)
+
+      if (!res.ok) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Erreur insert batiment:', data.error)
+        }
+        setAddError(data.error || 'Erreur lors de la création du bâtiment.')
+        return
+      }
+
+      closeAddModal()
+      void loadData()
+    } catch (err: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur inattendue insert batiment:', err)
+      }
+      setAddError(err.message || 'Erreur inattendue.')
+      setAddSaving(false)
+    }
   }
 
   if (loading) {

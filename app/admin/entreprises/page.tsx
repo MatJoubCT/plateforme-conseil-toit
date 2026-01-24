@@ -1,8 +1,19 @@
 'use client'
 
 import { useEffect, useMemo, useState, FormEvent } from 'react'
-import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { supabaseBrowser, createBrowserClient } from '@/lib/supabaseBrowser'
 import { Pagination, usePagination } from '@/components/ui/Pagination'
+
+/**
+ * Helper pour obtenir le token de session
+ */
+async function getSessionToken(): Promise<string | null> {
+  const supabase = createBrowserClient()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  return session?.access_token || null
+}
 import {
   Briefcase,
   Search,
@@ -220,29 +231,42 @@ export default function AdminEntreprisesPage() {
 
     setSaving(true)
 
-    const payload = buildPayload()
-
-    const { data, error } = await supabaseBrowser
-      .from('entreprises')
-      .insert(payload)
-      .select(
-        'id, type, nom, amcq_membre, source, site_web, telephone, adresse, ville, province, code_postal, notes, actif, created_at'
-      )
-      .single()
-
-    setSaving(false)
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur insert entreprises', error)
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        setToast({ type: 'error', message: 'Session expirée. Veuillez vous reconnecter.' })
+        setSaving(false)
+        return
       }
-      setToast({ type: 'error', message: "Erreur lors de l'ajout : " + (error.message ?? 'Erreur inconnue') })
-      return
-    }
 
-    if (data) {
+      const payload = buildPayload()
+
+      const res = await fetch('/api/admin/entreprises/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json()
+
+      setSaving(false)
+
+      if (!res.ok) {
+        setToast({ type: 'error', message: "Erreur lors de l'ajout : " + (data.error ?? 'Erreur inconnue') })
+        return
+      }
+
       await fetchEntreprises()
       setShowAddModal(false)
+    } catch (err: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur insert entreprises', err)
+      }
+      setToast({ type: 'error', message: err.message || 'Erreur inattendue.' })
+      setSaving(false)
     }
   }
 
@@ -257,26 +281,44 @@ export default function AdminEntreprisesPage() {
 
     setSaving(true)
 
-    const payload = buildPayload()
-
-    const { error } = await supabaseBrowser
-      .from('entreprises')
-      .update(payload)
-      .eq('id', editingEntreprise.id)
-
-    setSaving(false)
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur update entreprises', error)
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        setToast({ type: 'error', message: 'Session expirée. Veuillez vous reconnecter.' })
+        setSaving(false)
+        return
       }
-      setToast({ type: 'error', message: "Erreur lors de la modification : " + (error.message ?? 'Erreur inconnue') })
-      return
-    }
 
-    await fetchEntreprises()
-    setShowEditModal(false)
-    setEditingEntreprise(null)
+      const payload = { ...buildPayload(), id: editingEntreprise.id }
+
+      const res = await fetch('/api/admin/entreprises/update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json()
+
+      setSaving(false)
+
+      if (!res.ok) {
+        setToast({ type: 'error', message: "Erreur lors de la modification : " + (data.error ?? 'Erreur inconnue') })
+        return
+      }
+
+      await fetchEntreprises()
+      setShowEditModal(false)
+      setEditingEntreprise(null)
+    } catch (err: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur update entreprises', err)
+      }
+      setToast({ type: 'error', message: err.message || 'Erreur inattendue.' })
+      setSaving(false)
+    }
   }
 
   const confirmDelete = async () => {
@@ -285,25 +327,43 @@ export default function AdminEntreprisesPage() {
 
     setDeleting(true)
 
-    const { error } = await supabaseBrowser
-      .from('entreprises')
-      .delete()
-      .eq('id', deletingEntreprise.id)
-
-    setDeleting(false)
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur delete entreprises', error)
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        setToast({ type: 'error', message: 'Session expirée. Veuillez vous reconnecter.' })
+        setDeleting(false)
+        return
       }
-      setToast({ type: 'error', message: "Erreur lors de la suppression : " + (error.message ?? 'Erreur inconnue') })
-      return
-    }
 
-    await fetchEntreprises()
-    setShowDeleteModal(false)
-    setDeletingEntreprise(null)
-    setDeleteConfirmText('')
+      const res = await fetch('/api/admin/entreprises/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: deletingEntreprise.id }),
+      })
+
+      const data = await res.json()
+
+      setDeleting(false)
+
+      if (!res.ok) {
+        setToast({ type: 'error', message: "Erreur lors de la suppression : " + (data.error ?? 'Erreur inconnue') })
+        return
+      }
+
+      await fetchEntreprises()
+      setShowDeleteModal(false)
+      setDeletingEntreprise(null)
+      setDeleteConfirmText('')
+    } catch (err: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur delete entreprises', err)
+      }
+      setToast({ type: 'error', message: err.message || 'Erreur inattendue.' })
+      setDeleting(false)
+    }
   }
 
   if (loading) {

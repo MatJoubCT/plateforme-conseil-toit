@@ -148,83 +148,34 @@ export default function AdminUtilisateursPage() {
     setSuccessMsg(null)
 
     try {
-      const { error: updateError } = await supabaseBrowser
-        .from('user_profiles')
-        .update({
-          full_name: editFullName.trim() || null,
+      const token = await getSessionToken()
+      if (!token) {
+        setErrorMsg('Session expirée. Veuillez vous reconnecter.')
+        setSaving(false)
+        return
+      }
+
+      const res = await fetch('/api/admin/users/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: editingUser.user_id,
+          fullName: editFullName.trim() || null,
           role: editRole,
-        })
-        .eq('id', editingUser.id)
+          clientIds: selectedClientIds,
+          batimentIds: selectedBatimentIds,
+        }),
+      })
 
-      if (updateError) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur update profile:', updateError)
-        }
-        setErrorMsg(updateError.message)
+      const data = await res.json()
+
+      if (!res.ok) {
+        setErrorMsg(data.error || 'Erreur lors de la modification.')
         setSaving(false)
         return
-      }
-
-      const { error: deleteClientsError } = await supabaseBrowser
-        .from('user_clients')
-        .delete()
-        .eq('user_id', editingUser.user_id)
-
-      if (deleteClientsError) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur delete user_clients:', deleteClientsError)
-        }
-        setErrorMsg(deleteClientsError.message)
-        setSaving(false)
-        return
-      }
-
-      if (selectedClientIds.length > 0) {
-        const inserts = selectedClientIds.map((cid) => ({
-          user_id: editingUser.user_id,
-          client_id: cid,
-        }))
-        const { error: insertClientsError } = await supabaseBrowser.from('user_clients').insert(inserts)
-
-        if (insertClientsError) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Erreur insert user_clients:', insertClientsError)
-          }
-          setErrorMsg(insertClientsError.message)
-          setSaving(false)
-          return
-        }
-      }
-
-      const { error: deleteBatError } = await supabaseBrowser
-        .from('user_batiments_access')
-        .delete()
-        .eq('user_id', editingUser.user_id)
-
-      if (deleteBatError) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur delete user_batiments_access:', deleteBatError)
-        }
-        setErrorMsg(deleteBatError.message)
-        setSaving(false)
-        return
-      }
-
-      if (selectedBatimentIds.length > 0) {
-        const insertsBat = selectedBatimentIds.map((bid) => ({
-          user_id: editingUser.user_id,
-          batiment_id: bid,
-        }))
-        const { error: insertBatError } = await supabaseBrowser.from('user_batiments_access').insert(insertsBat)
-
-        if (insertBatError) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Erreur insert user_batiments_access:', insertBatError)
-          }
-          setErrorMsg(insertBatError.message)
-          setSaving(false)
-          return
-        }
       }
 
       setSuccessMsg('Modifications enregistrées.')
@@ -248,25 +199,41 @@ export default function AdminUtilisateursPage() {
   const executeToggleUserActive = async () => {
     if (!confirmToggle) return
 
-    const { profileId, currentState } = confirmToggle
+    const { userId, currentState } = confirmToggle
 
-    const supabase = createBrowserClient()
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        toast.error('Session expirée. Veuillez vous reconnecter.')
+        setConfirmToggle(null)
+        return
+      }
 
-    const { error } = await supabase
-      .from('user_profiles')
-      .update({ is_active: !currentState })
-      .eq('id', profileId)
+      const res = await fetch('/api/admin/users/toggle-active', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId }),
+      })
 
-    if (error) {
-      toast.error( `Erreur: ${error.message}`)
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast.error(data.error || 'Erreur lors du changement de statut.')
+        setConfirmToggle(null)
+        return
+      }
+
+      toast.success(currentState ? 'Utilisateur suspendu.' : 'Utilisateur réactivé.')
       setConfirmToggle(null)
-      return
+
+      await loadUsersData()
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur réseau.')
+      setConfirmToggle(null)
     }
-
-    toast.success( currentState ? 'Utilisateur suspendu.' : 'Utilisateur réactivé.')
-    setConfirmToggle(null)
-
-    await loadUsersData()
   }
 
   const requestResetPassword = (userId: string) => {

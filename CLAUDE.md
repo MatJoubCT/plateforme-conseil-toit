@@ -80,7 +80,7 @@ The platform is **bilingual** (French/English) with French as the primary langua
 - **DOM Matchers**: @testing-library/jest-dom v6.9.1
 - **User Interactions**: @testing-library/user-event v14.6.1
 - **Test Environment**: jsdom v27.4.0
-- **Coverage**: 101 tests (59 schema tests, 42 UI tests)
+- **Coverage**: 446 tests passing across 22 test suites (schemas, UI, API, utilities)
 
 ---
 
@@ -1158,6 +1158,241 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
    });
    ```
 
+### Using API Endpoints in Admin Pages
+
+**All admin pages use secure API endpoints for mutations (create, update, delete) instead of direct Supabase calls.** This provides:
+- ✅ CSRF protection
+- ✅ Rate limiting
+- ✅ Centralized validation with Zod schemas
+- ✅ Consistent error handling and logging
+- ✅ Authentication and role checks
+
+#### Standard Pattern for API Mutations
+
+**1. Add the session token helper:**
+```typescript
+import { createBrowserClient } from '@/lib/supabaseBrowser';
+
+async function getSessionToken(): Promise<string | null> {
+  const supabase = createBrowserClient()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  return session?.access_token || null
+}
+```
+
+**2. Create operation:**
+```typescript
+const handleCreate = async (e: FormEvent) => {
+  e.preventDefault()
+  setSaving(true)
+  setError(null)
+
+  try {
+    const token = await getSessionToken()
+    if (!token) {
+      setError('Session expirée. Veuillez vous reconnecter.')
+      setSaving(false)
+      return
+    }
+
+    const res = await fetch('/api/admin/resource/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(formData),
+    })
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      setError(data.error || 'Erreur lors de la création.')
+      setSaving(false)
+      return
+    }
+
+    // Success - refresh data and close modal
+    await fetchData()
+    setModalOpen(false)
+  } catch (err: any) {
+    setError(err.message || 'Erreur inattendue.')
+    setSaving(false)
+  }
+}
+```
+
+**3. Update operation:**
+```typescript
+const handleUpdate = async (e: FormEvent) => {
+  e.preventDefault()
+  if (!editingId) return
+
+  setSaving(true)
+  setError(null)
+
+  try {
+    const token = await getSessionToken()
+    if (!token) {
+      setError('Session expirée. Veuillez vous reconnecter.')
+      setSaving(false)
+      return
+    }
+
+    const payload = { ...formData, id: editingId }
+
+    const res = await fetch('/api/admin/resource/update', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    })
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      setError(data.error || 'Erreur lors de la modification.')
+      setSaving(false)
+      return
+    }
+
+    await fetchData()
+    setModalOpen(false)
+    setEditingId(null)
+  } catch (err: any) {
+    setError(err.message || 'Erreur inattendue.')
+    setSaving(false)
+  }
+}
+```
+
+**4. Delete operation:**
+```typescript
+const handleDelete = async () => {
+  if (!deletingId) return
+
+  setDeleting(true)
+
+  try {
+    const token = await getSessionToken()
+    if (!token) {
+      setError('Session expirée. Veuillez vous reconnecter.')
+      setDeleting(false)
+      return
+    }
+
+    const res = await fetch('/api/admin/resource/delete', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ id: deletingId }),
+    })
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      setError(data.error || 'Erreur lors de la suppression.')
+      setDeleting(false)
+      return
+    }
+
+    await fetchData()
+    setDeleteModalOpen(false)
+    setDeletingId(null)
+  } catch (err: any) {
+    setError(err.message || 'Erreur inattendue.')
+    setDeleting(false)
+  }
+}
+```
+
+#### Available Admin API Endpoints
+
+**Users:**
+- `POST /api/admin/users/create` - Create user
+- `POST /api/admin/users/update` - Update user profile & access
+- `POST /api/admin/users/reset-password` - Send password reset email
+- `POST /api/admin/users/toggle-active` - Suspend/activate user
+- `POST /api/admin/users/update-access` - Update user access rights
+
+**Clients:**
+- `POST /api/admin/clients/create` - Create client
+- `PUT /api/admin/clients/update` - Update client
+- `DELETE /api/admin/clients/delete` - Delete client
+
+**Batiments:**
+- `POST /api/admin/batiments/create` - Create building
+- `PUT /api/admin/batiments/update` - Update building
+- `DELETE /api/admin/batiments/delete` - Delete building
+
+**Bassins:**
+- `POST /api/admin/bassins/create` - Create basin
+- `PUT /api/admin/bassins/update` - Update basin
+- `DELETE /api/admin/bassins/delete` - Delete basin
+
+**Entreprises:**
+- `POST /api/admin/entreprises/create` - Create company
+- `PUT /api/admin/entreprises/update` - Update company
+- `DELETE /api/admin/entreprises/delete` - Delete company
+
+**Materiaux:**
+- `POST /api/admin/materiaux/create` - Create material
+- `PUT /api/admin/materiaux/update` - Update material
+- `DELETE /api/admin/materiaux/delete` - Delete material
+
+**Listes de Choix:**
+- `POST /api/admin/listes/create` - Create list item
+- `PUT /api/admin/listes/update` - Update list item
+- `DELETE /api/admin/listes/delete` - Delete list item
+
+#### Data Fetching vs Mutations
+
+**Important distinction:**
+- **Mutations (create, update, delete)**: Use API endpoints (as shown above)
+- **Data fetching (SELECT queries)**: Use direct Supabase client calls
+
+```typescript
+// ✅ Correct: Data fetching with direct Supabase
+const fetchData = async () => {
+  const { data, error } = await supabaseBrowser
+    .from('clients')
+    .select('*')
+    .order('name', { ascending: true })
+
+  if (error) {
+    setError(error.message)
+    return
+  }
+
+  setClients(data || [])
+}
+
+// ✅ Correct: Mutations via API endpoints
+const handleCreate = async (formData) => {
+  const token = await getSessionToken()
+  const res = await fetch('/api/admin/clients/create', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(formData),
+  })
+  // Handle response...
+}
+
+// ❌ Incorrect: Direct Supabase mutation (bypasses security)
+const handleCreate = async (formData) => {
+  await supabaseBrowser.from('clients').insert(formData)  // DON'T DO THIS
+}
+```
+
 ### Adding a New State to Basin States
 
 1. **Insert into `listes_choix` table:**
@@ -1280,9 +1515,11 @@ import type { DatabaseBatiment } from '@/types/database';
 The project uses **Vitest** with **React Testing Library** for comprehensive test coverage.
 
 **Test Infrastructure:**
-- ✅ 59 tests for Zod schemas (data validation)
-- ✅ 42 tests for UI components
-- ✅ Total: 101 tests passing
+- ✅ Zod schema validation tests
+- ✅ UI component tests
+- ✅ API endpoint tests
+- ✅ Utility function tests
+- ✅ Total: 446 tests passing across 22 test suites
 
 **Running tests:**
 ```bash
@@ -1618,6 +1855,6 @@ For updates to this document, please ensure changes reflect the current state of
 
 ---
 
-**Last Updated:** 2026-01-23
+**Last Updated:** 2026-01-24
 **Project Version:** 0.1.0
 **Maintainer:** Development Team

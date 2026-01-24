@@ -47,7 +47,7 @@ export function useValidatedId(redirectPath?: string): string | null {
         }
       }
     }
-  }, [validation.success, validation.error, params?.id, router, redirectPath])
+  }, [validation, params?.id, router, redirectPath])
 
   // Retourner l'ID validé ou null
   return validation.success ? validation.data : null

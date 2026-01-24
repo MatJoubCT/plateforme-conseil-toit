@@ -3,9 +3,20 @@
 import { useEffect, useState, ChangeEvent, FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { supabaseBrowser, createBrowserClient } from '@/lib/supabaseBrowser'
 import { useValidatedId } from '@/lib/hooks/useValidatedId'
 import { validateCoordinates } from '@/lib/utils/validation'
+
+/**
+ * Helper pour obtenir le token de session
+ */
+async function getSessionToken(): Promise<string | null> {
+  const supabase = createBrowserClient()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  return session?.access_token || null
+}
 import {
   Users,
   Building2,
@@ -200,33 +211,56 @@ export default function AdminClientDetailPage() {
     }
 
     setEditSaving(true)
+    setEditError(null)
 
-    const payload = {
-      name: editName.trim(),
-      type: editType.trim() || null,
-      address: editAddress.trim() || null,
-      city: editCity.trim() || null,
-      postal_code: editPostalCode.trim() || null,
-      contact_name: editContactName.trim() || null,
-      contact_email: editContactEmail.trim() || null,
-      contact_phone: editContactPhone.trim() || null,
-      notes: editNotes.trim() || null,
-    }
-
-    const { error } = await supabaseBrowser.from('clients').update(payload).eq('id', clientId)
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur mise à jour client:', error)
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        setEditError('Session expirée. Veuillez vous reconnecter.')
+        setEditSaving(false)
+        return
       }
-      setEditError(error.message)
-      setEditSaving(false)
-      return
-    }
 
-    setClient((prev) => (prev ? { ...prev, ...payload } : prev))
-    setEditSaving(false)
-    setEditOpen(false)
+      const payload = {
+        id: clientId,
+        name: editName.trim(),
+        type: editType.trim() || null,
+        address: editAddress.trim() || null,
+        city: editCity.trim() || null,
+        postal_code: editPostalCode.trim() || null,
+        contact_name: editContactName.trim() || null,
+        contact_email: editContactEmail.trim() || null,
+        contact_phone: editContactPhone.trim() || null,
+        notes: editNotes.trim() || null,
+      }
+
+      const res = await fetch('/api/admin/clients/update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setEditError(data.error || 'Erreur lors de la mise à jour.')
+        setEditSaving(false)
+        return
+      }
+
+      setClient((prev) => (prev ? { ...prev, ...payload } : prev))
+      setEditSaving(false)
+      setEditOpen(false)
+    } catch (err: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur mise à jour client:', err)
+      }
+      setEditError(err.message || 'Erreur inattendue.')
+      setEditSaving(false)
+    }
   }
 
   // --- Modal suppression client ---
@@ -263,46 +297,41 @@ export default function AdminClientDetailPage() {
 
     setDeleteSaving(true)
 
-    // 3) Re-vérification côté BD pour éviter tout contournement
-    const { count, error: countError } = await supabaseBrowser
-      .from('batiments')
-      .select('id', { count: 'exact', head: true })
-      .eq('client_id', clientId)
-
-    if (countError) {
-      setDeleteSaving(false)
-      setDeleteError(
-        countError.message ?? 'Erreur lors de la vérification des bâtiments.'
-      )
-      return
-    }
-
-    if ((count ?? 0) > 0) {
-      setDeleteSaving(false)
-      setDeleteError(
-        'Suppression impossible : un ou plusieurs bâtiments sont maintenant reliés à ce client. Rafraîchissez la page et réessayez.'
-      )
-      return
-    }
-
-    // 4) Suppression finale
-    const { error } = await supabaseBrowser.from('clients').delete().eq('id', clientId)
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur suppression client:', error)
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        setDeleteError('Session expirée. Veuillez vous reconnecter.')
+        setDeleteSaving(false)
+        return
       }
-      setDeleteError(
-        error.message ??
-          'Impossible de supprimer ce client. Vérifiez les bâtiments ou bassins associés.'
-      )
-      setDeleteSaving(false)
-      return
-    }
 
-    setDeleteSaving(false)
-    setDeleteOpen(false)
-    router.push('/admin/clients')
+      const res = await fetch('/api/admin/clients/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: clientId }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setDeleteError(data.error || 'Erreur lors de la suppression.')
+        setDeleteSaving(false)
+        return
+      }
+
+      setDeleteSaving(false)
+      setDeleteOpen(false)
+      router.push('/admin/clients')
+    } catch (err: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur suppression client:', err)
+      }
+      setDeleteError(err.message || 'Erreur inattendue.')
+      setDeleteSaving(false)
+    }
   }
 
   // --- Modal ajout bâtiment ---
@@ -335,39 +364,60 @@ export default function AdminClientDetailPage() {
     setAddSaving(true)
     setAddError(null)
 
-    const { latitude, longitude, error: coordError } = validateCoordinates(addLatitude, addLongitude)
+    try {
+      const { latitude, longitude, error: coordError } = validateCoordinates(addLatitude, addLongitude)
 
-    if (coordError) {
-      setAddError(coordError)
-      setAddSaving(false)
-      return
-    }
-
-    const payload = {
-      client_id: clientId,
-      name: addName.trim(),
-      address: addAddress.trim() || null,
-      city: addCity.trim() || null,
-      postal_code: addPostalCode.trim() || null,
-      latitude,
-      longitude,
-      notes: addNotes.trim() || null,
-    }
-
-    const { error } = await supabaseBrowser.from('batiments').insert([payload])
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur ajout bâtiment:', error)
+      if (coordError) {
+        setAddError(coordError)
+        setAddSaving(false)
+        return
       }
-      setAddError(error.message)
-      setAddSaving(false)
-      return
-    }
 
-    await reloadBatiments()
-    setAddSaving(false)
-    setAddOpen(false)
+      const token = await getSessionToken()
+      if (!token) {
+        setAddError('Session expirée. Veuillez vous reconnecter.')
+        setAddSaving(false)
+        return
+      }
+
+      const payload = {
+        client_id: clientId,
+        name: addName.trim(),
+        address: addAddress.trim() || null,
+        city: addCity.trim() || null,
+        postal_code: addPostalCode.trim() || null,
+        latitude,
+        longitude,
+        notes: addNotes.trim() || null,
+      }
+
+      const res = await fetch('/api/admin/batiments/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setAddError(data.error || 'Erreur lors de la création.')
+        setAddSaving(false)
+        return
+      }
+
+      await reloadBatiments()
+      setAddSaving(false)
+      setAddOpen(false)
+    } catch (err: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur ajout bâtiment:', err)
+      }
+      setAddError(err.message || 'Erreur inattendue.')
+      setAddSaving(false)
+    }
   }
 
   // --- Rendus ---

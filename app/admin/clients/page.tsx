@@ -1,7 +1,19 @@
 'use client'
 
 import { useEffect, useState, FormEvent, ChangeEvent, useMemo } from 'react'
-import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { supabaseBrowser, createBrowserClient } from '@/lib/supabaseBrowser'
+
+/**
+ * Helper pour obtenir le token de session
+ */
+async function getSessionToken(): Promise<string | null> {
+  const supabase = createBrowserClient()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  return session?.access_token || null
+}
+
 import {
   Users,
   Plus,
@@ -143,16 +155,30 @@ export default function AdminClientsPage() {
     setCreateError(null)
 
     try {
-      const { error: insertError } = await supabaseBrowser
-        .from('clients')
-        .insert([{ name: createName.trim() }])
+      const token = await getSessionToken()
+      if (!token) {
+        setCreateError('Session expirée. Veuillez vous reconnecter.')
+        setCreateSaving(false)
+        return
+      }
 
-      if (insertError) {
+      const res = await fetch('/api/admin/clients/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: createName.trim() }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur insertion client:', insertError)
+          console.error('Erreur insertion client:', data.error)
         }
         setCreateError(
-          insertError.message ?? 'Erreur lors de la création du client.'
+          data.error ?? 'Erreur lors de la création du client.'
         )
         setCreateSaving(false)
         return
