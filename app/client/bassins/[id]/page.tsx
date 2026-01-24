@@ -214,6 +214,12 @@ function sanitizeStorageKey(name: string) {
   return n.length ? n : 'fichier'
 }
 
+// Helper pour obtenir le token de session
+async function getSessionToken(): Promise<string | null> {
+  const { data: { session } } = await supabaseBrowser.auth.getSession()
+  return session?.access_token || null
+}
+
 export default function ClientBassinDetailPage() {
   const router = useRouter()
   const bassinId = useValidatedId('/client/bassins')
@@ -822,86 +828,115 @@ export default function ClientBassinDetailPage() {
 
     setSaving(true)
 
-    const payload = {
-      bassin_id: bassin.id,
-      type_garantie_id: formTypeGarantieId || null,
-      fournisseur: formFournisseur || null,
-      numero_garantie: formNumero || null,
-      date_debut: formDateDebut || null,
-      date_fin: formDateFin || null,
-      statut_id: formStatutId || null,
-      couverture: formCouverture || null,
-      commentaire: formCommentaire || null,
-      fichier_pdf_url: editingGarantie?.fichier_pdf_url || null,
-    }
-
-    let res
-    if (editingGarantie?.id) {
-      res = await supabaseBrowser
-        .from('garanties')
-        .update(payload)
-        .eq('id', editingGarantie.id)
-        .select()
-        .single()
-    } else {
-      res = await supabaseBrowser
-        .from('garanties')
-        .insert(payload)
-        .select()
-        .single()
-    }
-
-    if (res.error) {
-      setSaving(false)
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur Supabase garantie:', res.error)
-      }
-      alert(res.error.message)
-      return
-    }
-
-    // Upload PDF si fourni
-    if (pdfFile && res.data) {
-      const fileExt = pdfFile.name.split('.').pop()
-      const filePath = `garanties/${res.data.id}.${fileExt}`
-
-      const { error: uploadError } = await supabaseBrowser.storage
-        .from('garanties')
-        .upload(filePath, pdfFile, { upsert: true })
-
-      if (uploadError) {
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        alert('Session expirée. Veuillez vous reconnecter.')
         setSaving(false)
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur upload PDF garantie', uploadError)
-        }
-        alert(uploadError.message)
         return
       }
 
-      const { data: publicUrlData } = supabaseBrowser.storage
-        .from('garanties')
-        .getPublicUrl(filePath)
-
-      const publicUrl = publicUrlData?.publicUrl
-
-      if (publicUrl) {
-        await supabaseBrowser
-          .from('garanties')
-          .update({ fichier_pdf_url: publicUrl })
-          .eq('id', res.data.id)
+      const payload = {
+        bassinId: bassin.id,
+        typeGarantieId: formTypeGarantieId || null,
+        fournisseur: formFournisseur || null,
+        numeroGarantie: formNumero || null,
+        dateDebut: formDateDebut || null,
+        dateFin: formDateFin || null,
+        statutId: formStatutId || null,
+        couverture: formCouverture || null,
+        commentaire: formCommentaire || null,
+        fichierPdfUrl: editingGarantie?.fichier_pdf_url || null,
       }
+
+      let res
+      if (editingGarantie?.id) {
+        // Update
+        res = await fetch('/api/client/garanties/update', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ ...payload, id: editingGarantie.id }),
+        })
+      } else {
+        // Create
+        res = await fetch('/api/client/garanties/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        })
+      }
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        alert(data.error || 'Erreur lors de la sauvegarde de la garantie')
+        setSaving(false)
+        return
+      }
+
+      // Upload PDF si fourni
+      if (pdfFile && data.data) {
+        const fileExt = pdfFile.name.split('.').pop()
+        const filePath = `garanties/${data.data.id}.${fileExt}`
+
+        const { error: uploadError } = await supabaseBrowser.storage
+          .from('garanties')
+          .upload(filePath, pdfFile, { upsert: true })
+
+        if (uploadError) {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Erreur upload PDF garantie', uploadError)
+          }
+          alert(uploadError.message)
+          setSaving(false)
+          return
+        }
+
+        const { data: publicUrlData } = supabaseBrowser.storage
+          .from('garanties')
+          .getPublicUrl(filePath)
+
+        const publicUrl = publicUrlData?.publicUrl
+
+        if (publicUrl) {
+          // Update with PDF URL
+          await fetch('/api/client/garanties/update', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              id: data.data.id,
+              bassinId: bassin.id,
+              fichierPdfUrl: publicUrl,
+            }),
+          })
+        }
+      }
+
+      // Refresh garanties list
+      const { data: updatedGaranties } = await supabaseBrowser
+        .from('garanties')
+        .select('id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url')
+        .eq('bassin_id', bassin.id)
+        .order('date_debut', { ascending: true })
+
+      setGaranties((updatedGaranties || []) as GarantieRow[])
+
+      setSaving(false)
+      setShowModal(false)
+    } catch (error: any) {
+      console.error('Erreur:', error)
+      alert(error.message || 'Erreur inattendue')
+      setSaving(false)
     }
-
-    const { data: updatedGaranties } = await supabaseBrowser
-      .from('garanties')
-      .select('id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url')
-      .eq('bassin_id', bassin.id)
-      .order('date_debut', { ascending: true })
-
-    setGaranties((updatedGaranties || []) as GarantieRow[])
-
-    setSaving(false)
-    setShowModal(false)
   }
 
   const askDeleteGarantie = (g: GarantieRow) => setConfirmDeleteGarantie(g)
@@ -912,20 +947,39 @@ export default function ClientBassinDetailPage() {
 
     setDeletingGarantie(true)
 
-    const { error } = await supabaseBrowser.from('garanties').delete().eq('id', garantie.id)
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur suppression garantie', error)
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        alert('Session expirée. Veuillez vous reconnecter.')
+        setDeletingGarantie(false)
+        return
       }
-      alert(error.message)
-      setDeletingGarantie(false)
-      return
-    }
 
-    setGaranties((prev) => prev.filter((g) => g.id !== garantie.id))
-    setConfirmDeleteGarantie(null)
-    setDeletingGarantie(false)
+      const res = await fetch('/api/client/garanties/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: garantie.id }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        alert(data.error || 'Erreur lors de la suppression de la garantie')
+        setDeletingGarantie(false)
+        return
+      }
+
+      setGaranties((prev) => prev.filter((g) => g.id !== garantie.id))
+      setConfirmDeleteGarantie(null)
+      setDeletingGarantie(false)
+    } catch (error: any) {
+      console.error('Erreur:', error)
+      alert(error.message || 'Erreur inattendue')
+      setDeletingGarantie(false)
+    }
   }
 
   const openRapportModal = (r?: RapportRow) => {
@@ -1105,40 +1159,58 @@ export default function ClientBassinDetailPage() {
 
   const handleSubmitBassin = async (e: FormEvent) => {
     e.preventDefault()
-    if (!bassin) return
+    if (!bassin || !batiment?.id) return
 
     setSavingBassin(true)
 
-    const { data, error } = await supabaseBrowser
-      .from('bassins')
-      .update({
-        name: editName,
-        membrane_type_id: editMembraneId || null,
-        couvreur_id: editCouvreurId || null,
-        annee_installation: editAnnee ? Number(editAnnee) : null,
-        date_derniere_refection: editDateDerniere || null,
-        etat_id: editEtatId || null,
-        duree_vie_id: editDureeId || null,
-        reference_interne: editReference || null,
-        notes: editNotes || null,
-      })
-      .eq('id', bassin.id)
-      .select()
-      .single()
-
-    setSavingBassin(false)
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur Supabase update bassin', error)
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        alert('Session expirée. Veuillez vous reconnecter.')
+        setSavingBassin(false)
+        return
       }
-      alert(error.message)
-      return
-    }
 
-    if (data) {
-      setBassin(data as BassinRow)
-      setShowEditBassinModal(false)
+      const payload = {
+        id: bassin.id,
+        batimentId: batiment.id,
+        name: editName,
+        membraneTypeId: editMembraneId || null,
+        anneeInstallation: editAnnee ? Number(editAnnee) : null,
+        dateDerniereRefection: editDateDerniere || null,
+        etatId: editEtatId || null,
+        dureeVieId: editDureeId || null,
+        referenceInterne: editReference || null,
+        notes: editNotes || null,
+        surfaceM2: bassin.surface_m2,
+        polygoneGeojson: bassin.polygone_geojson,
+      }
+
+      const res = await fetch('/api/client/bassins/update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json()
+      setSavingBassin(false)
+
+      if (!res.ok) {
+        alert(data.error || 'Erreur lors de la mise à jour du bassin')
+        return
+      }
+
+      if (data.data) {
+        setBassin(data.data as BassinRow)
+        setShowEditBassinModal(false)
+      }
+    } catch (error: any) {
+      console.error('Erreur:', error)
+      alert(error.message || 'Erreur inattendue')
+      setSavingBassin(false)
     }
   }
 
@@ -1157,22 +1229,40 @@ export default function ClientBassinDetailPage() {
 
     setDeletingBassin(true)
 
-    const { error } = await supabaseBrowser.from('bassins').delete().eq('id', bassin.id)
-
-    setDeletingBassin(false)
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur Supabase delete bassin', error)
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        alert('Session expirée. Veuillez vous reconnecter.')
+        setDeletingBassin(false)
+        return
       }
-      alert("Erreur lors de la suppression du bassin : " + (error.message ?? 'Erreur inconnue'))
-      return
+
+      const res = await fetch('/api/client/bassins/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: bassin.id }),
+      })
+
+      const data = await res.json()
+      setDeletingBassin(false)
+
+      if (!res.ok) {
+        alert(data.error || 'Erreur lors de la suppression du bassin')
+        return
+      }
+
+      setShowDeleteBassinModal(false)
+
+      if (batiment?.id) router.push(`/client/batiments/${batiment.id}`)
+      else router.push('/client/carte')
+    } catch (error: any) {
+      console.error('Erreur:', error)
+      alert(error.message || 'Erreur inattendue')
+      setDeletingBassin(false)
     }
-
-    setShowDeleteBassinModal(false)
-
-    if (batiment?.id) router.push(`/client/batiments/${batiment.id}`)
-    else router.push('/client/carte')
   }
 
   // -----------------------------
@@ -1287,89 +1377,97 @@ export default function ClientBassinDetailPage() {
 
     setSavingIntervention(true)
 
-    const safeTypeId = intTypeId && intTypeId.trim() !== '' ? intTypeId : null
-
-    const payload = {
-      bassin_id: bassin.id,
-      date_intervention: intDate,
-      type_intervention_id: safeTypeId,
-      commentaire: intCommentaire && intCommentaire.trim() !== '' ? intCommentaire : null,
-      location_geojson: toGeoJSONPoint(intLocation),
-    }
-
-    let saved: InterventionRow | null = null
-    let err: any = null
-
-    if (editingIntervention?.id) {
-      const res = await supabaseBrowser
-        .from('interventions')
-        .update(payload)
-        .eq('id', editingIntervention.id)
-        .select('id, bassin_id, date_intervention, type_intervention_id, commentaire, location_geojson, created_at')
-        .single()
-
-      saved = res.data as any
-      err = res.error
-    } else {
-      const res = await supabaseBrowser
-        .from('interventions')
-        .insert(payload)
-        .select('id, bassin_id, date_intervention, type_intervention_id, commentaire, location_geojson, created_at')
-        .single()
-
-      saved = res.data as any
-      err = res.error
-    }
-
-    if (err) {
-      setSavingIntervention(false)
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur save intervention', err)
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        alert('Session expirée. Veuillez vous reconnecter.')
+        setSavingIntervention(false)
+        return
       }
-      alert('Erreur enregistrement intervention : ' + (err.message ?? 'Erreur inconnue'))
-      return
-    }
 
-    // Upload fichiers (si ajoutés)
-    if (saved && intNewFiles.length > 0) {
-      for (const f of intNewFiles) {
-        const safeName = sanitizeStorageKey(f.name || 'fichier')
-        const filePath = `${bassin.id}/${saved.id}/${crypto.randomUUID()}-${safeName}`
+      const safeTypeId = intTypeId && intTypeId.trim() !== '' ? intTypeId : null
 
-        const { error: upErr } = await supabaseBrowser.storage.from('interventions').upload(filePath, f, { upsert: false })
+      const payload = {
+        bassinId: bassin.id,
+        dateIntervention: intDate,
+        typeInterventionId: safeTypeId,
+        commentaire: intCommentaire && intCommentaire.trim() !== '' ? intCommentaire : null,
+        locationGeojson: toGeoJSONPoint(intLocation),
+      }
 
-        if (upErr) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Erreur upload fichier intervention', upErr)
-          }
-          alert('Erreur upload fichier : ' + upErr.message)
-          continue
-        }
-
-        const { error: insErr } = await supabaseBrowser.from('intervention_fichiers').insert({
-          intervention_id: saved.id,
-          file_path: filePath,
-          file_name: f.name || null,
-          mime_type: f.type || null,
+      let res
+      if (editingIntervention?.id) {
+        // Update
+        res = await fetch('/api/client/interventions/update', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ ...payload, id: editingIntervention.id }),
         })
+      } else {
+        // Create
+        res = await fetch('/api/client/interventions/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        })
+      }
 
-        if (insErr) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Erreur insert intervention_fichiers', insErr)
+      const data = await res.json()
+
+      if (!res.ok) {
+        alert(data.error || 'Erreur enregistrement intervention')
+        setSavingIntervention(false)
+        return
+      }
+
+      const saved = data.data
+
+      // Upload fichiers (si ajoutés)
+      if (saved && intNewFiles.length > 0) {
+        for (const f of intNewFiles) {
+          const formData = new FormData()
+          formData.append('interventionId', saved.id)
+          formData.append('file', f)
+
+          const uploadRes = await fetch('/api/client/interventions/upload-file', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+            body: formData,
+          })
+
+          const uploadData = await uploadRes.json()
+
+          if (!uploadRes.ok) {
+            if (process.env.NODE_ENV === 'development') {
+              console.error('Erreur upload fichier intervention', uploadData.error)
+            }
+            alert('Erreur upload fichier : ' + (uploadData.error || 'Erreur inconnue'))
+            continue
           }
-          alert('Erreur indexation fichier : ' + insErr.message)
         }
       }
+
+      setSavingIntervention(false)
+      setIntNewFiles([])
+      setIntPickEnabled(false)
+      setSelectedInterventionId(saved?.id ?? null)
+
+      await refreshInterventions()
+      setShowInterventionEditor(false)
+      setEditingIntervention(null)
+    } catch (error: any) {
+      console.error('Erreur:', error)
+      alert(error.message || 'Erreur inattendue')
+      setSavingIntervention(false)
     }
-
-    setSavingIntervention(false)
-    setIntNewFiles([])
-    setIntPickEnabled(false)
-    setSelectedInterventionId(saved?.id ?? null)
-
-    await refreshInterventions()
-    setShowInterventionEditor(false)
-    setEditingIntervention(null)
   }
 
   const askDeleteIntervention = (it: InterventionWithFiles) => setConfirmDeleteIntervention(it)
@@ -1380,55 +1478,42 @@ export default function ClientBassinDetailPage() {
 
     setDeletingIntervention(true)
 
-    // 1) supprimer fichiers storage + lignes
-    if (it.files && it.files.length > 0) {
-      const paths = it.files.map((f) => f.file_path).filter(Boolean)
-      if (paths.length > 0) {
-        const { error: rmErr } = await supabaseBrowser.storage.from('interventions').remove(paths)
-
-        if (rmErr) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Erreur suppression storage interventions', rmErr)
-          }
-          alert('Erreur suppression fichiers (storage) : ' + rmErr.message)
-          setDeletingIntervention(false)
-          return
-        }
-      }
-
-      const { error: delFilesErr } = await supabaseBrowser
-        .from('intervention_fichiers')
-        .delete()
-        .eq('intervention_id', it.id)
-
-      if (delFilesErr) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur suppression intervention_fichiers', delFilesErr)
-        }
-        alert('Erreur suppression fichiers (DB) : ' + delFilesErr.message)
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        alert('Session expirée. Veuillez vous reconnecter.')
         setDeletingIntervention(false)
         return
       }
-    }
 
-    // 2) supprimer l'intervention
-    const { error: delErr } = await supabaseBrowser.from('interventions').delete().eq('id', it.id)
+      const res = await fetch('/api/client/interventions/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: it.id }),
+      })
 
-    if (delErr) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur suppression intervention', delErr)
+      const data = await res.json()
+
+      if (!res.ok) {
+        alert(data.error || 'Erreur suppression intervention')
+        setDeletingIntervention(false)
+        return
       }
-      alert('Erreur suppression intervention : ' + delErr.message)
+
+      setInterventions((prev) => prev.filter((x) => x.id !== it.id))
+      if (selectedInterventionId === it.id) setSelectedInterventionId(null)
+      if (editingIntervention?.id === it.id) closeInterventionEditor()
+
+      setConfirmDeleteIntervention(null)
       setDeletingIntervention(false)
-      return
+    } catch (error: any) {
+      console.error('Erreur:', error)
+      alert(error.message || 'Erreur inattendue')
+      setDeletingIntervention(false)
     }
-
-    setInterventions((prev) => prev.filter((x) => x.id !== it.id))
-    if (selectedInterventionId === it.id) setSelectedInterventionId(null)
-    if (editingIntervention?.id === it.id) closeInterventionEditor()
-
-    setConfirmDeleteIntervention(null)
-    setDeletingIntervention(false)
   }
 
   const openFileSignedUrl = async (file: InterventionFichierRow) => {
@@ -1457,44 +1542,52 @@ export default function ClientBassinDetailPage() {
   const handleConfirmDeleteFile = async () => {
     if (!confirmDeleteFile) return
 
+    const fileToDelete = confirmDeleteFile
     setConfirmDeleteFile(null)
-    setBusyFileIds((p) => ({ ...p, [confirmDeleteFile.id]: true }))
+    setBusyFileIds((p) => ({ ...p, [fileToDelete.id]: true }))
 
-    const { error: rmErr } = await supabaseBrowser.storage.from('interventions').remove([confirmDeleteFile.file_path])
-
-    if (rmErr) {
-      setBusyFileIds((p) => ({ ...p, [confirmDeleteFile.id]: false }))
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur suppression storage file', rmErr)
+    try {
+      const token = await getSessionToken()
+      if (!token) {
+        alert('Session expirée. Veuillez vous reconnecter.')
+        setBusyFileIds((p) => ({ ...p, [fileToDelete.id]: false }))
+        return
       }
-      alert('Erreur suppression fichier (storage) : ' + rmErr.message)
-      return
-    }
 
-    const { error: delErr } = await supabaseBrowser.from('intervention_fichiers').delete().eq('id', confirmDeleteFile.id)
-
-    setBusyFileIds((p) => ({ ...p, [confirmDeleteFile.id]: false }))
-
-    if (delErr) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur suppression DB file', delErr)
-      }
-      alert('Erreur suppression fichier (DB) : ' + delErr.message)
-      return
-    }
-
-    setInterventions((prev) =>
-      prev.map((it) => {
-        if (it.id !== confirmDeleteFile.intervention_id) return it
-        return { ...it, files: it.files.filter((f) => f.id !== confirmDeleteFile.id) }
+      const res = await fetch('/api/client/interventions/delete-file', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ fileId: fileToDelete.id }),
       })
-    )
 
-    setEditingIntervention((cur) => {
-      if (!cur) return cur
-      if (cur.id !== confirmDeleteFile.intervention_id) return cur
-      return { ...cur, files: cur.files.filter((f) => f.id !== confirmDeleteFile.id) }
-    })
+      const data = await res.json()
+      setBusyFileIds((p) => ({ ...p, [fileToDelete.id]: false }))
+
+      if (!res.ok) {
+        alert(data.error || 'Erreur suppression fichier')
+        return
+      }
+
+      setInterventions((prev) =>
+        prev.map((it) => {
+          if (it.id !== fileToDelete.intervention_id) return it
+          return { ...it, files: it.files.filter((f) => f.id !== fileToDelete.id) }
+        })
+      )
+
+      setEditingIntervention((cur) => {
+        if (!cur) return cur
+        if (cur.id !== fileToDelete.intervention_id) return cur
+        return { ...cur, files: cur.files.filter((f) => f.id !== fileToDelete.id) }
+      })
+    } catch (error: any) {
+      console.error('Erreur:', error)
+      alert(error.message || 'Erreur inattendue')
+      setBusyFileIds((p) => ({ ...p, [fileToDelete.id]: false }))
+    }
   }
 
   // Fonctions pour le badge de garantie
