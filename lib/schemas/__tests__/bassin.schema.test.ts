@@ -181,9 +181,8 @@ describe('Bassin Schema Validation', () => {
       const validIntervention = {
         bassinId: '550e8400-e29b-41d4-a716-446655440000',
         dateIntervention: '2023-06-15',
-        typeIntervention: 'Inspection',
-        description: 'Inspection annuelle',
-        cout: 1500.50,
+        typeInterventionId: '550e8400-e29b-41d4-a716-446655440001',
+        commentaire: 'Inspection annuelle',
       };
 
       const result = createInterventionSchema.safeParse(validIntervention);
@@ -199,11 +198,10 @@ describe('Bassin Schema Validation', () => {
       expect(result.success).toBe(false);
     });
 
-    it('devrait rejeter un coût négatif', () => {
+    it('devrait rejeter un bassinId invalide', () => {
       const invalidIntervention = {
-        bassinId: '550e8400-e29b-41d4-a716-446655440000',
+        bassinId: 'invalid-uuid',
         dateIntervention: '2023-06-15',
-        cout: -100,
       };
 
       const result = createInterventionSchema.safeParse(invalidIntervention);
