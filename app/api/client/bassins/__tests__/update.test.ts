@@ -170,4 +170,160 @@ describe('PUT /api/client/bassins/update', () => {
     const response = await PUT(request)
     expect(response.status).toBe(403)
   })
+
+  it('devrait retourner 404 si le bassin n\'existe pas', async () => {
+    const { requireClient } = await import('@/lib/auth-middleware')
+    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
+
+    const mockUser = {
+      id: TEST_IDS.USER,
+      email: 'client@test.com',
+      profile: {
+        role: 'client',
+        user_id: TEST_IDS.USER,
+        client_id: TEST_IDS.CLIENT,
+        is_active: true,
+        full_name: 'Test User',
+      },
+      clientIds: [TEST_IDS.CLIENT],
+    }
+
+    vi.mocked(requireClient).mockResolvedValue({ error: null, user: mockUser })
+
+    vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      if (table === 'bassins') {
+        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: null, error: null }) })) })) } as any
+      }
+      return {} as any
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/client/bassins/update', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
+      body: JSON.stringify({ id: TEST_IDS.BASSIN, batimentId: TEST_IDS.BATIMENT, name: 'Test' }),
+    })
+
+    const response = await PUT(request)
+    expect(response.status).toBe(404)
+  })
+
+  it('devrait retourner 404 si le bâtiment n\'existe pas', async () => {
+    const { requireClient } = await import('@/lib/auth-middleware')
+    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
+
+    const mockUser = {
+      id: TEST_IDS.USER,
+      email: 'client@test.com',
+      profile: {
+        role: 'client',
+        user_id: TEST_IDS.USER,
+        client_id: TEST_IDS.CLIENT,
+        is_active: true,
+        full_name: 'Test User',
+      },
+      clientIds: [TEST_IDS.CLIENT],
+    }
+
+    vi.mocked(requireClient).mockResolvedValue({ error: null, user: mockUser })
+
+    vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      if (table === 'bassins') {
+        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { id: TEST_IDS.BASSIN, batiment_id: TEST_IDS.BATIMENT, batiments: { client_id: TEST_IDS.CLIENT } }, error: null }) })) })) } as any
+      }
+      if (table === 'batiments') {
+        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: null, error: null }) })) })) } as any
+      }
+      return {} as any
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/client/bassins/update', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
+      body: JSON.stringify({ id: TEST_IDS.BASSIN, batimentId: TEST_IDS.BATIMENT, name: 'Test' }),
+    })
+
+    const response = await PUT(request)
+    expect(response.status).toBe(404)
+  })
+
+  it('devrait retourner 500 si erreur lors de la mise à jour', async () => {
+    const { requireClient } = await import('@/lib/auth-middleware')
+    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
+
+    const mockUser = {
+      id: TEST_IDS.USER,
+      email: 'client@test.com',
+      profile: {
+        role: 'client',
+        user_id: TEST_IDS.USER,
+        client_id: TEST_IDS.CLIENT,
+        is_active: true,
+        full_name: 'Test User',
+      },
+      clientIds: [TEST_IDS.CLIENT],
+    }
+
+    vi.mocked(requireClient).mockResolvedValue({ error: null, user: mockUser })
+
+    vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      if (table === 'bassins') {
+        return {
+          select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { id: TEST_IDS.BASSIN, batiment_id: TEST_IDS.BATIMENT, batiments: { client_id: TEST_IDS.CLIENT } }, error: null }) })) })),
+          update: vi.fn(() => ({ eq: vi.fn(() => ({ select: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: null, error: { message: 'Database error' } }) })) })) })),
+        } as any
+      }
+      if (table === 'batiments') {
+        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { id: TEST_IDS.BATIMENT, client_id: TEST_IDS.CLIENT }, error: null }) })) })) } as any
+      }
+      return {} as any
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/client/bassins/update', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
+      body: JSON.stringify({ id: TEST_IDS.BASSIN, batimentId: TEST_IDS.BATIMENT, name: 'Test' }),
+    })
+
+    const response = await PUT(request)
+    expect(response.status).toBe(500)
+  })
+
+  it('devrait retourner 403 si l\'accès au bâtiment de destination est refusé', async () => {
+    const { requireClient } = await import('@/lib/auth-middleware')
+    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
+
+    const mockUser = {
+      id: TEST_IDS.USER,
+      email: 'client@test.com',
+      profile: {
+        role: 'client',
+        user_id: TEST_IDS.USER,
+        client_id: TEST_IDS.CLIENT,
+        is_active: true,
+        full_name: 'Test User',
+      },
+      clientIds: [TEST_IDS.CLIENT],
+    }
+
+    vi.mocked(requireClient).mockResolvedValue({ error: null, user: mockUser })
+
+    vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      if (table === 'bassins') {
+        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { id: TEST_IDS.BASSIN, batiment_id: TEST_IDS.BATIMENT, batiments: { client_id: TEST_IDS.CLIENT } }, error: null }) })) })) } as any
+      }
+      if (table === 'batiments') {
+        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { id: TEST_IDS.BATIMENT, client_id: TEST_IDS.OTHER_CLIENT }, error: null }) })) })) } as any
+      }
+      return {} as any
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/client/bassins/update', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
+      body: JSON.stringify({ id: TEST_IDS.BASSIN, batimentId: TEST_IDS.BATIMENT, name: 'Test' }),
+    })
+
+    const response = await PUT(request)
+    expect(response.status).toBe(403)
+  })
 })
