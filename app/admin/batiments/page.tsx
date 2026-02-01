@@ -2,25 +2,21 @@
 
 import { useEffect, useState, useMemo, ChangeEvent, FormEvent } from 'react'
 import Link from 'next/link'
-import { supabaseBrowser, createBrowserClient } from '@/lib/supabaseBrowser'
-
-/**
- * Helper pour obtenir le token de session
- */
-async function getSessionToken(): Promise<string | null> {
-  const supabase = createBrowserClient()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  return session?.access_token || null
-}
-
+import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { useApiMutation } from '@/lib/hooks/useApiMutation'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import { validateCoordinates } from '@/lib/utils/validation'
 import { Pagination, usePagination } from '@/components/ui/Pagination'
 import { LoadingState } from '@/components/ui/LoadingState'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { SearchInput } from '@/components/ui/SearchInput'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import {
   Building2,
   Plus,
@@ -65,8 +61,6 @@ export default function AdminBatimentsPage() {
 
   // Modal création bâtiment
   const [addOpen, setAddOpen] = useState(false)
-  const [addSaving, setAddSaving] = useState(false)
-  const [addError, setAddError] = useState<string | null>(null)
 
   const [addName, setAddName] = useState('')
   const [addClientId, setAddClientId] = useState('')
@@ -76,6 +70,17 @@ export default function AdminBatimentsPage() {
   const [addLatitude, setAddLatitude] = useState('')
   const [addLongitude, setAddLongitude] = useState('')
   const [addNotes, setAddNotes] = useState('')
+
+  // Hook de mutation pour créer un bâtiment
+  const { mutate: createBatiment, isLoading: addSaving, error: addError, resetError } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/admin/batiments/create',
+    defaultErrorMessage: 'Erreur lors de la création du bâtiment',
+    onSuccess: async () => {
+      await loadData()
+      closeAddModal()
+    }
+  })
 
   const loadData = async () => {
     setLoading(true)
@@ -234,12 +239,12 @@ export default function AdminBatimentsPage() {
 
   const openAddModal = () => {
     setAddOpen(true)
-    setAddError(null)
+    resetError()
   }
 
   const closeAddModal = () => {
     setAddOpen(false)
-    setAddError(null)
+    resetError()
     setAddName('')
     setAddClientId('')
     setAddAddress('')
@@ -250,68 +255,37 @@ export default function AdminBatimentsPage() {
     setAddNotes('')
   }
 
+  const handleOpenChange = (open: boolean) => {
+    if (addSaving) return
+    setAddOpen(open)
+    if (!open) {
+      closeAddModal()
+    }
+  }
+
   const handleAddSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setAddSaving(true)
-    setAddError(null)
 
     const { latitude, longitude, error: coordError } = validateCoordinates(addLatitude, addLongitude)
 
     if (coordError) {
-      setAddError(coordError)
-      setAddSaving(false)
+      // On pourrait utiliser une validation Zod côté client ici aussi
+      // Pour l'instant on laisse cette validation manuelle
       return
     }
 
-    try {
-      const token = await getSessionToken()
-      if (!token) {
-        setAddError('Session expirée. Veuillez vous reconnecter.')
-        setAddSaving(false)
-        return
-      }
-
-      const payload = {
-        name: addName.trim(),
-        client_id: addClientId,
-        address: addAddress.trim() || null,
-        city: addCity.trim() || null,
-        postal_code: addPostalCode.trim() || null,
-        latitude,
-        longitude,
-        notes: addNotes.trim() || null,
-      }
-
-      const res = await fetch('/api/admin/batiments/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await res.json()
-
-      setAddSaving(false)
-
-      if (!res.ok) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur insert batiment:', data.error)
-        }
-        setAddError(data.error || 'Erreur lors de la création du bâtiment.')
-        return
-      }
-
-      closeAddModal()
-      void loadData()
-    } catch (err: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur inattendue insert batiment:', err)
-      }
-      setAddError(err.message || 'Erreur inattendue.')
-      setAddSaving(false)
+    const payload = {
+      name: addName.trim(),
+      client_id: addClientId,
+      address: addAddress.trim() || null,
+      city: addCity.trim() || null,
+      postal_code: addPostalCode.trim() || null,
+      latitude,
+      longitude,
+      notes: addNotes.trim() || null,
     }
+
+    await createBatiment(payload)
   }
 
   if (loading) {
@@ -601,185 +575,164 @@ export default function AdminBatimentsPage() {
       </section>
 
       {/* ========== MODAL NOUVEAU BÂTIMENT ========== */}
-      {addOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          onClick={closeAddModal}
-        >
-          <div
-            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header du modal */}
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">Nouveau bâtiment</h3>
-                <p className="text-sm text-slate-500 mt-0.5">
-                  Créez un bâtiment et assignez-le à un client existant
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeAddModal}
-                disabled={addSaving}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      <Dialog open={addOpen} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Nouveau bâtiment</DialogTitle>
+            <p className="mt-1 text-sm text-slate-500">
+              Créez un bâtiment et assignez-le à un client existant
+            </p>
+          </DialogHeader>
 
-            {/* Corps du modal */}
-            <form onSubmit={handleAddSubmit} className="p-6 space-y-5">
-              {/* Informations principales */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Nom du bâtiment <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={addName}
-                    onChange={(e) => setAddName(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-                    placeholder="Ex: École Primaire Saint-Joseph"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Client associé <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={addClientId}
-                    onChange={(e) => setAddClientId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-                    required
-                  >
-                    <option value="">Sélectionnez un client…</option>
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Localisation */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1.5 md:col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Adresse
-                  </label>
-                  <input
-                    type="text"
-                    value={addAddress}
-                    onChange={(e) => setAddAddress(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-                    placeholder="No civique, rue"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Ville
-                  </label>
-                  <input
-                    type="text"
-                    value={addCity}
-                    onChange={(e) => setAddCity(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-                    placeholder="Montréal"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Code postal
-                  </label>
-                  <input
-                    type="text"
-                    value={addPostalCode}
-                    onChange={(e) => setAddPostalCode(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-                    placeholder="H2X 1Y4"
-                  />
-                </div>
-              </div>
-
-              {/* Coordonnées GPS */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Latitude <span className="text-xs font-normal text-slate-400">(optionnel)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={addLatitude}
-                    onChange={(e) => setAddLatitude(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-                    placeholder="ex.: 46.12345"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Longitude <span className="text-xs font-normal text-slate-400">(optionnel)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={addLongitude}
-                    onChange={(e) => setAddLongitude(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-                    placeholder="ex.: -72.98765"
-                  />
-                </div>
-              </div>
-
-              {/* Notes */}
+          <form onSubmit={handleAddSubmit} className="space-y-5">
+            {/* Informations principales */}
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
                 <label className="block text-sm font-semibold text-slate-700">
-                  Notes internes
+                  Nom du bâtiment <span className="text-red-500">*</span>
                 </label>
-                <textarea
-                  value={addNotes}
-                  onChange={(e) => setAddNotes(e.target.value)}
-                  rows={3}
+                <input
+                  type="text"
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
                   className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-                  placeholder="Informations supplémentaires sur le bâtiment..."
+                  placeholder="Ex: École Primaire Saint-Joseph"
+                  required
                 />
               </div>
 
-              {/* Message d'erreur */}
-              {addError && (
-                <div className="rounded-xl bg-red-50 border border-red-200 p-4">
-                  <p className="text-sm text-red-700">{addError}</p>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={closeAddModal}
-                  disabled={addSaving}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Client associé <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={addClientId}
+                  onChange={(e) => setAddClientId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
+                  required
                 >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={addSaving}
-                  className="rounded-xl bg-gradient-to-r from-ct-primary to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                >
-                  {addSaving ? 'Enregistrement…' : 'Créer le bâtiment'}
-                </button>
+                  <option value="">Sélectionnez un client…</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>
+
+            {/* Localisation */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Adresse
+                </label>
+                <input
+                  type="text"
+                  value={addAddress}
+                  onChange={(e) => setAddAddress(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
+                  placeholder="No civique, rue"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Ville
+                </label>
+                <input
+                  type="text"
+                  value={addCity}
+                  onChange={(e) => setAddCity(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
+                  placeholder="Montréal"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Code postal
+                </label>
+                <input
+                  type="text"
+                  value={addPostalCode}
+                  onChange={(e) => setAddPostalCode(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
+                  placeholder="H2X 1Y4"
+                />
+              </div>
+            </div>
+
+            {/* Coordonnées GPS */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Latitude <span className="text-xs font-normal text-slate-400">(optionnel)</span>
+                </label>
+                <input
+                  type="text"
+                  value={addLatitude}
+                  onChange={(e) => setAddLatitude(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
+                  placeholder="ex.: 46.12345"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Longitude <span className="text-xs font-normal text-slate-400">(optionnel)</span>
+                </label>
+                <input
+                  type="text"
+                  value={addLongitude}
+                  onChange={(e) => setAddLongitude(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
+                  placeholder="ex.: -72.98765"
+                />
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold text-slate-700">
+                Notes internes
+              </label>
+              <textarea
+                value={addNotes}
+                onChange={(e) => setAddNotes(e.target.value)}
+                rows={3}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
+                placeholder="Informations supplémentaires sur le bâtiment..."
+              />
+            </div>
+
+            {/* Message d'erreur */}
+            {addError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <p className="text-sm text-red-700">{addError}</p>
+              </div>
+            )}
+
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={() => handleOpenChange(false)}
+                disabled={addSaving}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={addSaving}
+                className="rounded-xl bg-gradient-to-r from-ct-primary to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {addSaving ? 'Enregistrement…' : 'Créer le bâtiment'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

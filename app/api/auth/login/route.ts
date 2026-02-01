@@ -41,18 +41,7 @@ export async function POST(req: NextRequest) {
       throw error
     }
 
-    // 3. Vérifier si l'utilisateur existe dans auth.users
-    const { data: authUser } = await supabaseAdmin.auth.admin.getUserByEmail(validated.email)
-
-    if (!authUser || !authUser.user) {
-      logError('Login failed - user not found', new Error('User not found'), { email: validated.email })
-      return NextResponse.json(
-        { error: 'Aucun compte associé à cette adresse courriel' },
-        { status: 401 }
-      )
-    }
-
-    // 4. Authentification via Supabase Admin
+    // 3. Authentification via Supabase Admin
     const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
       email: validated.email,
       password: validated.password,
@@ -60,10 +49,19 @@ export async function POST(req: NextRequest) {
 
     if (signInError) {
       // Log les tentatives échouées (pour monitoring)
-      logError('Login failed - invalid password', signInError, { email: validated.email })
+      logError('Login failed', signInError, { email: validated.email })
+
+      // Messages d'erreur spécifiques selon le code d'erreur
+      let errorMessage = 'Identifiants incorrects'
+
+      if (signInError.message?.includes('Invalid login credentials')) {
+        errorMessage = 'Identifiants incorrects'
+      } else if (signInError.message?.includes('Email not confirmed')) {
+        errorMessage = 'Veuillez confirmer votre adresse courriel'
+      }
 
       return NextResponse.json(
-        { error: 'Mot de passe incorrect' },
+        { error: errorMessage },
         { status: 401 }
       )
     }

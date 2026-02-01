@@ -448,7 +448,7 @@ Pour chaque page admin/client à migrer :
 ### Admin Pages (9 pages)
 
 1. ✅ `/app/admin/clients/page.tsx` - **MIGRÉ** (exemple de référence)
-2. [ ] `/app/admin/batiments/page.tsx`
+2. ✅ `/app/admin/batiments/page.tsx` - **MIGRÉ**
 3. [ ] `/app/admin/batiments/[id]/page.tsx`
 4. [ ] `/app/admin/clients/[id]/page.tsx`
 5. [ ] `/app/admin/entreprises/page.tsx`

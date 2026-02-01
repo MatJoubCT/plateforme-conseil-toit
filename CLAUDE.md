@@ -1583,7 +1583,7 @@ const { data: etatData } = await supabase
 
 **Example Pages:**
 - `/app/admin/clients/page.tsx` - ✅ Migrated (reference implementation)
-- `/app/admin/batiments/page.tsx` - ⏳ To be migrated
+- `/app/admin/batiments/page.tsx` - ✅ Migrated
 - See migration guide for full list
 
 ---
