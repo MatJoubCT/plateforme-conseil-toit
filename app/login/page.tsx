@@ -166,13 +166,15 @@ export default function LoginPage() {
 
               {/* Message d'erreur */}
               {errorMsg && (
-                <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
-                  <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-500" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-red-800">
-                      Erreur d'authentification
+                <div className="animate-shake flex items-start gap-3 rounded-xl border-2 border-red-300 bg-gradient-to-br from-red-50 to-red-100/50 p-4 shadow-md">
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-red-500/10">
+                    <AlertCircle className="h-5 w-5 text-red-600" />
+                  </div>
+                  <div className="flex-1 pt-0.5">
+                    <p className="text-sm font-bold text-red-900">
+                      Erreur de connexion
                     </p>
-                    <p className="mt-0.5 text-xs text-red-700">
+                    <p className="mt-1 text-sm leading-relaxed text-red-800">
                       {errorMsg}
                     </p>
                   </div>

@@ -41,7 +41,18 @@ export async function POST(req: NextRequest) {
       throw error
     }
 
-    // 3. Authentification via Supabase Admin
+    // 3. Vérifier si l'utilisateur existe dans auth.users
+    const { data: authUser } = await supabaseAdmin.auth.admin.getUserByEmail(validated.email)
+
+    if (!authUser || !authUser.user) {
+      logError('Login failed - user not found', new Error('User not found'), { email: validated.email })
+      return NextResponse.json(
+        { error: 'Aucun compte associé à cette adresse courriel' },
+        { status: 401 }
+      )
+    }
+
+    // 4. Authentification via Supabase Admin
     const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
       email: validated.email,
       password: validated.password,
@@ -49,10 +60,10 @@ export async function POST(req: NextRequest) {
 
     if (signInError) {
       // Log les tentatives échouées (pour monitoring)
-      logError('Login failed', signInError, { email: validated.email })
+      logError('Login failed - invalid password', signInError, { email: validated.email })
 
       return NextResponse.json(
-        { error: 'Email ou mot de passe incorrect' },
+        { error: 'Mot de passe incorrect' },
         { status: 401 }
       )
     }
@@ -62,7 +73,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Authentification échouée' }, { status: 401 })
     }
 
-    // 4. Récupérer le profil utilisateur
+    // 5. Récupérer le profil utilisateur
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
       .select('role, client_id, is_active, full_name')
@@ -76,7 +87,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 5. Vérifier si l'utilisateur est actif
+    // 6. Vérifier si l'utilisateur est actif
     if (!profile.is_active) {
       return NextResponse.json(
         { error: 'Votre compte a été désactivé. Contactez un administrateur.' },
@@ -84,7 +95,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 6. Retourner les données de session
+    // 7. Retourner les données de session
     return NextResponse.json({
       ok: true,
       session: signInData.session,
