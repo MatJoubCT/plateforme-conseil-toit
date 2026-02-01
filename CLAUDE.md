@@ -40,6 +40,9 @@ The platform is **bilingual** (French/English) with French as the primary langua
 - Dynamic color-coded state badges from database
 - Material composition tracking
 - GeoJSON polygon editing for roof sections
+- Warranty management with PDF document upload
+- Intervention tracking with multimedia file attachments
+- Geolocation support for interventions (GeoJSON Point)
 
 ---
 
@@ -81,8 +84,8 @@ The platform is **bilingual** (French/English) with French as the primary langua
 - **User Interactions**: @testing-library/user-event v14.6.1
 - **Test Environment**: jsdom v27.4.0
 - **Coverage Tool**: @vitest/coverage-v8 v2.1.8
-- **Test Stats**: 542 tests passing across 32 test suites
-- **Code Coverage**: 85.82% statements, 80.61% branches, 98.93% functions, 85.93% lines
+- **Test Stats**: 553 tests passing across 32 test suites
+- **Code Coverage**: 87.82% average (85.82% statements, 80.61% branches, 98.93% functions, 85.93% lines)
 
 ---
 
@@ -110,15 +113,23 @@ The platform is **bilingual** (French/English) with French as the primary langua
 │   │   ├── layout.tsx            # Client layout with auth check
 │   │   ├── batiments/[id]/       # Building details
 │   │   ├── bassins/[id]/         # Basin details
+│   │   ├── interventions/        # Interventions management
 │   │   └── carte/                # Interactive map view
 │   │
 │   ├── api/                      # API routes
-│   │   └── admin/users/          # User management endpoints
-│   │       ├── create/route.ts
-│   │       ├── update/route.ts
-│   │       ├── reset-password/route.ts
-│   │       ├── toggle-active/route.ts
-│   │       └── update-access/route.ts
+│   │   ├── admin/                # Admin API endpoints
+│   │   │   ├── users/            # User management
+│   │   │   ├── clients/          # Client CRUD
+│   │   │   ├── batiments/        # Building CRUD
+│   │   │   ├── bassins/          # Basin CRUD
+│   │   │   ├── entreprises/      # Company CRUD
+│   │   │   ├── materiaux/        # Material CRUD
+│   │   │   └── listes/           # List items CRUD
+│   │   ├── client/               # Client API endpoints
+│   │   │   ├── bassins/          # Basin update/delete
+│   │   │   ├── garanties/        # Warranty CRUD + file upload
+│   │   │   └── interventions/    # Intervention CRUD + file upload
+│   │   └── auth/                 # Authentication endpoints
 │   │
 │   ├── auth/                     # Auth routes
 │   │   ├── callback/page.tsx     # OAuth callback
@@ -165,12 +176,14 @@ The platform is **bilingual** (French/English) with French as the primary langua
 │   │   └── map-colors.ts         # Color/state mappings
 │   ├── hooks/                    # Custom React hooks
 │   │   ├── useServerPagination.ts # Server-side pagination hook
-│   │   └── useUsersData.ts       # User data management hook
+│   │   ├── useUsersData.ts       # User data management hook
+│   │   └── useValidatedId.ts     # ID validation with redirect
 │   ├── schemas/                  # Zod validation schemas
-│   │   ├── bassin.schema.ts      # Basin validation
+│   │   ├── bassin.schema.ts      # Basin validation (includes interventions)
 │   │   ├── batiment.schema.ts    # Building validation
 │   │   ├── client.schema.ts      # Client validation
 │   │   ├── entreprise.schema.ts  # Company validation
+│   │   ├── garantie.schema.ts    # Warranty validation
 │   │   ├── liste.schema.ts       # List/dropdown validation
 │   │   ├── materiau.schema.ts    # Material validation
 │   │   └── user.schema.ts        # User validation
@@ -297,6 +310,52 @@ The platform is **bilingual** (French/English) with French as the primary langua
   label: string              // Display text (French): 'Urgent', 'Bon', 'À surveiller'
   couleur: string            // HEX color: '#DC3545', '#28A745'
   ordre: number              // Sort order
+}
+```
+
+#### `garanties` (Warranties)
+```typescript
+{
+  id: string (UUID, PK)
+  bassin_id: string (FK → bassins.id)
+  type_garantie: string       // Type of warranty
+  fournisseur: string         // Provider/supplier
+  date_debut: string (DATE)   // Start date
+  date_fin: string (DATE)     // End date
+  numero_contrat: string | null  // Contract number
+  montant: number | null      // Amount
+  fichier_url: string | null  // PDF file URL
+  notes: string | null
+  created_at: timestamp
+  updated_at: timestamp
+}
+```
+
+#### `interventions` (Interventions)
+```typescript
+{
+  id: string (UUID, PK)
+  bassin_id: string (FK → bassins.id)
+  type_intervention: string   // Type of intervention
+  date_intervention: string (DATE)
+  entreprise_id: string | null (FK → entreprises.id)
+  cout: number | null         // Cost
+  description: string | null
+  localisation_geojson: object | null  // GeoJSON Point
+  created_at: timestamp
+  updated_at: timestamp
+}
+```
+
+#### `intervention_fichiers` (Intervention files)
+```typescript
+{
+  id: string (UUID, PK)
+  intervention_id: string (FK → interventions.id)
+  fichier_url: string         // File URL (images, PDFs)
+  fichier_nom: string         // Original filename
+  fichier_type: string        // MIME type
+  created_at: timestamp
 }
 ```
 
@@ -767,6 +826,43 @@ const { data: profile } = await supabase
   .single();
 ```
 
+### Security Features
+
+**All API endpoints include:**
+
+1. **CSRF Protection**: Origin validation ensures requests come from the same domain
+2. **Rate Limiting**:
+   - General endpoints: 100 requests per minute per user
+   - File upload endpoints: 20 requests per minute per user
+3. **Authentication Middleware**: Centralized auth checking via `lib/auth-middleware.ts`
+4. **Input Validation**: Zod schemas validate all incoming data
+5. **Access Control**: Client users can only access their assigned clients' data
+6. **Error Logging**: All errors logged with context and metadata
+
+**Using the authentication middleware:**
+
+```typescript
+import { requireAdmin, requireClient } from '@/lib/auth-middleware';
+
+export async function POST(request: NextRequest) {
+  // For admin-only endpoints
+  const { error, user } = await requireAdmin(request);
+  if (error) return error;
+
+  // user.id, user.profile.role available
+  // ...
+}
+
+export async function PUT(request: NextRequest) {
+  // For client endpoints
+  const { error, user } = await requireClient(request);
+  if (error) return error;
+
+  // user.id, user.clientIds (array of accessible client IDs)
+  // ...
+}
+```
+
 ---
 
 ## Data Validation with Zod
@@ -775,10 +871,11 @@ The project uses **Zod** for runtime type checking and validation of data struct
 
 ### Available Schemas
 
-- **bassin.schema.ts** - Basin/roof pool validation
+- **bassin.schema.ts** - Basin/roof pool validation (includes intervention schemas)
 - **batiment.schema.ts** - Building validation
 - **client.schema.ts** - Client validation
 - **entreprise.schema.ts** - Company validation
+- **garantie.schema.ts** - Warranty validation
 - **liste.schema.ts** - List/dropdown validation
 - **materiau.schema.ts** - Material validation
 - **user.schema.ts** - User validation
@@ -1353,6 +1450,26 @@ const handleDelete = async () => {
 - `PUT /api/admin/listes/update` - Update list item
 - `DELETE /api/admin/listes/delete` - Delete list item
 
+#### Available Client API Endpoints
+
+**Bassins:**
+- `PUT /api/client/bassins/update` - Update basin (own clients only)
+- `DELETE /api/client/bassins/delete` - Delete basin (own clients only)
+
+**Garanties (Warranties):**
+- `POST /api/client/garanties/create` - Create warranty with PDF upload
+- `PUT /api/client/garanties/update` - Update warranty
+- `DELETE /api/client/garanties/delete` - Delete warranty
+
+**Interventions:**
+- `POST /api/client/interventions/create` - Create intervention
+- `PUT /api/client/interventions/update` - Update intervention
+- `DELETE /api/client/interventions/delete` - Delete intervention
+- `POST /api/client/interventions/upload-file` - Upload intervention file (images/PDF, max 10MB)
+- `DELETE /api/client/interventions/delete-file` - Delete intervention file
+
+**Note:** All client endpoints verify user access via `user_clients` table and respect client data isolation.
+
 #### Data Fetching vs Mutations
 
 **Important distinction:**
@@ -1408,6 +1525,94 @@ const handleCreate = async (formData) => {
    - State badges
    - Map colors
    - Dashboard statistics
+
+### Working with Warranties (Garanties)
+
+**Creating a warranty with file upload:**
+```typescript
+import { createGarantieSchema } from '@/lib/schemas/garantie.schema';
+
+const handleCreateWarranty = async (formData: FormData) => {
+  const token = await getSessionToken();
+
+  // FormData automatically handles file upload
+  const res = await fetch('/api/client/garanties/create', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+    body: formData, // Don't set Content-Type - browser handles it
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error);
+  }
+};
+```
+
+**Supported file types:** PDF only (max 10MB)
+
+### Working with Interventions
+
+**Creating an intervention with geolocation:**
+```typescript
+import { createInterventionSchema } from '@/lib/schemas/bassin.schema';
+
+const handleCreateIntervention = async (formData: {
+  bassin_id: string;
+  type_intervention: string;
+  date_intervention: string;
+  latitude?: number;
+  longitude?: number;
+  // ... other fields
+}) => {
+  const token = await getSessionToken();
+
+  const res = await fetch('/api/client/interventions/create', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(formData),
+  });
+
+  const data = await res.json();
+  return data;
+};
+```
+
+**Uploading intervention files:**
+```typescript
+const handleUploadFile = async (interventionId: string, file: File) => {
+  const token = await getSessionToken();
+  const formData = new FormData();
+  formData.append('intervention_id', interventionId);
+  formData.append('file', file);
+
+  const res = await fetch('/api/client/interventions/upload-file', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  return res.json();
+};
+```
+
+**Supported file types:** JPEG, PNG, GIF, WebP, PDF (max 10MB per file)
+
+**GeoJSON Point format for interventions:**
+```typescript
+// If latitude and longitude are provided
+const locationGeoJSON = {
+  type: 'Point',
+  coordinates: [longitude, latitude] // Note: [lng, lat] order!
+};
+```
 
 ### Working with Google Maps
 
@@ -1485,6 +1690,20 @@ await createUser({
 });
 ```
 
+**ID validation with redirect:**
+```typescript
+import { useValidatedId } from '@/lib/hooks/useValidatedId';
+
+// In a page component that requires a valid UUID
+export default function BassinDetailPage({ params }: { params: { id: string } }) {
+  // Validates ID and redirects to /client if invalid
+  const validatedId = useValidatedId(params.id, '/client');
+
+  // validatedId is guaranteed to be a valid UUID string
+  // Component continues rendering only if ID is valid
+}
+```
+
 ### Creating Custom Type Definitions
 
 **Add types to `/types/` directory:**
@@ -1517,14 +1736,15 @@ import type { DatabaseBatiment } from '@/types/database';
 The project uses **Vitest** with **React Testing Library** for comprehensive test coverage.
 
 **Test Infrastructure:**
-- ✅ Zod schema validation tests
+- ✅ Zod schema validation tests (including warranties and interventions)
 - ✅ UI component tests (100% coverage on all components)
-- ✅ API endpoint tests
+- ✅ API endpoint tests (admin and client endpoints)
 - ✅ Utility function tests
 - ✅ Authentication middleware tests (100% coverage)
-- ✅ Total: 542 tests passing across 32 test suites
+- ✅ Total: 553 tests passing across 32 test suites
 
 **Code Coverage Statistics:**
+- **Overall Average**: 87.82%
 - **Statements**: 85.82%
 - **Branches**: 80.61%
 - **Functions**: 98.93%
@@ -1913,6 +2133,7 @@ import Toast from '@/components/ui/Toast';
 | Add custom hook | `lib/hooks/[hookName].ts` |
 | Add constant | `lib/constants/[category].ts` |
 | Add global styles | `app/globals.css` |
+| API documentation | `app/api/[endpoint]/README.md` |
 
 ### Useful Commands
 
