@@ -80,7 +80,9 @@ The platform is **bilingual** (French/English) with French as the primary langua
 - **DOM Matchers**: @testing-library/jest-dom v6.9.1
 - **User Interactions**: @testing-library/user-event v14.6.1
 - **Test Environment**: jsdom v27.4.0
-- **Coverage**: 446 tests passing across 22 test suites (schemas, UI, API, utilities)
+- **Coverage Tool**: @vitest/coverage-v8 v2.1.8
+- **Test Stats**: 542 tests passing across 32 test suites
+- **Code Coverage**: 85.82% statements, 80.61% branches, 98.93% functions, 85.93% lines
 
 ---
 
@@ -1516,10 +1518,24 @@ The project uses **Vitest** with **React Testing Library** for comprehensive tes
 
 **Test Infrastructure:**
 - ✅ Zod schema validation tests
-- ✅ UI component tests
+- ✅ UI component tests (100% coverage on all components)
 - ✅ API endpoint tests
 - ✅ Utility function tests
-- ✅ Total: 446 tests passing across 22 test suites
+- ✅ Authentication middleware tests (100% coverage)
+- ✅ Total: 542 tests passing across 32 test suites
+
+**Code Coverage Statistics:**
+- **Statements**: 85.82%
+- **Branches**: 80.61%
+- **Functions**: 98.93%
+- **Lines**: 85.93%
+
+**Coverage by Category:**
+- **UI Components**: 100% (Button, Card, Dialog, ConfirmDialog, ErrorState, LoadingState, Pagination, SearchInput, StateBadge)
+- **Middleware**: 100% (auth-middleware.ts)
+- **Schemas**: 92.85% (All Zod validation schemas)
+- **Utils**: 99.32% (map-utils, validation, units)
+- **API Endpoints**: 65-81% (CRUD operations for clients, buildings, basins, warranties, interventions)
 
 **Running tests:**
 ```bash
@@ -1539,8 +1555,13 @@ npx vitest run components/ui/__tests__/Button.test.tsx
 ```
 
 **Test locations:**
-- `lib/schemas/__tests__/` - Zod schema validation tests
-- `components/ui/__tests__/` - UI component tests
+- `lib/schemas/__tests__/` - Zod schema validation tests (bassin, batiment, client, entreprise, liste, materiau, user)
+- `components/ui/__tests__/` - UI component tests (Button, Card, Dialog, ConfirmDialog, ErrorState, LoadingState, Pagination, SearchInput, StateBadge)
+- `lib/__tests__/` - Core library tests (auth-middleware, validation, utils, units)
+- `lib/utils/__tests__/` - Utility function tests (map-utils, validation)
+- `app/api/admin/__tests__/` - Admin API endpoint tests
+- `app/api/client/__tests__/` - Client API endpoint tests (bassins, garanties, interventions)
+- `app/api/auth/__tests__/` - Authentication endpoint tests
 
 **Writing new tests:**
 
@@ -1855,6 +1876,6 @@ For updates to this document, please ensure changes reflect the current state of
 
 ---
 
-**Last Updated:** 2026-01-24
+**Last Updated:** 2026-02-01
 **Project Version:** 0.1.0
 **Maintainer:** Development Team
