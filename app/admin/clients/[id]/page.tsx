@@ -3,20 +3,17 @@
 import { useEffect, useState, ChangeEvent, FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { supabaseBrowser, createBrowserClient } from '@/lib/supabaseBrowser'
+import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { useValidatedId } from '@/lib/hooks/useValidatedId'
+import { useApiMutation } from '@/lib/hooks/useApiMutation'
 import { validateCoordinates } from '@/lib/utils/validation'
-
-/**
- * Helper pour obtenir le token de session
- */
-async function getSessionToken(): Promise<string | null> {
-  const supabase = createBrowserClient()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  return session?.access_token || null
-}
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import {
   Users,
   Building2,
@@ -72,8 +69,6 @@ export default function AdminClientDetailPage() {
 
   // Modal édition client
   const [editOpen, setEditOpen] = useState(false)
-  const [editSaving, setEditSaving] = useState(false)
-  const [editError, setEditError] = useState<string | null>(null)
 
   const [editName, setEditName] = useState('')
   const [editType, setEditType] = useState('')
@@ -88,13 +83,9 @@ export default function AdminClientDetailPage() {
   // Modal suppression client
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
-  const [deleteSaving, setDeleteSaving] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Modal ajout bâtiment
   const [addOpen, setAddOpen] = useState(false)
-  const [addSaving, setAddSaving] = useState(false)
-  const [addError, setAddError] = useState<string | null>(null)
 
   const [addName, setAddName] = useState('')
   const [addAddress, setAddAddress] = useState('')
@@ -103,6 +94,39 @@ export default function AdminClientDetailPage() {
   const [addLatitude, setAddLatitude] = useState('')
   const [addLongitude, setAddLongitude] = useState('')
   const [addNotes, setAddNotes] = useState('')
+
+  // Hooks de mutation
+  const { mutate: updateClient, isLoading: editSaving, error: editError, resetError: resetEditError } = useApiMutation({
+    method: 'PUT',
+    endpoint: '/api/admin/clients/update',
+    defaultErrorMessage: 'Erreur lors de la modification du client',
+    onSuccess: async (data) => {
+      if (data.data) {
+        setClient(data.data as ClientRecord)
+      }
+      setEditOpen(false)
+    }
+  })
+
+  const { mutate: deleteClient, isLoading: deleteSaving, error: deleteError, resetError: resetDeleteError } = useApiMutation({
+    method: 'DELETE',
+    endpoint: '/api/admin/clients/delete',
+    defaultErrorMessage: 'Erreur lors de la suppression du client',
+    onSuccess: () => {
+      setDeleteOpen(false)
+      router.push('/admin/clients')
+    }
+  })
+
+  const { mutate: createBatiment, isLoading: addSaving, error: addError, resetError: resetAddError } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/admin/batiments/create',
+    defaultErrorMessage: 'Erreur lors de l\'ajout du bâtiment',
+    onSuccess: async () => {
+      await reloadBatiments()
+      setAddOpen(false)
+    }
+  })
 
   // --- Chargement des données ---
 
@@ -193,12 +217,16 @@ export default function AdminClientDetailPage() {
     setEditContactEmail(client.contact_email ?? '')
     setEditContactPhone(client.contact_phone ?? '')
     setEditNotes(client.notes ?? '')
-    setEditError(null)
+    resetEditError()
     setEditOpen(true)
   }
 
-  const closeEditModal = () => {
-    if (!editSaving) setEditOpen(false)
+  const handleEditOpenChange = (open: boolean) => {
+    if (editSaving) return
+    setEditOpen(open)
+    if (!open) {
+      resetEditError()
+    }
   }
 
   const handleEditSubmit = async (e: FormEvent) => {
@@ -206,132 +234,57 @@ export default function AdminClientDetailPage() {
     if (!clientId) return
 
     if (!editName.trim()) {
-      setEditError('Le nom du client est obligatoire.')
       return
     }
 
-    setEditSaving(true)
-    setEditError(null)
-
-    try {
-      const token = await getSessionToken()
-      if (!token) {
-        setEditError('Session expirée. Veuillez vous reconnecter.')
-        setEditSaving(false)
-        return
-      }
-
-      const payload = {
-        id: clientId,
-        name: editName.trim(),
-        type: editType.trim() || null,
-        address: editAddress.trim() || null,
-        city: editCity.trim() || null,
-        postal_code: editPostalCode.trim() || null,
-        contact_name: editContactName.trim() || null,
-        contact_email: editContactEmail.trim() || null,
-        contact_phone: editContactPhone.trim() || null,
-        notes: editNotes.trim() || null,
-      }
-
-      const res = await fetch('/api/admin/clients/update', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setEditError(data.error || 'Erreur lors de la mise à jour.')
-        setEditSaving(false)
-        return
-      }
-
-      setClient((prev) => (prev ? { ...prev, ...payload } : prev))
-      setEditSaving(false)
-      setEditOpen(false)
-    } catch (err: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur mise à jour client:', err)
-      }
-      setEditError(err.message || 'Erreur inattendue.')
-      setEditSaving(false)
+    const payload = {
+      id: clientId,
+      name: editName.trim(),
+      type: editType.trim() || null,
+      address: editAddress.trim() || null,
+      city: editCity.trim() || null,
+      postal_code: editPostalCode.trim() || null,
+      contact_name: editContactName.trim() || null,
+      contact_email: editContactEmail.trim() || null,
+      contact_phone: editContactPhone.trim() || null,
+      notes: editNotes.trim() || null,
     }
+
+    await updateClient(payload)
   }
 
   // --- Modal suppression client ---
 
   const openDeleteModal = () => {
     setDeleteConfirmText('')
-    setDeleteError(null)
+    resetDeleteError()
     setDeleteOpen(true)
   }
 
-  const closeDeleteModal = () => {
-    if (!deleteSaving) setDeleteOpen(false)
+  const handleDeleteOpenChange = (open: boolean) => {
+    if (deleteSaving) return
+    setDeleteOpen(open)
+    if (!open) {
+      setDeleteConfirmText('')
+      resetDeleteError()
+    }
   }
 
   const handleDeleteSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!clientId) return
 
-    setDeleteError(null)
-
     // 1) Bloquer si des bâtiments sont encore liés (UI + sécurité)
     if (batiments.length > 0) {
-      setDeleteError(
-        'Suppression impossible : des bâtiments sont encore reliés à ce client. Supprimez ou déplacez les bâtiments avant de supprimer le client.'
-      )
       return
     }
 
     // 2) Confirmation texte
     if (deleteConfirmText.trim().toUpperCase() !== 'SUPPRIMER') {
-      setDeleteError('Pour confirmer, vous devez écrire SUPPRIMER.')
       return
     }
 
-    setDeleteSaving(true)
-
-    try {
-      const token = await getSessionToken()
-      if (!token) {
-        setDeleteError('Session expirée. Veuillez vous reconnecter.')
-        setDeleteSaving(false)
-        return
-      }
-
-      const res = await fetch('/api/admin/clients/delete', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id: clientId }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setDeleteError(data.error || 'Erreur lors de la suppression.')
-        setDeleteSaving(false)
-        return
-      }
-
-      setDeleteSaving(false)
-      setDeleteOpen(false)
-      router.push('/admin/clients')
-    } catch (err: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur suppression client:', err)
-      }
-      setDeleteError(err.message || 'Erreur inattendue.')
-      setDeleteSaving(false)
-    }
+    await deleteClient({ id: clientId })
   }
 
   // --- Modal ajout bâtiment ---
@@ -344,12 +297,16 @@ export default function AdminClientDetailPage() {
     setAddLatitude('')
     setAddLongitude('')
     setAddNotes('')
-    setAddError(null)
+    resetAddError()
     setAddOpen(true)
   }
 
-  const closeAddModal = () => {
-    if (!addSaving) setAddOpen(false)
+  const handleAddOpenChange = (open: boolean) => {
+    if (addSaving) return
+    setAddOpen(open)
+    if (!open) {
+      resetAddError()
+    }
   }
 
   const handleAddSubmit = async (e: FormEvent) => {
@@ -357,67 +314,27 @@ export default function AdminClientDetailPage() {
     if (!clientId) return
 
     if (!addName.trim()) {
-      setAddError('Le nom du bâtiment est obligatoire.')
       return
     }
 
-    setAddSaving(true)
-    setAddError(null)
+    const { latitude, longitude, error: coordError } = validateCoordinates(addLatitude, addLongitude)
 
-    try {
-      const { latitude, longitude, error: coordError } = validateCoordinates(addLatitude, addLongitude)
-
-      if (coordError) {
-        setAddError(coordError)
-        setAddSaving(false)
-        return
-      }
-
-      const token = await getSessionToken()
-      if (!token) {
-        setAddError('Session expirée. Veuillez vous reconnecter.')
-        setAddSaving(false)
-        return
-      }
-
-      const payload = {
-        client_id: clientId,
-        name: addName.trim(),
-        address: addAddress.trim() || null,
-        city: addCity.trim() || null,
-        postal_code: addPostalCode.trim() || null,
-        latitude,
-        longitude,
-        notes: addNotes.trim() || null,
-      }
-
-      const res = await fetch('/api/admin/batiments/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setAddError(data.error || 'Erreur lors de la création.')
-        setAddSaving(false)
-        return
-      }
-
-      await reloadBatiments()
-      setAddSaving(false)
-      setAddOpen(false)
-    } catch (err: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur ajout bâtiment:', err)
-      }
-      setAddError(err.message || 'Erreur inattendue.')
-      setAddSaving(false)
+    if (coordError) {
+      return
     }
+
+    const payload = {
+      client_id: clientId,
+      name: addName.trim(),
+      address: addAddress.trim() || null,
+      city: addCity.trim() || null,
+      postal_code: addPostalCode.trim() || null,
+      latitude,
+      longitude,
+      notes: addNotes.trim() || null,
+    }
+
+    await createBatiment(payload)
   }
 
   // --- Rendus ---
@@ -827,40 +744,22 @@ export default function AdminClientDetailPage() {
       {/* ========== MODALS ========== */}
 
       {/* MODAL ÉDITION CLIENT */}
-      {editOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          onClick={closeEditModal}
-        >
-          <div
-            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto overflow-hidden rounded-2xl bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">Modifier le client</h3>
-                <p className="mt-0.5 text-sm text-slate-500">
-                  Mettez à jour les informations générales et de contact.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeEditModal}
-                disabled={editSaving}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Fermer"
-              >
-                <X className="h-5 w-5" />
-              </button>
+      <Dialog open={editOpen} onOpenChange={handleEditOpenChange}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Modifier le client</DialogTitle>
+            <p className="mt-1 text-sm text-slate-500">
+              Mettez à jour les informations générales et de contact.
+            </p>
+          </DialogHeader>
+
+          {editError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+              <p className="text-sm text-red-700">{editError}</p>
             </div>
+          )}
 
-            {editError && (
-              <div className="mx-6 mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-                <p className="text-sm text-red-700">{editError}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleEditSubmit} className="p-6 space-y-5">
+          <form onSubmit={handleEditSubmit} className="space-y-5">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="block text-sm font-semibold text-slate-700">
@@ -973,57 +872,38 @@ export default function AdminClientDetailPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
-                <button
-                  type="button"
-                  onClick={closeEditModal}
-                  disabled={editSaving}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={editSaving}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                >
-                  {editSaving ? 'Enregistrement…' : 'Enregistrer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL SUPPRESSION CLIENT */}
-      {deleteOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          onClick={closeDeleteModal}
-        >
-          <div
-            className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">Supprimer ce client?</h3>
-                <p className="mt-0.5 text-sm text-slate-500">
-                  Cette action est permanente.
-                </p>
-              </div>
+            <DialogFooter>
               <button
                 type="button"
-                onClick={closeDeleteModal}
-                disabled={deleteSaving}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Fermer"
+                onClick={() => handleEditOpenChange(false)}
+                disabled={editSaving}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
               >
-                <X className="h-5 w-5" />
+                Annuler
               </button>
-            </div>
+              <button
+                type="submit"
+                disabled={editSaving}
+                className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {editSaving ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-            <form onSubmit={handleDeleteSubmit} className="p-6 space-y-5">
+      {/* MODAL SUPPRESSION CLIENT */}
+      <Dialog open={deleteOpen} onOpenChange={handleDeleteOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Supprimer ce client?</DialogTitle>
+            <p className="mt-1 text-sm text-slate-500">
+              Cette action est permanente.
+            </p>
+          </DialogHeader>
+
+          <form onSubmit={handleDeleteSubmit} className="space-y-5">
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm text-amber-800">
                   La suppression échouera si des bâtiments, bassins ou garanties sont encore rattachés à ce client.
@@ -1049,63 +929,44 @@ export default function AdminClientDetailPage() {
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
-                <button
-                  type="button"
-                  onClick={closeDeleteModal}
-                  disabled={deleteSaving}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={deleteSaving}
-                  className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-red-600 hover:shadow-lg disabled:opacity-50"
-                >
-                  {deleteSaving ? 'Suppression…' : 'Confirmer la suppression'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL AJOUT BÂTIMENT */}
-      {addOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          onClick={closeAddModal}
-        >
-          <div
-            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto overflow-hidden rounded-2xl bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">Ajouter un bâtiment</h3>
-                <p className="mt-0.5 text-sm text-slate-500">
-                  Créez un nouveau bâtiment rattaché à ce client. Les bassins et polygones seront ajoutés ultérieurement.
-                </p>
-              </div>
+            <DialogFooter>
               <button
                 type="button"
-                onClick={closeAddModal}
-                disabled={addSaving}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Fermer"
+                onClick={() => handleDeleteOpenChange(false)}
+                disabled={deleteSaving}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
               >
-                <X className="h-5 w-5" />
+                Annuler
               </button>
+              <button
+                type="submit"
+                disabled={deleteSaving}
+                className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-red-600 hover:shadow-lg disabled:opacity-50"
+              >
+                {deleteSaving ? 'Suppression…' : 'Confirmer la suppression'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL AJOUT BÂTIMENT */}
+      <Dialog open={addOpen} onOpenChange={handleAddOpenChange}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Ajouter un bâtiment</DialogTitle>
+            <p className="mt-1 text-sm text-slate-500">
+              Créez un nouveau bâtiment rattaché à ce client. Les bassins et polygones seront ajoutés ultérieurement.
+            </p>
+          </DialogHeader>
+
+          {addError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+              <p className="text-sm text-red-700">{addError}</p>
             </div>
+          )}
 
-            {addError && (
-              <div className="mx-6 mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-                <p className="text-sm text-red-700">{addError}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleAddSubmit} className="p-6 space-y-5">
+          <form onSubmit={handleAddSubmit} className="space-y-5">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="block text-sm font-semibold text-slate-700">
@@ -1196,27 +1057,26 @@ export default function AdminClientDetailPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
-                <button
-                  type="button"
-                  onClick={closeAddModal}
-                  disabled={addSaving}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={addSaving}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                >
-                  {addSaving ? 'Enregistrement…' : 'Créer le bâtiment'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={() => handleAddOpenChange(false)}
+                disabled={addSaving}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={addSaving}
+                className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {addSaving ? 'Enregistrement…' : 'Créer le bâtiment'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

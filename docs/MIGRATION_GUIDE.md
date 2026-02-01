@@ -450,7 +450,7 @@ Pour chaque page admin/client à migrer :
 1. ✅ `/app/admin/clients/page.tsx` - **MIGRÉ** (exemple de référence)
 2. ✅ `/app/admin/batiments/page.tsx` - **MIGRÉ**
 3. ✅ `/app/admin/batiments/[id]/page.tsx` - **MIGRÉ** (3 modales + 3 mutations)
-4. [ ] `/app/admin/clients/[id]/page.tsx`
+4. ✅ `/app/admin/clients/[id]/page.tsx` - **MIGRÉ** (3 modales + 3 mutations)
 5. [ ] `/app/admin/entreprises/page.tsx`
 6. [ ] `/app/admin/materiaux/page.tsx`
 7. [ ] `/app/admin/listes/page.tsx`

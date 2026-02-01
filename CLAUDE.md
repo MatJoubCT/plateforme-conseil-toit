@@ -1585,6 +1585,7 @@ const { data: etatData } = await supabase
 - `/app/admin/clients/page.tsx` - ✅ Migrated (reference implementation)
 - `/app/admin/batiments/page.tsx` - ✅ Migrated
 - `/app/admin/batiments/[id]/page.tsx` - ✅ Migrated (complex page with 3 modals)
+- `/app/admin/clients/[id]/page.tsx` - ✅ Migrated (complex page with 3 modals)
 - See migration guide for full list
 
 ---
