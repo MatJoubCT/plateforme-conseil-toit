@@ -1,19 +1,16 @@
 'use client'
 
 import { useEffect, useMemo, useState, FormEvent } from 'react'
-import { supabaseBrowser, createBrowserClient } from '@/lib/supabaseBrowser'
+import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { Pagination, usePagination } from '@/components/ui/Pagination'
-
-/**
- * Helper pour obtenir le token de session
- */
-async function getSessionToken(): Promise<string | null> {
-  const supabase = createBrowserClient()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  return session?.access_token || null
-}
+import { useApiMutation } from '@/lib/hooks/useApiMutation'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import {
   Briefcase,
   Search,
@@ -63,9 +60,6 @@ export default function AdminEntreprisesPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deletingEntreprise, setDeletingEntreprise] = useState<EntrepriseRow | null>(null)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
-  const [deleting, setDeleting] = useState(false)
-
-  const [saving, setSaving] = useState(false)
 
   // Form fields (colonnes de la table entreprises)
   const [fType, setFType] = useState('')
@@ -80,6 +74,56 @@ export default function AdminEntreprisesPage() {
   const [fCodePostal, setFCodePostal] = useState('')
   const [fNotes, setFNotes] = useState('')
   const [fActif, setFActif] = useState(true)
+
+  // API Mutations avec useApiMutation
+  const {
+    mutate: createEntreprise,
+    isLoading: isCreating,
+    error: createError,
+    resetError: resetCreateError,
+  } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/admin/entreprises/create',
+    defaultErrorMessage: "Erreur lors de l'ajout de l'entreprise",
+    onSuccess: async () => {
+      await fetchEntreprises()
+      setShowAddModal(false)
+      resetForm()
+    },
+  })
+
+  const {
+    mutate: updateEntreprise,
+    isLoading: isUpdating,
+    error: updateError,
+    resetError: resetUpdateError,
+  } = useApiMutation({
+    method: 'PUT',
+    endpoint: '/api/admin/entreprises/update',
+    defaultErrorMessage: "Erreur lors de la modification de l'entreprise",
+    onSuccess: async () => {
+      await fetchEntreprises()
+      setShowEditModal(false)
+      setEditingEntreprise(null)
+    },
+  })
+
+  const {
+    mutate: deleteEntreprise,
+    isLoading: isDeleting,
+    error: deleteError,
+    resetError: resetDeleteError,
+  } = useApiMutation({
+    method: 'DELETE',
+    endpoint: '/api/admin/entreprises/delete',
+    defaultErrorMessage: "Erreur lors de la suppression de l'entreprise",
+    onSuccess: async () => {
+      await fetchEntreprises()
+      setShowDeleteModal(false)
+      setDeletingEntreprise(null)
+      setDeleteConfirmText('')
+    },
+  })
 
   const resetForm = () => {
     setFType('')
@@ -168,41 +212,48 @@ export default function AdminEntreprisesPage() {
 
   const openAdd = () => {
     resetForm()
+    resetCreateError()
     setShowAddModal(true)
   }
 
-  const closeAdd = () => {
-    if (saving) return
-    setShowAddModal(false)
+  const handleAddOpenChange = (open: boolean) => {
+    if (!open && !isCreating) {
+      setShowAddModal(false)
+      resetCreateError()
+    }
   }
 
   const openEdit = (e: EntrepriseRow) => {
-    if (saving || deleting) return
+    if (isUpdating || isDeleting) return
     setEditingEntreprise(e)
     setFormFromEntreprise(e)
+    resetUpdateError()
     setShowEditModal(true)
   }
 
-  const closeEdit = () => {
-    if (saving) return
-    setShowEditModal(false)
-    setEditingEntreprise(null)
+  const handleEditOpenChange = (open: boolean) => {
+    if (!open && !isUpdating) {
+      setShowEditModal(false)
+      setEditingEntreprise(null)
+      resetUpdateError()
+    }
   }
 
   const openDelete = (e: EntrepriseRow) => {
-    if (saving || deleting) return
+    if (isUpdating || isDeleting) return
     setDeletingEntreprise(e)
     setDeleteConfirmText('')
+    resetDeleteError()
     setShowDeleteModal(true)
   }
 
-  const closeDelete = () => {
-    if (deleting) return
-    setShowDeleteModal(false)
-    setDeletingEntreprise(null)
-   
-
-    setDeleteConfirmText('')
+  const handleDeleteOpenChange = (open: boolean) => {
+    if (!open && !isDeleting) {
+      setShowDeleteModal(false)
+      setDeletingEntreprise(null)
+      setDeleteConfirmText('')
+      resetDeleteError()
+    }
   }
 
   const buildPayload = () => ({
@@ -229,45 +280,7 @@ export default function AdminEntreprisesPage() {
       return
     }
 
-    setSaving(true)
-
-    try {
-      const token = await getSessionToken()
-      if (!token) {
-        setToast({ type: 'error', message: 'Session expirée. Veuillez vous reconnecter.' })
-        setSaving(false)
-        return
-      }
-
-      const payload = buildPayload()
-
-      const res = await fetch('/api/admin/entreprises/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await res.json()
-
-      setSaving(false)
-
-      if (!res.ok) {
-        setToast({ type: 'error', message: "Erreur lors de l'ajout : " + (data.error ?? 'Erreur inconnue') })
-        return
-      }
-
-      await fetchEntreprises()
-      setShowAddModal(false)
-    } catch (err: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur insert entreprises', err)
-      }
-      setToast({ type: 'error', message: err.message || 'Erreur inattendue.' })
-      setSaving(false)
-    }
+    await createEntreprise(buildPayload())
   }
 
   const handleSubmitEdit = async (e: FormEvent) => {
@@ -279,92 +292,140 @@ export default function AdminEntreprisesPage() {
       return
     }
 
-    setSaving(true)
-
-    try {
-      const token = await getSessionToken()
-      if (!token) {
-        setToast({ type: 'error', message: 'Session expirée. Veuillez vous reconnecter.' })
-        setSaving(false)
-        return
-      }
-
-      const payload = { ...buildPayload(), id: editingEntreprise.id }
-
-      const res = await fetch('/api/admin/entreprises/update', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await res.json()
-
-      setSaving(false)
-
-      if (!res.ok) {
-        setToast({ type: 'error', message: "Erreur lors de la modification : " + (data.error ?? 'Erreur inconnue') })
-        return
-      }
-
-      await fetchEntreprises()
-      setShowEditModal(false)
-      setEditingEntreprise(null)
-    } catch (err: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur update entreprises', err)
-      }
-      setToast({ type: 'error', message: err.message || 'Erreur inattendue.' })
-      setSaving(false)
-    }
+    await updateEntreprise({ ...buildPayload(), id: editingEntreprise.id })
   }
 
   const confirmDelete = async () => {
     if (!deletingEntreprise) return
     if (deleteConfirmText.trim().toUpperCase() !== 'SUPPRIMER') return
 
-    setDeleting(true)
-
-    try {
-      const token = await getSessionToken()
-      if (!token) {
-        setToast({ type: 'error', message: 'Session expirée. Veuillez vous reconnecter.' })
-        setDeleting(false)
-        return
-      }
-
-      const res = await fetch('/api/admin/entreprises/delete', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id: deletingEntreprise.id }),
-      })
-
-      const data = await res.json()
-
-      setDeleting(false)
-
-      if (!res.ok) {
-        setToast({ type: 'error', message: "Erreur lors de la suppression : " + (data.error ?? 'Erreur inconnue') })
-        return
-      }
-
-      await fetchEntreprises()
-      setShowDeleteModal(false)
-      setDeletingEntreprise(null)
-      setDeleteConfirmText('')
-    } catch (err: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur delete entreprises', err)
-      }
-      setToast({ type: 'error', message: err.message || 'Erreur inattendue.' })
-      setDeleting(false)
-    }
+    await deleteEntreprise({ id: deletingEntreprise.id })
   }
+
+  // Formulaire partagé entre ajout et édition
+  const renderForm = () => (
+    <div className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <label className="block text-sm font-semibold text-slate-700">
+            Type <span className="text-red-500">*</span>
+          </label>
+          <input
+            value={fType}
+            onChange={(e) => setFType(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="block text-sm font-semibold text-slate-700">
+            Nom <span className="text-red-500">*</span>
+          </label>
+          <input
+            value={fNom}
+            onChange={(e) => setFNom(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-6">
+        <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={fAmcq}
+            onChange={(e) => setFAmcq(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300"
+          />
+          Membre AMCQ
+        </label>
+
+        <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={fActif}
+            onChange={(e) => setFActif(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300"
+          />
+          Actif
+        </label>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="block text-sm font-semibold text-slate-700">Source</label>
+        <input
+          value={fSource}
+          onChange={(e) => setFSource(e.target.value)}
+          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <label className="block text-sm font-semibold text-slate-700">Site web</label>
+          <input
+            value={fSiteWeb}
+            onChange={(e) => setFSiteWeb(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="block text-sm font-semibold text-slate-700">Téléphone</label>
+          <input
+            value={fTelephone}
+            onChange={(e) => setFTelephone(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="block text-sm font-semibold text-slate-700">Adresse</label>
+        <input
+          value={fAdresse}
+          onChange={(e) => setFAdresse(e.target.value)}
+          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="space-y-1.5">
+          <label className="block text-sm font-semibold text-slate-700">Ville</label>
+          <input
+            value={fVille}
+            onChange={(e) => setFVille(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="block text-sm font-semibold text-slate-700">Province</label>
+          <input
+            value={fProvince}
+            onChange={(e) => setFProvince(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="block text-sm font-semibold text-slate-700">Code postal</label>
+          <input
+            value={fCodePostal}
+            onChange={(e) => setFCodePostal(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="block text-sm font-semibold text-slate-700">Notes</label>
+        <textarea
+          rows={3}
+          value={fNotes}
+          onChange={(e) => setFNotes(e.target.value)}
+          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+        />
+      </div>
+    </div>
+  )
 
   if (loading) {
     return (
@@ -564,396 +625,146 @@ export default function AdminEntreprisesPage() {
       </div>
 
       {/* MODAL AJOUT */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">Ajouter une entreprise</h3>
-                <p className="text-sm text-slate-500 mt-0.5">Remplissez les informations</p>
+      <Dialog open={showAddModal} onOpenChange={handleAddOpenChange}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Ajouter une entreprise</DialogTitle>
+            <p className="text-sm text-slate-500 mt-0.5">Remplissez les informations</p>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmitAdd} className="space-y-5">
+            {renderForm()}
+
+            {createError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <p className="text-sm text-red-700">{createError}</p>
               </div>
+            )}
+
+            <DialogFooter>
               <button
                 type="button"
-                onClick={closeAdd}
-                disabled={saving}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                onClick={() => handleAddOpenChange(false)}
+                disabled={isCreating}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
               >
-                <X className="h-5 w-5" />
+                Annuler
               </button>
-            </div>
-
-            <form onSubmit={handleSubmitAdd} className="p-6 space-y-5">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Type <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    value={fType}
-                    onChange={(e) => setFType(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Nom <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    value={fNom}
-                    onChange={(e) => setFNom(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-6">
-                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={fAmcq}
-                    onChange={(e) => setFAmcq(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300"
-                  />
-                  Membre AMCQ
-                </label>
-
-                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={fActif}
-                    onChange={(e) => setFActif(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300"
-                  />
-                  Actif
-                </label>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">Source</label>
-                <input
-                  value={fSource}
-                  onChange={(e) => setFSource(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">Site web</label>
-                  <input
-                    value={fSiteWeb}
-                    onChange={(e) => setFSiteWeb(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">Téléphone</label>
-                  <input
-                    value={fTelephone}
-                    onChange={(e) => setFTelephone(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">Adresse</label>
-                <input
-                  value={fAdresse}
-                  onChange={(e) => setFAdresse(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">Ville</label>
-                  <input
-                    value={fVille}
-                    onChange={(e) => setFVille(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">Province</label>
-                  <input
-                    value={fProvince}
-                    onChange={(e) => setFProvince(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">Code postal</label>
-                  <input
-                    value={fCodePostal}
-                    onChange={(e) => setFCodePostal(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">Notes</label>
-                <textarea
-                  rows={3}
-                  value={fNotes}
-                  onChange={(e) => setFNotes(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={closeAdd}
-                  disabled={saving}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                >
-                  {saving ? 'Enregistrement…' : 'Enregistrer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+              <button
+                type="submit"
+                disabled={isCreating}
+                className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {isCreating ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* MODAL ÉDITION */}
-      {showEditModal && editingEntreprise && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">Modifier une entreprise</h3>
-                <p className="text-sm text-slate-500 mt-0.5">{editingEntreprise.nom}</p>
+      <Dialog open={showEditModal} onOpenChange={handleEditOpenChange}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Modifier une entreprise</DialogTitle>
+            {editingEntreprise && (
+              <p className="text-sm text-slate-500 mt-0.5">{editingEntreprise.nom}</p>
+            )}
+          </DialogHeader>
+
+          <form onSubmit={handleSubmitEdit} className="space-y-5">
+            {renderForm()}
+
+            {updateError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <p className="text-sm text-red-700">{updateError}</p>
               </div>
+            )}
+
+            <DialogFooter>
               <button
                 type="button"
-                onClick={closeEdit}
-                disabled={saving}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                onClick={() => handleEditOpenChange(false)}
+                disabled={isUpdating}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
               >
-                <X className="h-5 w-5" />
+                Annuler
               </button>
+              <button
+                type="submit"
+                disabled={isUpdating}
+                className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {isUpdating ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL SUPPRESSION */}
+      <Dialog open={showDeleteModal} onOpenChange={handleDeleteOpenChange}>
+        <DialogContent className="sm:max-w-lg">
+          <div className="flex items-start gap-4">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-50">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
             </div>
 
-            <form onSubmit={handleSubmitEdit} className="p-6 space-y-5">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Type <span className="text-red-500">*</span>
-                  </label>
+            <div className="min-w-0 flex-1">
+              <DialogHeader>
+                <DialogTitle>Supprimer cette entreprise ?</DialogTitle>
+                <p className="text-sm text-slate-500 mt-0.5">Cette action est irréversible</p>
+              </DialogHeader>
+
+              <div className="mt-4 space-y-4">
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  Cette entreprise sera définitivement supprimée :{' '}
+                  <span className="font-semibold">{deletingEntreprise?.nom}</span>.
+                </div>
+
+                <div>
+                  <p className="text-sm text-slate-600">
+                    Pour confirmer, écrivez <span className="font-bold text-red-600">SUPPRIMER</span>
+                  </p>
+
                   <input
-                    value={fType}
-                    onChange={(e) => setFType(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="SUPPRIMER"
+                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Nom <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    value={fNom}
-                    onChange={(e) => setFNom(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  />
-                </div>
+                {deleteError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                    <p className="text-sm text-red-700">{deleteError}</p>
+                  </div>
+                )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-6">
-                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={fAmcq}
-                    onChange={(e) => setFAmcq(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300"
-                  />
-                  Membre AMCQ
-                </label>
-
-                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={fActif}
-                    onChange={(e) => setFActif(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300"
-                  />
-                  Actif
-                </label>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">Source</label>
-                <input
-                  value={fSource}
-                  onChange={(e) => setFSource(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">Site web</label>
-                  <input
-                    value={fSiteWeb}
-                    onChange={(e) => setFSiteWeb(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">Téléphone</label>
-                  <input
-                    value={fTelephone}
-                    onChange={(e) => setFTelephone(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">Adresse</label>
-                <input
-                  value={fAdresse}
-                  onChange={(e) => setFAdresse(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">Ville</label>
-                  <input
-                    value={fVille}
-                    onChange={(e) => setFVille(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">Province</label>
-                  <input
-                    value={fProvince}
-                    onChange={(e) => setFProvince(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">Code postal</label>
-                  <input
-                    value={fCodePostal}
-                    onChange={(e) => setFCodePostal(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">Notes</label>
-                <textarea
-                  rows={3}
-                  value={fNotes}
-                  onChange={(e) => setFNotes(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+              <DialogFooter className="mt-6">
                 <button
                   type="button"
-                  onClick={closeEdit}
-                  disabled={saving}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                  onClick={() => handleDeleteOpenChange(false)}
+                  disabled={isDeleting}
+                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
                 >
                   Annuler
                 </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                >
-                  {saving ? 'Enregistrement…' : 'Enregistrer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL SUPPRESSION (style basé sur ta capture) */}
-      {showDeleteModal && deletingEntreprise && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-50">
-                  <AlertTriangle className="h-5 w-5 text-red-500" />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-lg font-bold text-slate-800">Supprimer cette entreprise ?</h3>
-                  <p className="text-sm text-slate-500 mt-0.5">Cette action est irréversible</p>
-
-                  <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    Cette entreprise sera définitivement supprimée :{' '}
-                    <span className="font-semibold">{deletingEntreprise.nom}</span>.
-                  </div>
-
-                  <div className="mt-4">
-                    <p className="text-sm text-slate-600">
-                      Pour confirmer, écrivez <span className="font-bold text-red-600">SUPPRIMER</span>
-                    </p>
-
-                    <input
-                      value={deleteConfirmText}
-                      onChange={(e) => setDeleteConfirmText(e.target.value)}
-                      placeholder="SUPPRIMER"
-                      className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
-                    />
-                  </div>
-
-                  <div className="mt-6 flex items-center justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={closeDelete}
-                      disabled={deleting}
-                      className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                    >
-                      Annuler
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={confirmDelete}
-                      disabled={deleting || deleteConfirmText.trim().toUpperCase() !== 'SUPPRIMER'}
-                      className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-red-600 disabled:opacity-50"
-                    >
-                      {deleting ? 'Suppression…' : 'Confirmer la suppression'}
-                    </button>
-                  </div>
-                </div>
 
                 <button
                   type="button"
-                  onClick={closeDelete}
-                  disabled={deleting}
-                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                  aria-label="Fermer"
+                  onClick={confirmDelete}
+                  disabled={isDeleting || deleteConfirmText.trim().toUpperCase() !== 'SUPPRIMER'}
+                  className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-red-600 disabled:opacity-50"
                 >
-                  <X className="h-5 w-5" />
+                  {isDeleting ? 'Suppression…' : 'Confirmer la suppression'}
                 </button>
-              </div>
+              </DialogFooter>
             </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {toast && (
         <Toast
