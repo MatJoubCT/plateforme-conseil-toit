@@ -1,31 +1,26 @@
 'use client'
 
 import { useEffect, useState, FormEvent, ChangeEvent, useMemo } from 'react'
-import { supabaseBrowser, createBrowserClient } from '@/lib/supabaseBrowser'
-
-/**
- * Helper pour obtenir le token de session
- */
-async function getSessionToken(): Promise<string | null> {
-  const supabase = createBrowserClient()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  return session?.access_token || null
-}
-
+import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { useApiMutation } from '@/lib/hooks/useApiMutation'
 import {
   Users,
   Plus,
   SlidersHorizontal,
   Building2,
-  AlertTriangle,
   X,
 } from 'lucide-react'
 import { Pagination, usePagination } from '@/components/ui/Pagination'
 import { LoadingState } from '@/components/ui/LoadingState'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { SearchInput } from '@/components/ui/SearchInput'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 
 type ClientRow = {
   id: string
@@ -45,8 +40,18 @@ export default function AdminClientsPage() {
 
   const [createOpen, setCreateOpen] = useState(false)
   const [createName, setCreateName] = useState('')
-  const [createSaving, setCreateSaving] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
+
+  // Hook de mutation pour créer un client
+  const { mutate: createClient, isLoading: createSaving, error: createError, resetError } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/admin/clients/create',
+    defaultErrorMessage: 'Erreur lors de la création du client',
+    onSuccess: async () => {
+      await fetchClients()
+      setCreateOpen(false)
+      setCreateName('')
+    }
+  })
 
   const fetchClients = async () => {
     setLoading(true)
@@ -135,65 +140,26 @@ export default function AdminClientsPage() {
 
   const openCreateModal = () => {
     setCreateName('')
-    setCreateError(null)
+    resetError()
     setCreateOpen(true)
   }
 
-  const closeCreateModal = () => {
+  const closeCreateModal = (open: boolean) => {
     if (createSaving) return
-    setCreateOpen(false)
+    setCreateOpen(open)
+    if (!open) {
+      setCreateName('')
+      resetError()
+    }
   }
 
   const handleCreateSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!createName.trim()) {
-      setCreateError('Le nom du client est obligatoire.')
       return
     }
 
-    setCreateSaving(true)
-    setCreateError(null)
-
-    try {
-      const token = await getSessionToken()
-      if (!token) {
-        setCreateError('Session expirée. Veuillez vous reconnecter.')
-        setCreateSaving(false)
-        return
-      }
-
-      const res = await fetch('/api/admin/clients/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ name: createName.trim() }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur insertion client:', data.error)
-        }
-        setCreateError(
-          data.error ?? 'Erreur lors de la création du client.'
-        )
-        setCreateSaving(false)
-        return
-      }
-
-      await fetchClients()
-      setCreateSaving(false)
-      setCreateOpen(false)
-    } catch (err: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur inattendue insertion client:', err)
-      }
-      setCreateError('Erreur inattendue lors de la création du client.')
-      setCreateSaving(false)
-    }
+    await createClient({ name: createName.trim() })
   }
 
   // Stats de la page actuelle (pour affichage)
@@ -423,79 +389,58 @@ export default function AdminClientsPage() {
       </section>
 
       {/* Modal création client */}
-      {createOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          onClick={closeCreateModal}
-        >
-          <div
-            className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h2 className="text-lg font-bold text-slate-800">
-                  Nouveau client
-                </h2>
-                <p className="mt-0.5 text-sm text-slate-500">
-                  Entrez un nom. Les détails pourront être complétés ensuite.
-                </p>
-              </div>
+      <Dialog open={createOpen} onOpenChange={closeCreateModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nouveau client</DialogTitle>
+            <p className="mt-1 text-sm text-slate-500">
+              Entrez un nom. Les détails pourront être complétés ensuite.
+            </p>
+          </DialogHeader>
 
-              <button
-                type="button"
-                onClick={closeCreateModal}
-                disabled={createSaving}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Fermer"
-              >
-                <X className="h-5 w-5" />
-              </button>
+          <form onSubmit={handleCreateSubmit} className="space-y-5">
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold text-slate-700">
+                Nom du client <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                placeholder="Ex.: Ville de X, Immobilier ABC"
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
+                autoFocus
+                required
+              />
             </div>
 
-            <form onSubmit={handleCreateSubmit} className="p-6 space-y-5">
-              <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Nom du client <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={createName}
-                  onChange={(e) => setCreateName(e.target.value)}
-                  placeholder="Ex.: Ville de X, Immobilier ABC"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-                  autoFocus
-                />
+            {createError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <p className="text-sm text-red-700">{createError}</p>
               </div>
+            )}
 
-              {createError && (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-                  <p className="text-sm text-red-700">{createError}</p>
-                </div>
-              )}
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={() => closeCreateModal(false)}
+                disabled={createSaving}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              >
+                Annuler
+              </button>
 
-              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
-                <button
-                  type="button"
-                  onClick={closeCreateModal}
-                  disabled={createSaving}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={createSaving}
-                  className="rounded-xl bg-gradient-to-r from-ct-primary to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                >
-                  {createSaving ? 'Enregistrement…' : 'Créer le client'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+              <button
+                type="submit"
+                disabled={createSaving || !createName.trim()}
+                className="rounded-xl bg-gradient-to-r from-ct-primary to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {createSaving ? 'Enregistrement…' : 'Créer le client'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

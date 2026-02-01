@@ -11,13 +11,14 @@ This document provides comprehensive guidance for AI assistants (like Claude) wo
 5. [Development Workflows](#development-workflows)
 6. [Code Conventions & Patterns](#code-conventions--patterns)
 7. [Component Patterns](#component-patterns)
-8. [API Development](#api-development)
-9. [Data Validation with Zod](#data-validation-with-zod)
-10. [Authentication & Authorization](#authentication--authorization)
-11. [Styling Guidelines](#styling-guidelines)
-12. [Common Tasks & Examples](#common-tasks--examples)
-13. [Testing & Debugging](#testing--debugging)
-14. [Important Gotchas](#important-gotchas)
+8. [Custom Hooks](#custom-hooks)
+9. [API Development](#api-development)
+10. [Data Validation with Zod](#data-validation-with-zod)
+11. [Authentication & Authorization](#authentication--authorization)
+12. [Styling Guidelines](#styling-guidelines)
+13. [Common Tasks & Examples](#common-tasks--examples)
+14. [Testing & Debugging](#testing--debugging)
+15. [Important Gotchas](#important-gotchas)
 
 ---
 
@@ -736,6 +737,293 @@ const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
 ---
 
+## Custom Hooks
+
+The project provides reusable custom hooks for common patterns. **Always use these hooks instead of duplicating code.**
+
+### useSessionToken
+
+**Location:** `lib/hooks/useSessionToken.ts`
+
+Hook for retrieving the current session token. Provides both reactive and synchronous patterns.
+
+**Usage (Reactive):**
+```typescript
+import { useSessionToken } from '@/lib/hooks/useSessionToken';
+
+function MyComponent() {
+  const token = useSessionToken();
+
+  // Token updates automatically when session changes
+  useEffect(() => {
+    if (token) {
+      console.log('User is authenticated');
+    }
+  }, [token]);
+}
+```
+
+**Usage (Synchronous):**
+```typescript
+import { getSessionToken } from '@/lib/hooks/useSessionToken';
+
+async function handleAction() {
+  const token = await getSessionToken();
+  if (!token) {
+    console.error('No session');
+    return;
+  }
+  // Use token...
+}
+```
+
+**Note:** If you're using `useApiMutation`, you don't need to use this hook as it handles token management automatically.
+
+---
+
+### useApiMutation
+
+**Location:** `lib/hooks/useApiMutation.ts`
+
+**⭐ RECOMMENDED:** Use this hook for all API mutations (POST, PUT, DELETE) instead of manually calling fetch.
+
+Hook for managing API mutations with automatic state management, error handling, and session token management.
+
+**Features:**
+- ✅ Automatic session token management
+- ✅ Loading state management
+- ✅ Error handling and display
+- ✅ Success/error callbacks
+- ✅ Reduces boilerplate by 60%
+
+**Basic Usage:**
+```typescript
+import { useApiMutation } from '@/lib/hooks/useApiMutation';
+
+const {
+  mutate: createClient,
+  isLoading,
+  error,
+  resetError
+} = useApiMutation({
+  method: 'POST',
+  endpoint: '/api/admin/clients/create',
+  defaultErrorMessage: 'Erreur lors de la création du client',
+  onSuccess: async (data) => {
+    console.log('Client créé:', data);
+    await refreshData();
+    setModalOpen(false);
+  }
+});
+
+// In form submit handler
+const handleSubmit = async (e: FormEvent) => {
+  e.preventDefault();
+  await createClient({ name: formData.name });
+};
+
+// In JSX
+{error && <div className="text-red-500">{error}</div>}
+<button type="submit" disabled={isLoading}>
+  {isLoading ? 'Création...' : 'Créer'}
+</button>
+```
+
+**Update Pattern:**
+```typescript
+const { mutate: updateClient, isLoading, error } = useApiMutation({
+  method: 'PUT',
+  endpoint: '/api/admin/clients/update',
+  onSuccess: async () => {
+    await refreshData();
+    setEditModalOpen(false);
+  }
+});
+
+await updateClient({ id: clientId, name: newName });
+```
+
+**Delete Pattern:**
+```typescript
+const { mutate: deleteClient, isLoading } = useApiMutation({
+  method: 'DELETE',
+  endpoint: '/api/admin/clients/delete',
+  onSuccess: async () => {
+    await refreshData();
+  }
+});
+
+await deleteClient({ id: clientId });
+```
+
+**⚠️ IMPORTANT:** Always use `useApiMutation` for mutations. Never manually implement fetch logic with session tokens in component code.
+
+**Migration:** See `/docs/MIGRATION_GUIDE.md` for detailed migration instructions from old patterns.
+
+---
+
+### useServerPagination
+
+**Location:** `lib/hooks/useServerPagination.ts`
+
+Basic hook for managing server-side pagination with Supabase. Use with `.range()` method.
+
+**Usage:**
+```typescript
+import { useServerPagination } from '@/lib/hooks/useServerPagination';
+
+const pagination = useServerPagination(20); // 20 items per page
+
+// In data fetching
+const { data, count } = await supabase
+  .from('clients')
+  .select('*', { count: 'exact' })
+  .range(pagination.startOffset, pagination.endOffset);
+
+pagination.setTotalCount(count || 0);
+
+// In JSX
+<Pagination {...pagination.paginationProps} />
+```
+
+---
+
+### useSupabasePagination (Advanced)
+
+**Location:** `lib/hooks/useSupabasePagination.ts`
+
+**⭐ RECOMMENDED for new pages:** Advanced hook that combines data fetching and pagination in one.
+
+Hook for managing server-side pagination with automatic data fetching from Supabase.
+
+**Features:**
+- ✅ Automatic data fetching with Supabase
+- ✅ Built-in loading and error states
+- ✅ Filter and sort support
+- ✅ Data transformation
+- ✅ Pagination controls (next, previous, goToPage)
+
+**Basic Usage:**
+```typescript
+import { useSupabasePagination } from '@/lib/hooks/useSupabasePagination';
+
+const {
+  data: clients,
+  loading,
+  error,
+  currentPage,
+  totalPages,
+  goToPage,
+  refresh
+} = useSupabasePagination({
+  table: 'clients',
+  select: 'id, name',
+  orderBy: { column: 'name', ascending: true },
+  itemsPerPage: 20
+});
+
+if (loading) return <LoadingState />;
+if (error) return <ErrorState message={error} />;
+
+return (
+  <>
+    <ul>
+      {clients.map(client => <li key={client.id}>{client.name}</li>)}
+    </ul>
+    <Pagination
+      currentPage={currentPage}
+      totalPages={totalPages}
+      onPageChange={goToPage}
+    />
+  </>
+);
+```
+
+**With Filters:**
+```typescript
+const {
+  data: batiments,
+  setFilters
+} = useSupabasePagination({
+  table: 'batiments',
+  select: 'id, name, client:clients(name)',
+  filters: { client_id: selectedClientId },
+  orderBy: { column: 'created_at', ascending: false }
+});
+
+// Update filters dynamically
+useEffect(() => {
+  setFilters({ client_id: selectedClientId });
+}, [selectedClientId]);
+```
+
+**With Data Transformation:**
+```typescript
+const { data } = useSupabasePagination({
+  table: 'batiments',
+  select: 'id, name, client:clients(name)',
+  transform: (row) => ({
+    id: row.id,
+    name: row.name,
+    clientName: row.client?.name || 'Sans client'
+  })
+});
+```
+
+---
+
+### useValidatedId
+
+**Location:** `lib/hooks/useValidatedId.ts`
+
+Hook for validating UUID parameters in dynamic routes with automatic redirect on invalid IDs.
+
+**Usage:**
+```typescript
+import { useValidatedId } from '@/lib/hooks/useValidatedId';
+
+export default function BassinDetailPage({ params }: { params: { id: string } }) {
+  // Validates ID and redirects to /client if invalid
+  const validatedId = useValidatedId(params.id, '/client');
+
+  // validatedId is guaranteed to be a valid UUID string
+  // Component only renders if ID is valid
+}
+```
+
+---
+
+### useUsersData
+
+**Location:** `lib/hooks/useUsersData.ts`
+
+Hook for managing user data in admin pages with CRUD operations.
+
+**Usage:**
+```typescript
+import { useUsersData } from '@/lib/hooks/useUsersData';
+
+const {
+  users,
+  loading,
+  error,
+  refresh,
+  createUser,
+  updateUser,
+  deleteUser
+} = useUsersData();
+
+// Create a new user
+await createUser({
+  email: 'user@example.com',
+  full_name: 'John Doe',
+  role: 'client',
+  client_id: 'xxx'
+});
+```
+
+---
+
 ## API Development
 
 ### API Route Structure
@@ -1276,6 +1564,30 @@ const { data: etatData } = await supabase
 
 ## Common Tasks & Examples
 
+### Migrating to New Hooks and Patterns
+
+**⭐ IMPORTANT:** Before creating new pages or modifying existing ones, **always** check `/docs/MIGRATION_GUIDE.md` for:
+
+- How to use `useApiMutation` instead of manual fetch calls
+- How to migrate custom modals to the standardized `Dialog` component
+- How to implement server-side pagination with `useSupabasePagination`
+- Before/after examples showing code reduction of 40-60%
+
+**Quick Reference:**
+- ✅ **DO**: Use `useApiMutation` for all POST/PUT/DELETE operations
+- ✅ **DO**: Use `Dialog` component for all modals
+- ✅ **DO**: Use `useSupabasePagination` for paginated lists
+- ❌ **DON'T**: Create local `getSessionToken()` functions
+- ❌ **DON'T**: Manually manage loading/error states for API calls
+- ❌ **DON'T**: Create custom inline modals
+
+**Example Pages:**
+- `/app/admin/clients/page.tsx` - ✅ Migrated (reference implementation)
+- `/app/admin/batiments/page.tsx` - ⏳ To be migrated
+- See migration guide for full list
+
+---
+
 ### Setting Up Toast Notifications in Layout
 
 **The toast context should be wrapped around the application in the root layout:**
@@ -1298,6 +1610,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   );
 }
 ```
+
+---
 
 ### Adding a New Page
 
