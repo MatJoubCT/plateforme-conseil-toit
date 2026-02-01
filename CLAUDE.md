@@ -1587,6 +1587,76 @@ it('devrait afficher le texte', () => {
 });
 ```
 
+**Advanced Testing Patterns:**
+
+```typescript
+// Authentication middleware test example
+import { describe, it, expect, vi } from 'vitest';
+import { requireAdmin, requireClient } from '../auth-middleware';
+
+describe('Auth Middleware', () => {
+  it('devrait valider un utilisateur admin', async () => {
+    const req = new Request('http://localhost', {
+      headers: { Authorization: 'Bearer valid-token' }
+    });
+
+    const { error, user } = await requireAdmin(req);
+
+    expect(error).toBeNull();
+    expect(user).toBeDefined();
+    expect(user?.profile.role).toBe('admin');
+  });
+});
+
+// Dialog component test with user events
+import userEvent from '@testing-library/user-event';
+
+it('devrait fermer avec Escape', async () => {
+  const user = userEvent.setup();
+  const onOpenChange = vi.fn();
+
+  render(
+    <Dialog open={true} onOpenChange={onOpenChange}>
+      <DialogContent>Test</DialogContent>
+    </Dialog>
+  );
+
+  await user.keyboard('{Escape}');
+  expect(onOpenChange).toHaveBeenCalledWith(false);
+});
+
+// API endpoint test with mocked dependencies
+vi.mock('@/lib/supabaseAdmin');
+vi.mock('@/lib/auth-middleware');
+
+it('devrait créer un bassin', async () => {
+  const mockUser = { id: 'user-123', clientIds: ['client-456'] };
+  vi.mocked(requireClient).mockResolvedValue({ error: null, user: mockUser });
+
+  const response = await PUT(request);
+  expect(response.status).toBe(200);
+});
+```
+
+**Recently Added Test Suites:**
+
+1. **`lib/__tests__/auth-middleware.test.ts`** (27 tests)
+   - Complete coverage of authentication middleware
+   - Tests for token extraction, origin validation
+   - Admin and client role verification
+   - Client access list validation
+
+2. **`components/ui/__tests__/dialog.test.tsx`** (13 tests)
+   - Full Dialog component testing
+   - Keyboard interactions (Escape key)
+   - Click outside to close
+   - Accessibility attributes
+
+3. **Extended `lib/schemas/__tests__/batiment.schema.test.ts`** (+12 tests)
+   - Boundary value testing (max lengths, coordinate limits)
+   - Null/empty value handling
+   - Complex validation scenarios
+
 **See `tests/README.md` for detailed testing documentation.**
 
 ### Development Testing
@@ -1616,6 +1686,35 @@ console.error('API Error:', error);
 // Logs appear in terminal where dev server runs
 ```
 
+### Interpreting Coverage Reports
+
+**Coverage Metrics Explained:**
+- **Statements**: Percentage of executable code lines that were run during tests
+- **Branches**: Percentage of conditional branches (if/else, switch, ternary) tested
+- **Functions**: Percentage of functions/methods called during tests
+- **Lines**: Percentage of source code lines executed
+
+**Coverage Goals:**
+- **UI Components**: Aim for 100% - These are critical user-facing elements
+- **Core Libraries**: Aim for 95%+ - Essential business logic should be well-tested
+- **API Endpoints**: Aim for 80%+ - Cover all happy paths and common error cases
+- **Schemas**: Aim for 100% - Validation logic should be exhaustive
+- **Utils**: Aim for 95%+ - Pure functions should be easy to test completely
+
+**Understanding Uncovered Lines:**
+- Some uncovered lines in API endpoints are acceptable (e.g., database constraint validations that Zod catches first)
+- Focus on covering business logic, error handling, and edge cases
+- Use integration tests for complex database interactions that are hard to mock
+
+**Best Practices for Writing Tests:**
+1. **Test behavior, not implementation** - Focus on what the code does, not how
+2. **Use descriptive test names** - Write test names in French to match the project language
+3. **Arrange-Act-Assert pattern** - Set up, execute, verify
+4. **Mock external dependencies** - Supabase, external APIs, file system
+5. **Test edge cases** - Null values, empty arrays, boundary values
+6. **One assertion per test** - Keep tests focused and easy to debug
+7. **Clean up after tests** - Use `beforeEach` and `afterEach` hooks
+
 ### Common Issues
 
 **Authentication failures:**
@@ -1637,6 +1736,13 @@ console.error('API Error:', error);
 - Run `npm test` to identify failing tests
 - Check `tests/README.md` for troubleshooting
 - Ensure mocks are properly configured in `tests/setup.ts`
+- **Common test issues:**
+  - **Mock not working**: Verify mock is defined before imports (`vi.mock()` must be at top)
+  - **Async issues**: Use `await` with `waitFor()` for async operations
+  - **Portal components**: Dialog/Modal tests need `await waitFor()` for DOM updates
+  - **Vitest coverage missing**: Run `npm install -D @vitest/coverage-v8` if coverage command fails
+  - **UUID validation errors**: Ensure test UUIDs are valid v4 format (use constants like TEST_IDS)
+  - **Type errors in tests**: Import types from schema files, use `vi.mocked()` for type-safe mocks
 
 ---
 
