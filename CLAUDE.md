@@ -1078,6 +1078,76 @@ const { data: batiments } = await supabase
   .eq('client_id', profile.client_id);
 ```
 
+### Login & Error Handling
+
+**Login endpoint** (`/api/auth/login`)
+
+The login API provides detailed error messages to help users understand authentication failures:
+
+**Error types:**
+- **Email not found**: "Aucun compte associé à cette adresse courriel"
+- **Invalid password**: "Mot de passe incorrect"
+- **Inactive account**: "Votre compte a été désactivé. Contactez un administrateur."
+- **Rate limiting**: "Trop de tentatives de connexion. Veuillez réessayer plus tard."
+
+**Login flow:**
+```typescript
+// 1. Rate limiting check (5 attempts per 15 minutes per IP)
+// 2. Email validation with Zod
+// 3. Check if user exists via getUserByEmail
+// 4. Attempt authentication with password
+// 5. Verify user profile exists
+// 6. Check if user is active
+// 7. Return session and user data
+```
+
+**Login page visual feedback** (`/app/login/page.tsx`)
+
+Error messages are displayed with:
+- ✅ Red gradient background (from-red-50 to-red-100/50)
+- ✅ Thick red border (border-2 border-red-300)
+- ✅ Shake animation (animate-shake) for attention
+- ✅ Alert icon in circular background
+- ✅ Clear error hierarchy (title + detailed message)
+
+**Example usage:**
+```typescript
+try {
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    // Display specific error message
+    setErrorMsg(data.error);
+    return;
+  }
+
+  // Set session and redirect based on role
+  if (data.session) {
+    await supabaseBrowser.auth.setSession({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    });
+  }
+
+  router.push(data.user.role === 'admin' ? '/admin' : '/client');
+} catch (error) {
+  setErrorMsg('Une erreur est survenue lors de la connexion');
+}
+```
+
+**Available animations:**
+
+Custom CSS animations in `app/globals.css`:
+- `animate-shake`: Horizontal shake animation (0.5s, 4px movement)
+- `slide-in-from-right-full`: Slide-in animation for toast notifications
+- `shrink-width`: Progress bar animation
+
 ---
 
 ## Styling Guidelines
@@ -1154,6 +1224,52 @@ const { data: etatData } = await supabase
 >
   {etat_label}
 </span>
+```
+
+### Custom Animations
+
+**Available animations** (defined in `app/globals.css`):
+
+**Shake animation** - Used for error messages and validation feedback:
+```typescript
+<div className="animate-shake">
+  {/* Content that will shake */}
+</div>
+```
+- Duration: 0.5s
+- Movement: ±4px horizontal
+- Use case: Login errors, form validation failures
+
+**Slide-in animation** - Used for toast notifications:
+```typescript
+<div className="animate-in slide-in-from-right-full duration-300">
+  {/* Toast content */}
+</div>
+```
+- Direction: From right to left
+- Duration: 300ms
+- Use case: Toast notifications
+
+**Progress bar animation** - Used for auto-dismiss timers:
+```css
+@keyframes shrink-width {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+```
+- Use case: Toast notification progress bars
+
+**Creating new animations:**
+```css
+/* In app/globals.css */
+@keyframes my-animation {
+  0% { /* initial state */ }
+  100% { /* final state */ }
+}
+
+.animate-my-animation {
+  animation: my-animation 0.3s ease-in-out;
+}
 ```
 
 ---
