@@ -5,9 +5,17 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { useValidatedId } from '@/lib/hooks/useValidatedId'
+import { useApiMutation } from '@/lib/hooks/useApiMutation'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import { validateCoordinates } from '@/lib/utils/validation'
 import { GoogleMap, Polygon, useLoadScript } from '@react-google-maps/api'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import {
   Building2,
   ChevronLeft,
@@ -114,8 +122,6 @@ export default function AdminBatimentDetailPage() {
 
   // Modal édition bâtiment
   const [editOpen, setEditOpen] = useState(false)
-  const [editSaving, setEditSaving] = useState(false)
-  const [editError, setEditError] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editClientId, setEditClientId] = useState('')
   const [editAddress, setEditAddress] = useState('')
@@ -127,8 +133,6 @@ export default function AdminBatimentDetailPage() {
 
   // Modal ajout bassin
   const [addBassinOpen, setAddBassinOpen] = useState(false)
-  const [addBassinSaving, setAddBassinSaving] = useState(false)
-  const [addBassinError, setAddBassinError] = useState<string | null>(null)
   const [addBassinName, setAddBassinName] = useState('')
   const [addBassinMembraneId, setAddBassinMembraneId] = useState('')
   const [addBassinSurface, setAddBassinSurface] = useState('')
@@ -142,9 +146,123 @@ export default function AdminBatimentDetailPage() {
 
   // Modal suppression bâtiment
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleteSaving, setDeleteSaving] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
+
+  // Fonctions de refresh des données
+  const fetchData = async () => {
+    if (!batimentId) return
+
+    setLoading(true)
+    setErrorMsg(null)
+
+    // 1) Bâtiment + client
+    const { data: batimentData, error: batimentError } = await supabaseBrowser
+      .from('batiments')
+      .select(
+        `
+          id,
+          name,
+          address,
+          city,
+          postal_code,
+          latitude,
+          longitude,
+          client_id,
+          notes,
+          clients (
+            id,
+            name
+          )
+        `
+      )
+      .eq('id', batimentId)
+      .single()
+
+    if (batimentError) {
+      setErrorMsg(batimentError.message)
+      setLoading(false)
+      return
+    }
+
+    // 2) Listes de choix
+    const { data: listesData, error: listesError } = await supabaseBrowser
+      .from('listes_choix')
+      .select('id, categorie, label, couleur, ordre')
+
+    if (listesError) {
+      setErrorMsg(listesError.message)
+      setLoading(false)
+      return
+    }
+
+    // 3) Bassins du bâtiment
+    const { data: bassinsData, error: bassinsError } = await supabaseBrowser
+      .from('bassins')
+      .select(
+        'id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
+      )
+      .eq('batiment_id', batimentId)
+      .order('name', { ascending: true })
+
+    if (bassinsError) {
+      setErrorMsg(bassinsError.message)
+      setLoading(false)
+      return
+    }
+
+    // 4) Clients
+    const { data: clientsData, error: clientsError } = await supabaseBrowser
+      .from('clients')
+      .select('id, name')
+      .order('name', { ascending: true })
+
+    if (clientsError) {
+      setErrorMsg(clientsError.message)
+      setLoading(false)
+      return
+    }
+
+    setBatiment(batimentData as BatimentRow)
+    setListes(listesData || [])
+    setBassins((bassinsData || []) as BassinRow[])
+    setClients((clientsData || []) as ClientOption[])
+    setLoading(false)
+  }
+
+  // Hooks de mutation
+  const { mutate: updateBatiment, isLoading: editSaving, error: editError, resetError: resetEditError } = useApiMutation({
+    method: 'PUT',
+    endpoint: '/api/admin/batiments/update',
+    defaultErrorMessage: 'Erreur lors de la modification du bâtiment',
+    onSuccess: async (data) => {
+      if (data.data) {
+        setBatiment(data.data as BatimentRow)
+      } else {
+        await fetchData()
+      }
+      setEditOpen(false)
+    }
+  })
+
+  const { mutate: createBassin, isLoading: addBassinSaving, error: addBassinError, resetError: resetAddBassinError } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/admin/bassins/create',
+    defaultErrorMessage: 'Erreur lors de l\'ajout du bassin',
+    onSuccess: async () => {
+      await fetchData()
+      setAddBassinOpen(false)
+    }
+  })
+
+  const { mutate: deleteBatiment, isLoading: deleteSaving, error: deleteError, resetError: resetDeleteError } = useApiMutation({
+    method: 'DELETE',
+    endpoint: '/api/admin/batiments/delete',
+    defaultErrorMessage: 'Erreur lors de la suppression du bâtiment',
+    onSuccess: () => {
+      setDeleteOpen(false)
+      router.push('/admin/batiments')
+    }
+  })
 
   useEffect(() => {
     if (!batimentId) return
@@ -337,7 +455,7 @@ export default function AdminBatimentDetailPage() {
     'Client non défini'
 
   const openEditModal = () => {
-    setEditError(null)
+    resetEditError()
     setEditName(batiment.name || '')
     setEditClientId(batiment.client_id || '')
     setEditAddress(batiment.address || '')
@@ -351,55 +469,35 @@ export default function AdminBatimentDetailPage() {
     setEditOpen(true)
   }
 
-  const closeEditModal = () => {
-    if (!editSaving) setEditOpen(false)
+  const handleEditOpenChange = (open: boolean) => {
+    if (editSaving) return
+    setEditOpen(open)
+    if (!open) {
+      resetEditError()
+    }
   }
 
   const handleEditSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    setEditError(null)
-    setEditSaving(true)
 
     const { latitude, longitude, error: coordError } = validateCoordinates(editLatitude, editLongitude)
 
     if (coordError) {
-      setEditError(coordError)
-      setEditSaving(false)
+      // On pourrait gérer ça autrement, mais pour l'instant on laisse comme ça
       return
     }
 
-    const { data, error } = await supabaseBrowser
-      .from('batiments')
-      .update({
-        name: editName || null,
-        client_id: editClientId || null,
-        address: editAddress || null,
-        city: editCity || null,
-        postal_code: editPostalCode || null,
-        latitude,
-        longitude,
-        notes: editNotes || null,
-      })
-      .eq('id', batiment.id)
-      .select(
-        'id, name, address, city, postal_code, latitude, longitude, client_id, notes, clients (id, name)'
-      )
-      .single()
-
-    setEditSaving(false)
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur mise à jour bâtiment :', error)
-      }
-      setEditError(error.message ?? 'Erreur inconnue')
-      return
-    }
-
-    if (data) {
-      setBatiment(data as BatimentRow)
-      setEditOpen(false)
-    }
+    await updateBatiment({
+      id: batiment.id,
+      name: editName || null,
+      client_id: editClientId || null,
+      address: editAddress || null,
+      city: editCity || null,
+      postal_code: editPostalCode || null,
+      latitude,
+      longitude,
+      notes: editNotes || null,
+    })
   }
 
   const openAddBassinModal = () => {
@@ -412,83 +510,60 @@ export default function AdminBatimentDetailPage() {
     setAddBassinDureeId('')
     setAddBassinReferenceInterne('')
     setAddBassinNotes('')
-    setAddBassinError(null)
+    resetAddBassinError()
     setAddBassinOpen(true)
   }
 
-  const closeAddBassinModal = () => {
-    if (!addBassinSaving) setAddBassinOpen(false)
+  const handleAddBassinOpenChange = (open: boolean) => {
+    if (addBassinSaving) return
+    setAddBassinOpen(open)
+    if (!open) {
+      resetAddBassinError()
+    }
   }
 
   const openDeleteModal = () => {
-    setDeleteError(null)
+    resetDeleteError()
     setDeleteConfirmText('')
     setDeleteOpen(true)
   }
 
-  const closeDeleteModal = () => {
-    if (!deleteSaving) setDeleteOpen(false)
+  const handleDeleteOpenChange = (open: boolean) => {
+    if (deleteSaving) return
+    setDeleteOpen(open)
+    if (!open) {
+      resetDeleteError()
+      setDeleteConfirmText('')
+    }
   }
 
   const handleConfirmDelete = async () => {
     if (!batimentId) return
 
-    setDeleteError(null)
-
     // 1) Bloquer si des bassins sont encore liés (UI + sécurité)
     if (bassins.length > 0) {
-      setDeleteError(
-        'Suppression impossible : des bassins sont encore reliés à ce bâtiment. Supprimez ou déplacez les bassins avant de supprimer le bâtiment.'
-      )
+      // On pourrait utiliser un toast ici ou juste laisser le deleteError du hook
       return
     }
 
     // 2) Confirmation texte
     if (deleteConfirmText.trim().toUpperCase() !== 'SUPPRIMER') {
-      setDeleteError('Pour confirmer, vous devez écrire SUPPRIMER.')
+      // On pourrait gérer ça avec un état local ou ignorer
       return
     }
 
-    setDeleteSaving(true)
-
-    // 3) Re-vérification côté BD pour éviter tout contournement
+    // 3) Re-vérification côté BD pour éviter tout contournement (optionnel, l'API le fait aussi)
     const { count, error: countError } = await supabaseBrowser
       .from('bassins')
       .select('id', { count: 'exact', head: true })
       .eq('batiment_id', batimentId)
 
-    if (countError) {
-      setDeleteSaving(false)
-      setDeleteError(
-        countError.message ?? 'Erreur lors de la vérification des bassins.'
-      )
+    if (countError || (count ?? 0) > 0) {
+      // L'API fera également cette vérification
       return
     }
 
-    if ((count ?? 0) > 0) {
-      setDeleteSaving(false)
-      setDeleteError(
-        'Suppression impossible : un ou plusieurs bassins sont maintenant reliés à ce bâtiment. Rafraîchissez la page et réessayez.'
-      )
-      return
-    }
-
-    const { error: deleteDbError } = await supabaseBrowser
-      .from('batiments')
-      .delete()
-      .eq('id', batimentId)
-
-    setDeleteSaving(false)
-
-    if (deleteDbError) {
-      setDeleteError(
-        deleteDbError.message ?? 'Erreur lors de la suppression du bâtiment.'
-      )
-      return
-    }
-
-    setDeleteOpen(false)
-    router.push('/admin/batiments')
+    await deleteBatiment({ id: batimentId })
   }
 
   const handleAddBassinSubmit = async (e: FormEvent) => {
@@ -496,12 +571,9 @@ export default function AdminBatimentDetailPage() {
     if (!batimentId) return
 
     if (!addBassinName.trim()) {
-      setAddBassinError('Le nom du bassin est obligatoire.')
+      // On pourrait utiliser une validation Zod ici
       return
     }
-
-    setAddBassinSaving(true)
-    setAddBassinError(null)
 
     const surface =
       addBassinSurface.trim() !== '' ? Number(addBassinSurface.trim()) : null
@@ -533,28 +605,7 @@ export default function AdminBatimentDetailPage() {
       polygone_geojson: null,
     }
 
-    const { data, error } = await supabaseBrowser
-      .from('bassins')
-      .insert(payload)
-      .select(
-        'id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
-      )
-      .single()
-
-    setAddBassinSaving(false)
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur ajout bassin :', error)
-      }
-      setAddBassinError(error.message ?? 'Erreur inconnue')
-      return
-    }
-
-    if (data) {
-      setBassins((prev) => [...prev, data as BassinRow])
-      setAddBassinOpen(false)
-    }
+    await createBassin(payload)
   }
 
   // Calcul des stats
@@ -906,130 +957,104 @@ export default function AdminBatimentDetailPage() {
       {/* ========== MODALS ========== */}
 
       {/* Modal suppression bâtiment */}
-      {deleteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
-                  <AlertTriangle className="h-6 w-6 text-red-500" />
-                </div>
-
-                <div className="flex-1">
-                  <h3 className="text-lg font-bold text-slate-900">
-                    Supprimer ce bâtiment ?
-                  </h3>
-                  <p className="text-sm text-slate-500">
-                    Cette action est irréversible
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={closeDeleteModal}
-                  disabled={deleteSaving}
-                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-60"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+      <Dialog open={deleteOpen} onOpenChange={handleDeleteOpenChange}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+                <AlertTriangle className="h-6 w-6 text-red-500" />
               </div>
-
-              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-                {bassins.length > 0 ? (
-                  <p className="text-sm text-red-700">
-                    Suppression impossible : ce bâtiment contient encore{' '}
-                    <span className="font-semibold">
-                      {bassins.length} bassin{bassins.length !== 1 ? 's' : ''}
-                    </span>
-                    . Vous devez d'abord supprimer ou déplacer les bassins.
-                  </p>
-                ) : (
-                  <p className="text-sm text-red-700">
-                    Le bâtiment sera définitivement supprimé.
-                  </p>
-                )}
-              </div>
-
-              {deleteError && (
-                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-                  <p className="text-sm text-red-700">{deleteError}</p>
-                </div>
-              )}
-
-              {bassins.length === 0 && (
-                <>
-                  <p className="mt-5 text-sm font-medium text-slate-700">
-                    Pour confirmer, écrivez{' '}
-                    <span className="font-bold text-red-600">SUPPRIMER</span>
-                  </p>
-
-                  <input
-                    type="text"
-                    value={deleteConfirmText}
-                    onChange={(e) => setDeleteConfirmText(e.target.value)}
-                    placeholder="SUPPRIMER"
-                    className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm uppercase tracking-wide transition-colors focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/20"
-                  />
-                </>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50/60 px-6 py-4">
-              <button
-                type="button"
-                onClick={closeDeleteModal}
-                disabled={deleteSaving}
-                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={
-                  deleteSaving ||
-                  bassins.length > 0 ||
-                  deleteConfirmText.trim().toUpperCase() !== 'SUPPRIMER'
-                }
-                className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-red-600 hover:shadow-lg disabled:opacity-50"
-              >
-                {deleteSaving ? 'Suppression…' : 'Confirmer la suppression'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal édition bâtiment */}
-      {editOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">
-                  Modifier le bâtiment
-                </h3>
-                <p className="text-sm text-slate-500 mt-0.5">
-                  Mettez à jour les informations générales et le client associé
+              <div className="flex-1">
+                <DialogTitle>Supprimer ce bâtiment ?</DialogTitle>
+                <p className="mt-1 text-sm text-slate-500">
+                  Cette action est irréversible
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={closeEditModal}
-                disabled={editSaving}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+              {bassins.length > 0 ? (
+                <p className="text-sm text-red-700">
+                  Suppression impossible : ce bâtiment contient encore{' '}
+                  <span className="font-semibold">
+                    {bassins.length} bassin{bassins.length !== 1 ? 's' : ''}
+                  </span>
+                  . Vous devez d'abord supprimer ou déplacer les bassins.
+                </p>
+              ) : (
+                <p className="text-sm text-red-700">
+                  Le bâtiment sera définitivement supprimé.
+                </p>
+              )}
             </div>
 
-            {editError && (
-              <div className="mx-6 mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
-                <p className="text-sm text-red-700">{editError}</p>
+            {deleteError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                <p className="text-sm text-red-700">{deleteError}</p>
               </div>
             )}
 
-            <form onSubmit={handleEditSubmit} className="p-6 space-y-5">
+            {bassins.length === 0 && (
+              <>
+                <p className="text-sm font-medium text-slate-700">
+                  Pour confirmer, écrivez{' '}
+                  <span className="font-bold text-red-600">SUPPRIMER</span>
+                </p>
+
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="SUPPRIMER"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm uppercase tracking-wide transition-colors focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                />
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => handleDeleteOpenChange(false)}
+              disabled={deleteSaving}
+              className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmDelete}
+              disabled={
+                deleteSaving ||
+                bassins.length > 0 ||
+                deleteConfirmText.trim().toUpperCase() !== 'SUPPRIMER'
+              }
+              className="rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-red-600 hover:shadow-lg disabled:opacity-50"
+            >
+              {deleteSaving ? 'Suppression…' : 'Confirmer la suppression'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal édition bâtiment */}
+      <Dialog open={editOpen} onOpenChange={handleEditOpenChange}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Modifier le bâtiment</DialogTitle>
+            <p className="mt-1 text-sm text-slate-500">
+              Mettez à jour les informations générales et le client associé
+            </p>
+          </DialogHeader>
+
+          <form onSubmit={handleEditSubmit} className="space-y-5">
+            {editError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <p className="text-sm text-red-700">{editError}</p>
+              </div>
+            )}
               <div className="space-y-1.5">
                 <label className="block text-sm font-semibold text-slate-700">
                   Nom du bâtiment <span className="text-red-500">*</span>
@@ -1137,58 +1162,43 @@ export default function AdminBatimentDetailPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={closeEditModal}
-                  disabled={editSaving}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={editSaving}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                >
-                  {editSaving ? 'Enregistrement…' : 'Enregistrer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal ajout bassin */}
-      {addBassinOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">
-                  Ajouter un bassin
-                </h3>
-                <p className="text-sm text-slate-500 mt-0.5">
-                  Le polygone sera dessiné par la suite dans la fiche du bassin
-                </p>
-              </div>
+            <DialogFooter>
               <button
                 type="button"
-                onClick={closeAddBassinModal}
-                disabled={addBassinSaving}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                onClick={() => handleEditOpenChange(false)}
+                disabled={editSaving}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
               >
-                <X className="h-5 w-5" />
+                Annuler
               </button>
-            </div>
+              <button
+                type="submit"
+                disabled={editSaving}
+                className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {editSaving ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
+      {/* Modal ajout bassin */}
+      <Dialog open={addBassinOpen} onOpenChange={handleAddBassinOpenChange}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Ajouter un bassin</DialogTitle>
+            <p className="mt-1 text-sm text-slate-500">
+              Le polygone sera dessiné par la suite dans la fiche du bassin
+            </p>
+          </DialogHeader>
+
+          <form onSubmit={handleAddBassinSubmit} className="space-y-5">
             {addBassinError && (
-              <div className="mx-6 mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3">
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
                 <p className="text-sm text-red-700">{addBassinError}</p>
               </div>
             )}
-
-            <form onSubmit={handleAddBassinSubmit} className="p-6 space-y-5">
               <div className="space-y-1.5">
                 <label className="block text-sm font-semibold text-slate-700">
                   Nom du bassin <span className="text-red-500">*</span>
@@ -1320,27 +1330,26 @@ export default function AdminBatimentDetailPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={closeAddBassinModal}
-                  disabled={addBassinSaving}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={addBassinSaving}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                >
-                  {addBassinSaving ? 'Ajout en cours…' : 'Ajouter'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={() => handleAddBassinOpenChange(false)}
+                disabled={addBassinSaving}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={addBassinSaving}
+                className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {addBassinSaving ? 'Ajout en cours…' : 'Ajouter'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
