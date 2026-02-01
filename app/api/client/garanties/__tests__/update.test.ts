@@ -163,4 +163,121 @@ describe('PUT /api/client/garanties/update', () => {
     const response = await PUT(request)
     expect(response.status).toBe(403)
   })
+
+  it('devrait retourner 404 si la garantie n\'existe pas', async () => {
+    const { requireClient } = await import('@/lib/auth-middleware')
+    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
+
+    const mockUser = {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      email: 'client@test.com',
+      profile: {
+        role: 'client',
+        user_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        client_id: 'b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22',
+        is_active: true,
+        full_name: 'Test User',
+      },
+      clientIds: ['b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22'],
+    }
+
+    vi.mocked(requireClient).mockResolvedValue({ error: null, user: mockUser })
+
+    vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      if (table === 'garanties') {
+        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: null, error: null }) })) })) } as any
+      }
+      return {} as any
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/client/garanties/update', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
+      body: JSON.stringify({ id: 'e4bbdf55-5e4c-4ee4-972f-2cc7bd343c55', bassinId: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33' }),
+    })
+
+    const response = await PUT(request)
+    expect(response.status).toBe(404)
+  })
+
+  it('devrait retourner 404 si le bassin n\'existe pas', async () => {
+    const { requireClient } = await import('@/lib/auth-middleware')
+    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
+
+    const mockUser = {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      email: 'client@test.com',
+      profile: {
+        role: 'client',
+        user_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        client_id: 'b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22',
+        is_active: true,
+        full_name: 'Test User',
+      },
+      clientIds: ['b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22'],
+    }
+
+    vi.mocked(requireClient).mockResolvedValue({ error: null, user: mockUser })
+
+    vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      if (table === 'garanties') {
+        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { id: 'e4bbdf55-5e4c-4ee4-972f-2cc7bd343c55', bassin_id: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33', bassins: { batiment_id: 'd3ccef66-6f3b-4ff5-883e-3bb8ad252b44', batiments: { client_id: 'b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22' } } }, error: null }) })) })) } as any
+      }
+      if (table === 'bassins') {
+        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: null, error: null }) })) })) } as any
+      }
+      return {} as any
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/client/garanties/update', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
+      body: JSON.stringify({ id: 'e4bbdf55-5e4c-4ee4-972f-2cc7bd343c55', bassinId: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33' }),
+    })
+
+    const response = await PUT(request)
+    expect(response.status).toBe(404)
+  })
+
+  it('devrait retourner 500 si erreur lors de la mise à jour', async () => {
+    const { requireClient } = await import('@/lib/auth-middleware')
+    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
+
+    const mockUser = {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      email: 'client@test.com',
+      profile: {
+        role: 'client',
+        user_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        client_id: 'b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22',
+        is_active: true,
+        full_name: 'Test User',
+      },
+      clientIds: ['b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22'],
+    }
+
+    vi.mocked(requireClient).mockResolvedValue({ error: null, user: mockUser })
+
+    vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      if (table === 'garanties') {
+        return {
+          select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { id: 'e4bbdf55-5e4c-4ee4-972f-2cc7bd343c55', bassin_id: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33', bassins: { batiment_id: 'd3ccef66-6f3b-4ff5-883e-3bb8ad252b44', batiments: { client_id: 'b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22' } } }, error: null }) })) })),
+          update: vi.fn(() => ({ eq: vi.fn(() => ({ select: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: null, error: { message: 'Database error' } }) })) })) })),
+        } as any
+      }
+      if (table === 'bassins') {
+        return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { id: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33', batiment_id: 'd3ccef66-6f3b-4ff5-883e-3bb8ad252b44', batiments: { client_id: 'b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22' } }, error: null }) })) })) } as any
+      }
+      return {} as any
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/client/garanties/update', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
+      body: JSON.stringify({ id: 'e4bbdf55-5e4c-4ee4-972f-2cc7bd343c55', bassinId: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33' }),
+    })
+
+    const response = await PUT(request)
+    expect(response.status).toBe(500)
+  })
 })

@@ -263,4 +263,300 @@ describe('POST /api/client/garanties/create', () => {
     expect(response.status).toBe(429)
     expect(response.headers.get('X-RateLimit-Limit')).toBe('100')
   })
+
+  it('devrait retourner 404 si le bassin n\'existe pas', async () => {
+    const { requireClient } = await import('@/lib/auth-middleware')
+    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
+    const { rateLimit } = await import('@/lib/rate-limit')
+
+    const mockUser = {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      email: 'client@test.com',
+      profile: {
+        role: 'client',
+        user_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        client_id: 'b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22',
+        is_active: true,
+        full_name: 'Test User',
+      },
+      clientIds: ['b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22'],
+    }
+
+    vi.mocked(requireClient).mockResolvedValue({ error: null, user: mockUser })
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: true, remaining: 99, resetAt: Date.now() + 60000 })
+
+    vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      if (table === 'bassins') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({ data: null, error: null }),
+            })),
+          })),
+        } as any
+      }
+      return {} as any
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/client/garanties/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer mock-token',
+      },
+      body: JSON.stringify({ bassinId: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33' }),
+    })
+
+    const response = await POST(request)
+    expect(response.status).toBe(404)
+  })
+
+  it('devrait retourner 403 si l\'accès au bassin est refusé', async () => {
+    const { requireClient } = await import('@/lib/auth-middleware')
+    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
+    const { rateLimit } = await import('@/lib/rate-limit')
+
+    const mockUser = {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      email: 'client@test.com',
+      profile: {
+        role: 'client',
+        user_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        client_id: 'b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22',
+        is_active: true,
+        full_name: 'Test User',
+      },
+      clientIds: ['b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22'],
+    }
+
+    vi.mocked(requireClient).mockResolvedValue({ error: null, user: mockUser })
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: true, remaining: 99, resetAt: Date.now() + 60000 })
+
+    vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      if (table === 'bassins') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33',
+                  batiment_id: 'd3ccef66-6f3b-4ff5-883e-3bb8ad252b44',
+                  batiments: { client_id: 'different-client-id' }
+                },
+                error: null
+              }),
+            })),
+          })),
+        } as any
+      }
+      return {} as any
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/client/garanties/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer mock-token',
+      },
+      body: JSON.stringify({ bassinId: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33' }),
+    })
+
+    const response = await POST(request)
+    expect(response.status).toBe(403)
+  })
+
+  it('devrait retourner 404 si le type de garantie n\'existe pas', async () => {
+    const { requireClient } = await import('@/lib/auth-middleware')
+    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
+    const { rateLimit } = await import('@/lib/rate-limit')
+
+    const mockUser = {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      email: 'client@test.com',
+      profile: {
+        role: 'client',
+        user_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        client_id: 'b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22',
+        is_active: true,
+        full_name: 'Test User',
+      },
+      clientIds: ['b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22'],
+    }
+
+    vi.mocked(requireClient).mockResolvedValue({ error: null, user: mockUser })
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: true, remaining: 99, resetAt: Date.now() + 60000 })
+
+    vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      if (table === 'bassins') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33',
+                  batiment_id: 'd3ccef66-6f3b-4ff5-883e-3bb8ad252b44',
+                  batiments: { client_id: 'b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22' }
+                },
+                error: null
+              }),
+            })),
+          })),
+        } as any
+      }
+      if (table === 'listes_choix') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({ data: null, error: null }),
+            })),
+          })),
+        } as any
+      }
+      return {} as any
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/client/garanties/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer mock-token',
+      },
+      body: JSON.stringify({
+        bassinId: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33',
+        typeGarantieId: 'f5aace44-4d5b-4ee3-962d-1aa6bc232a44'
+      }),
+    })
+
+    const response = await POST(request)
+    expect(response.status).toBe(404)
+  })
+
+  it('devrait retourner 404 si le statut n\'existe pas', async () => {
+    const { requireClient } = await import('@/lib/auth-middleware')
+    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
+    const { rateLimit } = await import('@/lib/rate-limit')
+
+    const mockUser = {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      email: 'client@test.com',
+      profile: {
+        role: 'client',
+        user_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        client_id: 'b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22',
+        is_active: true,
+        full_name: 'Test User',
+      },
+      clientIds: ['b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22'],
+    }
+
+    vi.mocked(requireClient).mockResolvedValue({ error: null, user: mockUser })
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: true, remaining: 99, resetAt: Date.now() + 60000 })
+
+    vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      if (table === 'bassins') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33',
+                  batiment_id: 'd3ccef66-6f3b-4ff5-883e-3bb8ad252b44',
+                  batiments: { client_id: 'b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22' }
+                },
+                error: null
+              }),
+            })),
+          })),
+        } as any
+      }
+      if (table === 'listes_choix') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({ data: null, error: null }),
+            })),
+          })),
+        } as any
+      }
+      return {} as any
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/client/garanties/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer mock-token',
+      },
+      body: JSON.stringify({
+        bassinId: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33',
+        statutId: 'f6bbdf33-3c4a-4dd2-851c-0aa5ab121a33'
+      }),
+    })
+
+    const response = await POST(request)
+    expect(response.status).toBe(404)
+  })
+
+  it('devrait retourner 500 si erreur lors de la création', async () => {
+    const { requireClient } = await import('@/lib/auth-middleware')
+    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
+    const { rateLimit } = await import('@/lib/rate-limit')
+
+    const mockUser = {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      email: 'client@test.com',
+      profile: {
+        role: 'client',
+        user_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        client_id: 'b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22',
+        is_active: true,
+        full_name: 'Test User',
+      },
+      clientIds: ['b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22'],
+    }
+
+    vi.mocked(requireClient).mockResolvedValue({ error: null, user: mockUser })
+    vi.mocked(rateLimit).mockResolvedValue({ allowed: true, remaining: 99, resetAt: Date.now() + 60000 })
+
+    vi.mocked(supabaseAdmin.from).mockImplementation((table: string) => {
+      if (table === 'bassins') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33',
+                  batiment_id: 'd3ccef66-6f3b-4ff5-883e-3bb8ad252b44',
+                  batiments: { client_id: 'b1ffcd88-8d1a-4df7-aa5c-5aa8ac270b22' }
+                },
+                error: null
+              }),
+            })),
+          })),
+        } as any
+      }
+      if (table === 'garanties') {
+        return {
+          insert: vi.fn(() => ({
+            select: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({ data: null, error: { message: 'Database error' } }),
+            })),
+          })),
+        } as any
+      }
+      return {} as any
+    })
+
+    const request = new NextRequest('http://localhost:3000/api/client/garanties/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer mock-token',
+      },
+      body: JSON.stringify({ bassinId: 'c2ddde77-7e2a-4ef6-994d-4aa9bc261a33' }),
+    })
+
+    const response = await POST(request)
+    expect(response.status).toBe(500)
+  })
 })
