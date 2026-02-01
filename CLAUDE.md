@@ -105,6 +105,7 @@ The platform is **bilingual** (French/English) with French as the primary langua
 │   │   ├── batiments/            # Building management
 │   │   ├── bassins/              # Basin management
 │   │   ├── utilisateurs/         # User management
+│   │   ├── reactivate-users/     # User reactivation after Supabase pause
 │   │   ├── entreprises/          # Company directory
 │   │   ├── materiaux/            # Material catalog
 │   │   └── listes/               # Lists/dropdowns config
@@ -1586,6 +1587,7 @@ const { data: etatData } = await supabase
 - `/app/admin/batiments/page.tsx` - ✅ Migrated
 - `/app/admin/batiments/[id]/page.tsx` - ✅ Migrated (complex page with 3 modals)
 - `/app/admin/clients/[id]/page.tsx` - ✅ Migrated (complex page with 3 modals)
+- `/app/admin/entreprises/page.tsx` - ✅ Migrated (3 modals with shared form)
 - See migration guide for full list
 
 ---
@@ -1612,6 +1614,63 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   );
 }
 ```
+
+---
+
+### Reactivating Users After Supabase Pause
+
+**When Supabase is paused** due to inactivity, users may be marked as inactive (`is_active = false`) in the `user_profiles` table, preventing login.
+
+**Quick Fix - Web Interface:**
+
+1. Navigate to `/admin/reactivate-users` (or access directly: `http://localhost:3000/admin/reactivate-users`)
+2. View statistics showing total, active, and inactive users
+3. Click **"Réactiver Tous"** to reactivate all inactive users at once
+4. Or click **"Réactiver"** on individual users
+
+**Alternative - SQL Direct:**
+
+```sql
+-- Reactivate all inactive users
+UPDATE user_profiles
+SET is_active = true
+WHERE is_active = false;
+
+-- Or reactivate a specific user
+UPDATE user_profiles
+SET is_active = true
+WHERE user_id = 'user-id-here';
+```
+
+**Available Endpoints:**
+- `GET /api/admin/users/list` - Get all users with their emails
+- `POST /api/admin/users/reactivate` - Reactivate users
+  - Single user: `{ user_id: "xxx" }`
+  - All users: `{ all: true }`
+
+**Login Page Improvements:**
+
+The login page (`/app/login/page.tsx`) now includes:
+- ✅ Detailed console logs with emojis (🔄📡✅❌🔐🚀)
+- ✅ 30-second timeout on fetch requests
+- ✅ Specific error messages for Supabase connectivity issues
+- ✅ Configuration validation before attempting login
+- ✅ Shake animation on error messages
+
+**Console Logs Example:**
+```
+🔄 Tentative de connexion... { email: "user@example.com" }
+🔍 Vérification de la configuration Supabase...
+✅ Configuration Supabase trouvée
+📡 Envoi de la requête de connexion...
+✅ Réponse reçue: 200
+📦 Données reçues: { ok: true, hasSession: true }
+🔐 Configuration de la session...
+✅ Session configurée
+🚀 Redirection... { role: "admin" }
+```
+
+**See also:** `/docs/REACTIVATE_USERS_README.md` for complete documentation
 
 ---
 
@@ -1846,11 +1905,13 @@ const handleDelete = async () => {
 #### Available Admin API Endpoints
 
 **Users:**
+- `GET /api/admin/users/list` - List all users with emails (includes auth.users data)
 - `POST /api/admin/users/create` - Create user
 - `POST /api/admin/users/update` - Update user profile & access
 - `POST /api/admin/users/reset-password` - Send password reset email
 - `POST /api/admin/users/toggle-active` - Suspend/activate user
 - `POST /api/admin/users/update-access` - Update user access rights
+- `POST /api/admin/users/reactivate` - Reactivate user(s) after Supabase pause (accepts `user_id` or `all: true`)
 
 **Clients:**
 - `POST /api/admin/clients/create` - Create client
