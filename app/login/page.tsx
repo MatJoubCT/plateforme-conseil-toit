@@ -18,19 +18,65 @@ export default function LoginPage() {
     setErrorMsg(null)
     setLoading(true)
 
-    try {
-      // 1) Appeler l'API de login avec rate limiting
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      })
+    console.log('🔄 Tentative de connexion...', { email })
 
-      const data = await response.json()
+    try {
+      // Vérifier la connexion Supabase avant d'essayer de se connecter
+      console.log('🔍 Vérification de la configuration Supabase...')
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+      if (!supabaseUrl || !supabaseKey) {
+        console.error('❌ Variables d\'environnement Supabase manquantes')
+        setLoading(false)
+        setErrorMsg('Configuration Supabase manquante. Contactez l\'administrateur.')
+        return
+      }
+
+      console.log('✅ Configuration Supabase trouvée')
+
+      // 1) Appeler l'API de login avec timeout de 30 secondes
+      console.log('📡 Envoi de la requête de connexion...')
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 secondes
+
+      let response
+      try {
+        response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password }),
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+        console.log('✅ Réponse reçue:', response.status)
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId)
+        if (fetchError.name === 'AbortError') {
+          console.error('⏱️ Timeout de la requête de connexion')
+          setLoading(false)
+          setErrorMsg('La requête a pris trop de temps. Vérifiez que la base de données Supabase est active.')
+          return
+        }
+        throw fetchError
+      }
+
+      let data
+      try {
+        data = await response.json()
+        console.log('📦 Données reçues:', { ok: data.ok, hasSession: !!data.session })
+      } catch (jsonError) {
+        console.error('❌ Erreur de parsing JSON:', jsonError)
+        setLoading(false)
+        setErrorMsg('Réponse invalide du serveur')
+        return
+      }
 
       if (!response.ok) {
+        console.error('❌ Erreur d\'authentification:', data.error)
         setLoading(false)
         setErrorMsg(data.error || 'Erreur lors de la connexion')
         return
@@ -38,32 +84,47 @@ export default function LoginPage() {
 
       // 2) Définir la session Supabase côté client
       if (data.session) {
+        console.log('🔐 Configuration de la session...')
         const { error: sessionError } = await supabaseBrowser.auth.setSession({
           access_token: data.session.access_token,
           refresh_token: data.session.refresh_token,
         })
 
         if (sessionError) {
+          console.error('❌ Erreur de configuration de session:', sessionError)
           setLoading(false)
           setErrorMsg('Erreur lors de la configuration de la session')
           return
         }
+        console.log('✅ Session configurée')
       }
 
       setLoading(false)
 
       // 3) Redirection selon le rôle
+      console.log('🚀 Redirection...', { role: data.user.role })
       if (data.user.role === 'admin') {
         router.push('/admin')
       } else if (data.user.role === 'client') {
         router.push('/client')
       } else {
+        console.error('❌ Rôle inconnu:', data.user.role)
         setErrorMsg(`Rôle inconnu : ${data.user.role}`)
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ Erreur inattendue lors de la connexion:', error)
       setLoading(false)
-      setErrorMsg('Une erreur est survenue lors de la connexion')
-      console.error('Login error:', error)
+
+      // Message d'erreur plus informatif
+      let errorMessage = 'Une erreur est survenue lors de la connexion'
+      if (error.message) {
+        errorMessage += `: ${error.message}`
+      }
+      if (error.message?.includes('Failed to fetch')) {
+        errorMessage = 'Impossible de se connecter au serveur. Vérifiez que la base de données Supabase est active.'
+      }
+
+      setErrorMsg(errorMessage)
     }
   }
 
