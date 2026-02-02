@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { createClient } from '@/lib/supabaseClient'
 import { rateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { sanitizeError, logError, GENERIC_ERROR_MESSAGES } from '@/lib/validation'
 
@@ -41,8 +41,9 @@ export async function POST(req: NextRequest) {
       throw error
     }
 
-    // 3. Authentification via Supabase Admin
-    const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
+    // 3. Authentification via Supabase avec gestion automatique des cookies
+    const supabase = await createClient()
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
       email: validated.email,
       password: validated.password,
     })
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Récupérer le profil utilisateur
-    const { data: profile, error: profileError } = await supabaseAdmin
+    const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('role, client_id, is_active, full_name')
       .eq('user_id', user.id)
@@ -93,10 +94,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 7. Retourner les données de session
+    // 7. Retourner les données utilisateur (la session est déjà dans les cookies)
     return NextResponse.json({
       ok: true,
-      session: signInData.session,
       user: {
         id: user.id,
         email: user.email,

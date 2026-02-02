@@ -2,7 +2,6 @@
 
 import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import Image from 'next/image'
 import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react'
 
@@ -67,7 +66,7 @@ export default function LoginPage() {
       let data
       try {
         data = await response.json()
-        console.log('📦 Données reçues:', { ok: data.ok, hasSession: !!data.session })
+        console.log('📦 Données reçues:', { ok: data.ok, hasUser: !!data.user })
       } catch (jsonError) {
         console.error('❌ Erreur de parsing JSON:', jsonError)
         setLoading(false)
@@ -82,26 +81,11 @@ export default function LoginPage() {
         return
       }
 
-      // 2) Définir la session Supabase côté client
-      if (data.session) {
-        console.log('🔐 Configuration de la session...')
-        const { error: sessionError } = await supabaseBrowser.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        })
-
-        if (sessionError) {
-          console.error('❌ Erreur de configuration de session:', sessionError)
-          setLoading(false)
-          setErrorMsg('Erreur lors de la configuration de la session')
-          return
-        }
-        console.log('✅ Session configurée')
-      }
-
+      // La session est automatiquement définie via les cookies par l'API
+      console.log('✅ Authentification réussie')
       setLoading(false)
 
-      // 3) Redirection selon le rôle
+      // Redirection selon le rôle
       console.log('🚀 Redirection...', { role: data.user.role })
       if (data.user.role === 'admin') {
         router.push('/admin')

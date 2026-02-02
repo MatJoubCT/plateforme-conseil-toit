@@ -1,16 +1,17 @@
 'use client'
 
-import { createClient } from '@supabase/supabase-js'
+import { createBrowserClient as createClient } from '@supabase/ssr'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export const supabaseBrowser = createClient(supabaseUrl, supabaseAnonKey)
-
 /**
- * Creates a new Supabase browser client instance
- * Use this in client components for optimal session management
+ * Creates a new Supabase browser client instance with automatic cookie management
+ * Use this in client components for optimal session management with Next.js SSR
  */
 export function createBrowserClient() {
   return createClient(supabaseUrl, supabaseAnonKey)
 }
+
+// Export a singleton instance for convenience
+export const supabaseBrowser = createBrowserClient()

@@ -1,6 +1,7 @@
-import { supabase } from '@/lib/supabaseClient'
+import { createClient } from '@/lib/supabaseClient'
 
 export default async function TestSupabasePage() {
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('listes_choix')
     .select('id, categorie, code, label, couleur, ordre')

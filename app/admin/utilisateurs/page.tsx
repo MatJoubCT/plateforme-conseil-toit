@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, ChangeEvent } from 'react'
-import { createBrowserClient, supabaseBrowser } from '@/lib/supabaseBrowser'
+import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { useUsersData } from '@/lib/hooks/useUsersData'
 import type { UserProfileRow, ClientRow, BatimentRow, EditableUser } from '@/lib/hooks/useUsersData'
 import EditUserModal from '@/components/admin/users/EditUserModal'
@@ -17,17 +17,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Pagination, usePagination } from '@/components/ui/Pagination'
 import { Users, UserPlus, Shield, KeyRound, Ban, CheckCircle2, X, Search, SlidersHorizontal } from 'lucide-react'
 import { useToast } from '@/lib/toast-context'
-
-/**
- * Helper pour obtenir le token de session
- */
-async function getSessionToken(): Promise<string | null> {
-  const supabase = createBrowserClient()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  return session?.access_token || null
-}
+import { useApiMutation } from '@/lib/hooks/useApiMutation'
 
 export default function AdminUtilisateursPage() {
   // Toast global
@@ -79,6 +69,77 @@ export default function AdminUtilisateursPage() {
     currentState: boolean | null
     userName: string
   } | null>(null)
+
+  // Hooks API pour les mutations
+  const {
+    mutate: updateUser,
+    isLoading: isUpdating,
+    error: updateError,
+    resetError: resetUpdateError,
+  } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/admin/users/update',
+    defaultErrorMessage: 'Erreur lors de la modification.',
+    onSuccess: async () => {
+      setSuccessMsg('Modifications enregistrées.')
+      await loadUsersData()
+      window.setTimeout(() => {
+        setShowModal(false)
+        setEditingUser(null)
+      }, 1500)
+    },
+  })
+
+  const {
+    mutate: toggleUserActive,
+    isLoading: isTogglingActive,
+    error: toggleError,
+  } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/admin/users/toggle-active',
+    defaultErrorMessage: 'Erreur lors du changement de statut.',
+    onSuccess: async (data) => {
+      toast.success(confirmToggle?.currentState ? 'Utilisateur suspendu.' : 'Utilisateur réactivé.')
+      setConfirmToggle(null)
+      await loadUsersData()
+    },
+    onError: (error) => {
+      toast.error(error)
+      setConfirmToggle(null)
+    },
+  })
+
+  const {
+    mutate: resetPasswordUser,
+    isLoading: isResettingPassword,
+    error: resetPasswordError,
+  } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/admin/users/reset-password',
+    defaultErrorMessage: 'Erreur lors de la réinitialisation.',
+    onSuccess: () => {
+      toast.success('Courriel de réinitialisation envoyé!')
+    },
+    onError: (error) => {
+      toast.error(error)
+    },
+  })
+
+  const {
+    mutate: createUser,
+    isLoading: isCreatingUser,
+    error: createUserError,
+    resetError: resetCreateError,
+  } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/admin/users/create',
+    defaultErrorMessage: 'Erreur lors de la création.',
+    onSuccess: async () => {
+      toast.success('Utilisateur créé. Invitation envoyée par courriel.')
+      setShowCreateModal(false)
+      await loadUsersData()
+    },
+  })
 
   // Load users data on mount
   useEffect(() => {
@@ -148,50 +209,19 @@ export default function AdminUtilisateursPage() {
     setSuccessMsg(null)
 
     try {
-      const token = await getSessionToken()
-      if (!token) {
-        setErrorMsg('Session expirée. Veuillez vous reconnecter.')
-        setSaving(false)
-        return
-      }
-
-      const res = await fetch('/api/admin/users/update', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          userId: editingUser.user_id,
-          fullName: editFullName.trim() || null,
-          role: editRole,
-          clientIds: selectedClientIds,
-          batimentIds: selectedBatimentIds,
-        }),
+      await updateUser({
+        userId: editingUser.user_id,
+        fullName: editFullName.trim() || null,
+        role: editRole,
+        clientIds: selectedClientIds,
+        batimentIds: selectedBatimentIds,
       })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setErrorMsg(data.error || 'Erreur lors de la modification.')
-        setSaving(false)
-        return
-      }
-
-      setSuccessMsg('Modifications enregistrées.')
-      setSaving(false)
-
-      await loadUsersData()
-
-      window.setTimeout(() => {
-        setShowModal(false)
-        setEditingUser(null)
-      }, 1500)
     } catch (err: any) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Erreur inattendue save:', err)
       }
       setErrorMsg(err.message || 'Erreur inattendue.')
+    } finally {
       setSaving(false)
     }
   }
@@ -199,37 +229,10 @@ export default function AdminUtilisateursPage() {
   const executeToggleUserActive = async () => {
     if (!confirmToggle) return
 
-    const { userId, currentState } = confirmToggle
+    const { userId } = confirmToggle
 
     try {
-      const token = await getSessionToken()
-      if (!token) {
-        toast.error('Session expirée. Veuillez vous reconnecter.')
-        setConfirmToggle(null)
-        return
-      }
-
-      const res = await fetch('/api/admin/users/toggle-active', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ userId }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        toast.error(data.error || 'Erreur lors du changement de statut.')
-        setConfirmToggle(null)
-        return
-      }
-
-      toast.success(currentState ? 'Utilisateur suspendu.' : 'Utilisateur réactivé.')
-      setConfirmToggle(null)
-
-      await loadUsersData()
+      await toggleUserActive({ userId })
     } catch (err: any) {
       toast.error(err.message || 'Erreur réseau.')
       setConfirmToggle(null)
@@ -250,33 +253,9 @@ export default function AdminUtilisateursPage() {
     setConfirmResetUserId(null)
 
     try {
-      const token = await getSessionToken()
-      if (!token) {
-        toast.error( 'Session expirée. Veuillez vous reconnecter.')
-        setResetLoadingByUserId((prev) => ({ ...prev, [userId]: false }))
-        return
-      }
-
-      const res = await fetch('/api/admin/users/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ userId }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        toast.error( data.error || 'Erreur inconnue.')
-        setResetLoadingByUserId((prev) => ({ ...prev, [userId]: false }))
-        return
-      }
-
-      toast.success( 'Courriel de réinitialisation envoyé!')
+      await resetPasswordUser({ userId })
     } catch (err: any) {
-      toast.error( err.message || 'Erreur réseau.')
+      toast.error(err.message || 'Erreur réseau.')
     } finally {
       setResetLoadingByUserId((prev) => ({ ...prev, [userId]: false }))
     }
@@ -291,9 +270,16 @@ export default function AdminUtilisateursPage() {
     setShowCreateModal(true)
   }
 
-  const closeCreateModal = () => {
-    if (createSaving) return
-    setShowCreateModal(false)
+  const handleCreateModalOpenChange = (open: boolean) => {
+    if (!open && !createSaving) {
+      setShowCreateModal(false)
+      setCreateEmail('')
+      setCreateFullName('')
+      setCreateRole('client')
+      setCreateClientId('')
+      setCreateErrorMsg(null)
+      resetCreateError()
+    }
   }
 
   const handleCreateUser = async () => {
@@ -306,45 +292,18 @@ export default function AdminUtilisateursPage() {
     setCreateErrorMsg(null)
 
     try {
-      const token = await getSessionToken()
-      if (!token) {
-        setCreateErrorMsg('Session expirée. Veuillez vous reconnecter.')
-        setCreateSaving(false)
-        return
-      }
-
-      const res = await fetch('/api/admin/users/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          email: createEmail.trim(),
-          fullName: createFullName.trim() || null,
-          role: createRole,
-          clientId: createClientId || null,
-        }),
+      await createUser({
+        email: createEmail.trim(),
+        fullName: createFullName.trim() || null,
+        role: createRole,
+        clientId: createClientId || null,
       })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setCreateErrorMsg(data.error || 'Erreur lors de la création.')
-        setCreateSaving(false)
-        return
-      }
-
-      toast.success( 'Utilisateur créé. Invitation envoyée par courriel.')
-      setCreateSaving(false)
-      setShowCreateModal(false)
-
-      await loadUsersData()
     } catch (err: any) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Erreur inattendue création:', err)
       }
       setCreateErrorMsg(err.message || 'Erreur inattendue.')
+    } finally {
       setCreateSaving(false)
     }
   }
@@ -701,112 +660,99 @@ export default function AdminUtilisateursPage() {
         />
       </div>
 
-      {/* MODAL AJOUTER UTILISATEUR (inline) */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg max-h-[95vh] overflow-y-auto overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h2 className="text-lg font-bold text-slate-800">Ajouter un utilisateur</h2>
-                <p className="mt-0.5 text-sm text-slate-500">
-                  Un courriel d&apos;invitation sera envoyé à cette adresse. Le profil sera créé avec le rôle
-                  sélectionné.
-                </p>
+      {/* MODAL AJOUTER UTILISATEUR */}
+      <Dialog open={showCreateModal} onOpenChange={handleCreateModalOpenChange}>
+        <DialogContent className="sm:max-w-lg max-h-[95vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Ajouter un utilisateur</DialogTitle>
+            <DialogDescription>
+              Un courriel d&apos;invitation sera envoyé à cette adresse. Le profil sera créé avec le rôle sélectionné.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            {/* Affichage des erreurs */}
+            {(createErrorMsg || createUserError) && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <div className="font-semibold">Erreur</div>
+                <div className="mt-1">{createErrorMsg || createUserError}</div>
               </div>
-              <button
-                type="button"
-                onClick={closeCreateModal}
-                disabled={createSaving}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-                aria-label="Fermer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+            )}
 
-            <div className="p-6 space-y-5">
-              {createErrorMsg && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  <div className="font-semibold">Erreur</div>
-                  <div className="mt-1">{createErrorMsg}</div>
-                </div>
-              )}
-
-              <div className="space-y-3 text-sm">
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Courriel (identifiant de connexion) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    value={createEmail}
-                    onChange={(e) => setCreateEmail(e.target.value)}
-                    required
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">Nom complet (optionnel)</label>
-                  <input
-                    type="text"
-                    value={createFullName}
-                    onChange={(e) => setCreateFullName(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">Rôle</label>
-                  <select
-                    value={createRole}
-                    onChange={(e) => setCreateRole(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-                  >
-                    <option value="client">client</option>
-                    <option value="admin">admin</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-slate-700">Client associé (optionnel)</label>
-                  <select
-                    value={createClientId}
-                    onChange={(e) => setCreateClientId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
-                  >
-                    <option value="">Aucun</option>
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name || '(Sans nom)'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            <div className="space-y-3 text-sm">
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Courriel (identifiant de connexion) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={createEmail}
+                  onChange={(e) => setCreateEmail(e.target.value)}
+                  required
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
+                />
               </div>
 
-              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
-                <button
-                  type="button"
-                  onClick={closeCreateModal}
-                  disabled={createSaving}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">Nom complet (optionnel)</label>
+                <input
+                  type="text"
+                  value={createFullName}
+                  onChange={(e) => setCreateFullName(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">Rôle</label>
+                <select
+                  value={createRole}
+                  onChange={(e) => setCreateRole(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                 >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreateUser}
-                  disabled={createSaving}
-                  className="rounded-xl bg-gradient-to-r from-ct-primary to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+                  <option value="client">client</option>
+                  <option value="admin">admin</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-sm font-semibold text-slate-700">Client associé (optionnel)</label>
+                <select
+                  value={createClientId}
+                  onChange={(e) => setCreateClientId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-ct-primary focus:outline-none focus:ring-2 focus:ring-ct-primary/20"
                 >
-                  {createSaving ? 'Création…' : 'Créer et inviter'}
-                </button>
+                  <option value="">Aucun</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name || '(Sans nom)'}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
-        </div>
-      )}
+
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => handleCreateModalOpenChange(false)}
+              disabled={createSaving}
+              className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleCreateUser}
+              disabled={createSaving}
+              className="rounded-xl bg-gradient-to-r from-ct-primary to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+            >
+              {createSaving ? 'Création…' : 'Créer et inviter'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* MODAL MODIFIER UTILISATEUR */}
       {showModal && editingUser && (
