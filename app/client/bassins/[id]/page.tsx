@@ -5,9 +5,17 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { useValidatedId } from '@/lib/hooks/useValidatedId'
+import { useApiMutation } from '@/lib/hooks/useApiMutation'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import BassinMap, { InterventionMarker } from '@/components/maps/BassinMap'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import {
   Info,
   Wrench,
@@ -214,12 +222,6 @@ function sanitizeStorageKey(name: string) {
   return n.length ? n : 'fichier'
 }
 
-// Helper pour obtenir le token de session
-async function getSessionToken(): Promise<string | null> {
-  const { data: { session } } = await supabaseBrowser.auth.getSession()
-  return session?.access_token || null
-}
-
 export default function ClientBassinDetailPage() {
   const router = useRouter()
   const bassinId = useValidatedId('/client/bassins')
@@ -317,6 +319,103 @@ export default function ClientBassinDetailPage() {
   const [selectedInterventionForImages, setSelectedInterventionForImages] =
     useState<InterventionWithFiles | null>(null)
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
+
+  // ==========================================
+  // useApiMutation Hooks
+  // ==========================================
+
+  // Garanties
+  const {
+    mutate: createGarantie,
+    isLoading: isCreatingGarantie,
+    error: errorCreateGarantie,
+  } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/client/garanties/create',
+    defaultErrorMessage: 'Erreur lors de la création de la garantie',
+  })
+
+  const {
+    mutate: updateGarantie,
+    isLoading: isUpdatingGarantie,
+    error: errorUpdateGarantie,
+  } = useApiMutation({
+    method: 'PUT',
+    endpoint: '/api/client/garanties/update',
+    defaultErrorMessage: 'Erreur lors de la modification de la garantie',
+  })
+
+  const {
+    mutate: deleteGarantieMutation,
+    isLoading: isDeletingGarantie,
+    error: errorDeleteGarantie,
+  } = useApiMutation({
+    method: 'DELETE',
+    endpoint: '/api/client/garanties/delete',
+    defaultErrorMessage: 'Erreur lors de la suppression de la garantie',
+  })
+
+  // Bassin
+  const {
+    mutate: updateBassinMutation,
+    isLoading: isUpdatingBassin,
+    error: errorUpdateBassin,
+  } = useApiMutation({
+    method: 'PUT',
+    endpoint: '/api/client/bassins/update',
+    defaultErrorMessage: 'Erreur lors de la mise à jour du bassin',
+  })
+
+  const {
+    mutate: deleteBassinMutation,
+    isLoading: isDeletingBassin,
+    error: errorDeleteBassin,
+  } = useApiMutation({
+    method: 'DELETE',
+    endpoint: '/api/client/bassins/delete',
+    defaultErrorMessage: 'Erreur lors de la suppression du bassin',
+  })
+
+  // Interventions
+  const {
+    mutate: createInterventionMutation,
+    isLoading: isCreatingIntervention,
+    error: errorCreateIntervention,
+  } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/client/interventions/create',
+    defaultErrorMessage: "Erreur lors de la création de l'intervention",
+  })
+
+  const {
+    mutate: updateInterventionMutation,
+    isLoading: isUpdatingIntervention,
+    error: errorUpdateIntervention,
+  } = useApiMutation({
+    method: 'PUT',
+    endpoint: '/api/client/interventions/update',
+    defaultErrorMessage: "Erreur lors de la modification de l'intervention",
+  })
+
+  const {
+    mutate: deleteInterventionMutation,
+    isLoading: isDeletingInterventionMutation,
+    error: errorDeleteIntervention,
+  } = useApiMutation({
+    method: 'DELETE',
+    endpoint: '/api/client/interventions/delete',
+    defaultErrorMessage: "Erreur lors de la suppression de l'intervention",
+  })
+
+  const {
+    mutate: deleteInterventionFileMutation,
+    isLoading: isDeletingFile,
+    error: errorDeleteFile,
+  } = useApiMutation({
+    method: 'DELETE',
+    endpoint: '/api/client/interventions/delete-file',
+    defaultErrorMessage: 'Erreur lors de la suppression du fichier',
+  })
 
   useEffect(() => {
     if (!bassinId) return
@@ -829,13 +928,6 @@ export default function ClientBassinDetailPage() {
     setSaving(true)
 
     try {
-      const token = await getSessionToken()
-      if (!token) {
-        alert('Session expirée. Veuillez vous reconnecter.')
-        setSaving(false)
-        return
-      }
-
       const payload = {
         bassinId: bassin.id,
         typeGarantieId: formTypeGarantieId || null,
@@ -849,33 +941,16 @@ export default function ClientBassinDetailPage() {
         fichierPdfUrl: editingGarantie?.fichier_pdf_url || null,
       }
 
-      let res
+      let data
       if (editingGarantie?.id) {
         // Update
-        res = await fetch('/api/client/garanties/update', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ ...payload, id: editingGarantie.id }),
-        })
+        data = await updateGarantie({ ...payload, id: editingGarantie.id })
       } else {
         // Create
-        res = await fetch('/api/client/garanties/create', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        })
+        data = await createGarantie(payload)
       }
 
-      const data = await res.json()
-
-      if (!res.ok) {
-        alert(data.error || 'Erreur lors de la sauvegarde de la garantie')
+      if (!data) {
         setSaving(false)
         return
       }
@@ -906,17 +981,10 @@ export default function ClientBassinDetailPage() {
 
         if (publicUrl) {
           // Update with PDF URL
-          await fetch('/api/client/garanties/update', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              id: data.data.id,
-              bassinId: bassin.id,
-              fichierPdfUrl: publicUrl,
-            }),
+          await updateGarantie({
+            id: data.data.id,
+            bassinId: bassin.id,
+            fichierPdfUrl: publicUrl,
           })
         }
       }
@@ -948,36 +1016,13 @@ export default function ClientBassinDetailPage() {
     setDeletingGarantie(true)
 
     try {
-      const token = await getSessionToken()
-      if (!token) {
-        alert('Session expirée. Veuillez vous reconnecter.')
-        setDeletingGarantie(false)
-        return
-      }
-
-      const res = await fetch('/api/client/garanties/delete', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id: garantie.id }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        alert(data.error || 'Erreur lors de la suppression de la garantie')
-        setDeletingGarantie(false)
-        return
-      }
-
+      await deleteGarantieMutation({ id: garantie.id })
       setGaranties((prev) => prev.filter((g) => g.id !== garantie.id))
       setConfirmDeleteGarantie(null)
-      setDeletingGarantie(false)
     } catch (error: any) {
       console.error('Erreur:', error)
       alert(error.message || 'Erreur inattendue')
+    } finally {
       setDeletingGarantie(false)
     }
   }
@@ -1164,13 +1209,6 @@ export default function ClientBassinDetailPage() {
     setSavingBassin(true)
 
     try {
-      const token = await getSessionToken()
-      if (!token) {
-        alert('Session expirée. Veuillez vous reconnecter.')
-        setSavingBassin(false)
-        return
-      }
-
       const payload = {
         id: bassin.id,
         batimentId: batiment.id,
@@ -1186,30 +1224,16 @@ export default function ClientBassinDetailPage() {
         polygoneGeojson: bassin.polygone_geojson,
       }
 
-      const res = await fetch('/api/client/bassins/update', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      })
+      const data = await updateBassinMutation(payload)
 
-      const data = await res.json()
-      setSavingBassin(false)
-
-      if (!res.ok) {
-        alert(data.error || 'Erreur lors de la mise à jour du bassin')
-        return
-      }
-
-      if (data.data) {
+      if (data?.data) {
         setBassin(data.data as BassinRow)
         setShowEditBassinModal(false)
       }
     } catch (error: any) {
       console.error('Erreur:', error)
       alert(error.message || 'Erreur inattendue')
+    } finally {
       setSavingBassin(false)
     }
   }
@@ -1230,30 +1254,7 @@ export default function ClientBassinDetailPage() {
     setDeletingBassin(true)
 
     try {
-      const token = await getSessionToken()
-      if (!token) {
-        alert('Session expirée. Veuillez vous reconnecter.')
-        setDeletingBassin(false)
-        return
-      }
-
-      const res = await fetch('/api/client/bassins/delete', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id: bassin.id }),
-      })
-
-      const data = await res.json()
-      setDeletingBassin(false)
-
-      if (!res.ok) {
-        alert(data.error || 'Erreur lors de la suppression du bassin')
-        return
-      }
-
+      await deleteBassinMutation({ id: bassin.id })
       setShowDeleteBassinModal(false)
 
       if (batiment?.id) router.push(`/client/batiments/${batiment.id}`)
@@ -1261,6 +1262,7 @@ export default function ClientBassinDetailPage() {
     } catch (error: any) {
       console.error('Erreur:', error)
       alert(error.message || 'Erreur inattendue')
+    } finally {
       setDeletingBassin(false)
     }
   }
@@ -1378,13 +1380,6 @@ export default function ClientBassinDetailPage() {
     setSavingIntervention(true)
 
     try {
-      const token = await getSessionToken()
-      if (!token) {
-        alert('Session expirée. Veuillez vous reconnecter.')
-        setSavingIntervention(false)
-        return
-      }
-
       const safeTypeId = intTypeId && intTypeId.trim() !== '' ? intTypeId : null
 
       const payload = {
@@ -1395,33 +1390,16 @@ export default function ClientBassinDetailPage() {
         locationGeojson: toGeoJSONPoint(intLocation),
       }
 
-      let res
+      let data
       if (editingIntervention?.id) {
         // Update
-        res = await fetch('/api/client/interventions/update', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ ...payload, id: editingIntervention.id }),
-        })
+        data = await updateInterventionMutation({ ...payload, id: editingIntervention.id })
       } else {
         // Create
-        res = await fetch('/api/client/interventions/create', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        })
+        data = await createInterventionMutation(payload)
       }
 
-      const data = await res.json()
-
-      if (!res.ok) {
-        alert(data.error || 'Erreur enregistrement intervention')
+      if (!data) {
         setSavingIntervention(false)
         return
       }
@@ -1430,6 +1408,13 @@ export default function ClientBassinDetailPage() {
 
       // Upload fichiers (si ajoutés)
       if (saved && intNewFiles.length > 0) {
+        const token = await supabaseBrowser.auth.getSession().then((s) => s.data.session?.access_token)
+        if (!token) {
+          alert('Session expirée. Veuillez vous reconnecter.')
+          setSavingIntervention(false)
+          return
+        }
+
         for (const f of intNewFiles) {
           const formData = new FormData()
           formData.append('interventionId', saved.id)
@@ -1479,39 +1464,16 @@ export default function ClientBassinDetailPage() {
     setDeletingIntervention(true)
 
     try {
-      const token = await getSessionToken()
-      if (!token) {
-        alert('Session expirée. Veuillez vous reconnecter.')
-        setDeletingIntervention(false)
-        return
-      }
-
-      const res = await fetch('/api/client/interventions/delete', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id: it.id }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        alert(data.error || 'Erreur suppression intervention')
-        setDeletingIntervention(false)
-        return
-      }
-
+      await deleteInterventionMutation({ id: it.id })
       setInterventions((prev) => prev.filter((x) => x.id !== it.id))
       if (selectedInterventionId === it.id) setSelectedInterventionId(null)
       if (editingIntervention?.id === it.id) closeInterventionEditor()
 
       setConfirmDeleteIntervention(null)
-      setDeletingIntervention(false)
     } catch (error: any) {
       console.error('Erreur:', error)
       alert(error.message || 'Erreur inattendue')
+    } finally {
       setDeletingIntervention(false)
     }
   }
@@ -1547,29 +1509,7 @@ export default function ClientBassinDetailPage() {
     setBusyFileIds((p) => ({ ...p, [fileToDelete.id]: true }))
 
     try {
-      const token = await getSessionToken()
-      if (!token) {
-        alert('Session expirée. Veuillez vous reconnecter.')
-        setBusyFileIds((p) => ({ ...p, [fileToDelete.id]: false }))
-        return
-      }
-
-      const res = await fetch('/api/client/interventions/delete-file', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ fileId: fileToDelete.id }),
-      })
-
-      const data = await res.json()
-      setBusyFileIds((p) => ({ ...p, [fileToDelete.id]: false }))
-
-      if (!res.ok) {
-        alert(data.error || 'Erreur suppression fichier')
-        return
-      }
+      await deleteInterventionFileMutation({ fileId: fileToDelete.id })
 
       setInterventions((prev) =>
         prev.map((it) => {
@@ -1586,6 +1526,7 @@ export default function ClientBassinDetailPage() {
     } catch (error: any) {
       console.error('Erreur:', error)
       alert(error.message || 'Erreur inattendue')
+    } finally {
       setBusyFileIds((p) => ({ ...p, [fileToDelete.id]: false }))
     }
   }
@@ -2435,25 +2376,14 @@ export default function ClientBassinDetailPage() {
 
       {/* ========== MODALS ========== */}
       {/* Modal édition bassin */}
-      {showEditBassinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">Modifier le bassin</h3>
-                <p className="text-sm text-slate-500 mt-0.5">Ajustez les informations de ce bassin</p>
-              </div>
-              <button
-                type="button"
-                onClick={closeEditBassinModal}
-                disabled={savingBassin}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      <Dialog open={showEditBassinModal} onOpenChange={setShowEditBassinModal}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Modifier le bassin</DialogTitle>
+            <p className="text-sm text-slate-500 mt-0.5">Ajustez les informations de ce bassin</p>
+          </DialogHeader>
 
-            <form onSubmit={handleSubmitBassin} className="p-6 space-y-5">
+          <form onSubmit={handleSubmitBassin} className="space-y-5">
               <div className="space-y-1.5">
                 <label className="block text-sm font-semibold text-slate-700">Nom du bassin</label>
                 <input
@@ -2573,48 +2503,36 @@ export default function ClientBassinDetailPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={closeEditBassinModal}
-                  disabled={savingBassin}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingBassin}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                >
-                  {savingBassin ? 'Enregistrement…' : 'Enregistrer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal ajout / modification garantie */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">{modalTitle}</h3>
-                <p className="text-sm text-slate-500 mt-0.5">Bassin : {bassin.name || '(Sans nom)'}</p>
-              </div>
+            <DialogFooter className="pt-4 border-t border-slate-200">
               <button
                 type="button"
-                onClick={closeModal}
-                disabled={saving}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                onClick={() => setShowEditBassinModal(false)}
+                disabled={savingBassin}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
               >
-                <X className="h-5 w-5" />
+                Annuler
               </button>
-            </div>
+              <button
+                type="submit"
+                disabled={savingBassin}
+                className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {savingBassin ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-            <form onSubmit={handleSubmitGarantie} className="p-6 space-y-5">
+      {/* Modal ajout / modification garantie */}
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{modalTitle}</DialogTitle>
+            <p className="text-sm text-slate-500 mt-0.5">Bassin : {bassin.name || '(Sans nom)'}</p>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmitGarantie} className="space-y-5">
               <div className="space-y-1.5">
                 <label className="block text-sm font-semibold text-slate-700">
                   Type de garantie <span className="text-red-500">*</span>
@@ -2727,48 +2645,36 @@ export default function ClientBassinDetailPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={saving}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                >
-                  {saving ? 'Enregistrement…' : 'Enregistrer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal ajout / modification rapport */}
-      {showRapportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">{rapportModalTitle}</h3>
-                <p className="text-sm text-slate-500 mt-0.5">Bassin : {bassin.name || '(Sans nom)'}</p>
-              </div>
+            <DialogFooter className="pt-4 border-t border-slate-200">
               <button
                 type="button"
-                onClick={closeRapportModal}
-                disabled={savingRapport}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                onClick={() => setShowModal(false)}
+                disabled={saving}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
               >
-                <X className="h-5 w-5" />
+                Annuler
               </button>
-            </div>
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {saving ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-            <form onSubmit={handleSubmitRapport} className="p-6 space-y-5">
+      {/* Modal ajout / modification rapport */}
+      <Dialog open={showRapportModal} onOpenChange={setShowRapportModal}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{rapportModalTitle}</DialogTitle>
+            <p className="text-sm text-slate-500 mt-0.5">Bassin : {bassin.name || '(Sans nom)'}</p>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmitRapport} className="space-y-5">
               <div className="space-y-1.5">
                 <label className="block text-sm font-semibold text-slate-700">
                   Type de rapport <span className="text-red-500">*</span>
@@ -2838,10 +2744,10 @@ export default function ClientBassinDetailPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+              <DialogFooter className="pt-4 border-t border-slate-200">
                 <button
                   type="button"
-                  onClick={closeRapportModal}
+                  onClick={() => setShowRapportModal(false)}
                   disabled={savingRapport}
                   className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                 >
@@ -2854,170 +2760,62 @@ export default function ClientBassinDetailPage() {
                 >
                   {savingRapport ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
-              </div>
+              </DialogFooter>
             </form>
-          </div>
-        </div>
-      )}
+          </DialogContent>
+        </Dialog>
 
       {/* Modal confirmation suppression intervention */}
-      {confirmDeleteIntervention && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            onClick={() => !deletingIntervention && setConfirmDeleteIntervention(null)}
-          />
-          <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/30 bg-white shadow-2xl">
-            <div className="border-b border-slate-100 bg-gradient-to-r from-red-50 to-white px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10">
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800">
-                    Confirmer la suppression
-                  </h2>
-                  <p className="mt-0.5 text-xs text-slate-500">Cette action est irréversible.</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6">
-              <p className="text-sm text-slate-700">Supprimer cette intervention?</p>
-
-              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setConfirmDeleteIntervention(null)}
-                  disabled={deletingIntervention}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  <X className="h-4 w-4" />
-                  Annuler
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => void doDeleteIntervention()}
-                  disabled={deletingIntervention}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-red-700 disabled:opacity-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Supprimer
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!confirmDeleteIntervention}
+        onOpenChange={(open) => !open && setConfirmDeleteIntervention(null)}
+        title="Confirmer la suppression"
+        description="Supprimer cette intervention?"
+        onConfirm={doDeleteIntervention}
+        confirmText="Supprimer"
+        confirmVariant="danger"
+        loading={deletingIntervention}
+      />
 
       {/* Modal confirmation suppression garantie */}
-      {confirmDeleteGarantie && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            onClick={() => !deletingGarantie && setConfirmDeleteGarantie(null)}
-          />
-          <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/30 bg-white shadow-2xl">
-            <div className="border-b border-slate-100 bg-gradient-to-r from-red-50 to-white px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10">
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800">
-                    Confirmer la suppression
-                  </h2>
-                  <p className="mt-0.5 text-xs text-slate-500">Cette action est irréversible.</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6">
-              <p className="text-sm text-slate-700">Supprimer cette garantie?</p>
-
-              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setConfirmDeleteGarantie(null)}
-                  disabled={deletingGarantie}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  <X className="h-4 w-4" />
-                  Annuler
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => void doDeleteGarantie()}
-                  disabled={deletingGarantie}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-red-700 disabled:opacity-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Supprimer
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!confirmDeleteGarantie}
+        onOpenChange={(open) => !open && setConfirmDeleteGarantie(null)}
+        title="Confirmer la suppression"
+        description="Supprimer cette garantie?"
+        onConfirm={doDeleteGarantie}
+        confirmText="Supprimer"
+        confirmVariant="danger"
+        loading={deletingGarantie}
+      />
 
       {/* Modal confirmation suppression rapport */}
-      {confirmDeleteRapport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            onClick={() => !deletingRapport && setConfirmDeleteRapport(null)}
-          />
-          <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/30 bg-white shadow-2xl">
-            <div className="border-b border-slate-100 bg-gradient-to-r from-red-50 to-white px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10">
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800">
-                    Confirmer la suppression
-                  </h2>
-                  <p className="mt-0.5 text-xs text-slate-500">Cette action est irréversible.</p>
-                </div>
-              </div>
-            </div>
+      <ConfirmDialog
+        open={!!confirmDeleteRapport}
+        onOpenChange={(open) => !open && setConfirmDeleteRapport(null)}
+        title="Confirmer la suppression"
+        description="Supprimer ce rapport?"
+        onConfirm={doDeleteRapport}
+        confirmText="Supprimer"
+        confirmVariant="danger"
+        loading={deletingRapport}
+      />
 
-            <div className="p-6">
-              <p className="text-sm text-slate-700">Supprimer ce rapport?</p>
-
-              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setConfirmDeleteRapport(null)}
-                  disabled={deletingRapport}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  <X className="h-4 w-4" />
-                  Annuler
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => void doDeleteRapport()}
-                  disabled={deletingRapport}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-red-700 disabled:opacity-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Supprimer
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal confirmation suppression fichier */}
+      <ConfirmDialog
+        open={!!confirmDeleteFile}
+        onOpenChange={(open) => !open && setConfirmDeleteFile(null)}
+        title="Confirmer la suppression"
+        description="Supprimer ce fichier?"
+        onConfirm={handleConfirmDeleteFile}
+        confirmText="Supprimer"
+        confirmVariant="danger"
+      />
 
       {/* Modal confirmation suppression bassin */}
-      {showDeleteBassinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
-            <div className="p-6">
+      <Dialog open={showDeleteBassinModal} onOpenChange={setShowDeleteBassinModal}>
+        <DialogContent className="max-w-md">
+          <div>
               <div className="flex items-center gap-4 mb-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
                   <AlertTriangle className="h-6 w-6 text-red-600" />
@@ -3047,72 +2845,51 @@ export default function ClientBassinDetailPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  type="button"
-                  onClick={closeDeleteBassinModal}
-                  disabled={deletingBassin}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeleteBassin}
-                  disabled={deleteConfirmText !== 'SUPPRIMER' || deletingBassin}
-                  className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {deletingBassin ? 'Suppression…' : 'Confirmer la suppression'}
-                </button>
-              </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setShowDeleteBassinModal(false)}
+                disabled={deletingBassin}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteBassin}
+                disabled={deleteConfirmText !== 'SUPPRIMER' || deletingBassin}
+                className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deletingBassin ? 'Suppression…' : 'Confirmer la suppression'}
+              </button>
             </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Modal images */}
-      {modalImagesOpen && selectedInterventionForImages && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={() => setModalImagesOpen(false)}
-        >
-          <div
-            className="relative w-full max-w-4xl max-h-[90vh] overflow-auto bg-white rounded-2xl shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header du modal */}
-            <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">
-                    Images de l&apos;intervention
-                  </h2>
-                  <p className="text-sm text-slate-600 mt-1">
-                    {new Date(selectedInterventionForImages.date_intervention).toLocaleDateString('fr-FR', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                    {selectedInterventionForImages.commentaire && (
-                      <>
-                        {' — '}
-                        {selectedInterventionForImages.commentaire}
-                      </>
-                    )}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setModalImagesOpen(false)}
-                  className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
+      <Dialog open={modalImagesOpen && !!selectedInterventionForImages} onOpenChange={setModalImagesOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+          {selectedInterventionForImages && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Images de l&apos;intervention</DialogTitle>
+                <p className="text-sm text-slate-600 mt-1">
+                  {new Date(selectedInterventionForImages.date_intervention).toLocaleDateString('fr-FR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                  {selectedInterventionForImages.commentaire && (
+                    <>
+                      {' — '}
+                      {selectedInterventionForImages.commentaire}
+                    </>
+                  )}
+                </p>
+              </DialogHeader>
 
-            {/* Contenu du modal */}
-            <div className="p-6">
+              <div className="py-4">
               {(() => {
                 const imageFiles = (selectedInterventionForImages.files || []).filter((f) =>
                   f.mime_type?.startsWith('image/')
@@ -3170,17 +2947,17 @@ export default function ClientBassinDetailPage() {
                   </div>
                 )
               })()}
-            </div>
+              </div>
 
-            {/* Footer du modal */}
-            <div className="sticky bottom-0 border-t border-slate-200 bg-slate-50 px-6 py-4">
-              <p className="text-xs text-slate-600 text-center">
-                Cliquez sur une image pour la télécharger et l&apos;ouvrir
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="sticky bottom-0 border-t border-slate-200 bg-slate-50 px-6 py-4 -mx-6 -mb-6">
+                <p className="text-xs text-slate-600 text-center">
+                  Cliquez sur une image pour la télécharger et l&apos;ouvrir
+                </p>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={!!confirmDeleteFile}
