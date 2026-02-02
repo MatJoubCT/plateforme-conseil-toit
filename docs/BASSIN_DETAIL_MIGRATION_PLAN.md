@@ -65,15 +65,15 @@ const [savingIntervention, setSavingIntervention] = useState(false)
 
 ## Plan de Migration Progressif
 
-### Phase 1 : Préparation (1-2h)
+### Phase 1 : Préparation (1-2h) ✅ TERMINÉ
 
 1. **Vérifier/créer les endpoints API manquants**
-   - [ ] `/api/admin/garanties/{create,update,delete}` (ou utiliser client endpoints)
-   - [ ] `/api/admin/rapports/{create,update,delete}`
-   - [ ] Vérifier endpoints bassins existants
-   - [ ] Vérifier endpoints interventions (client API)
+   - [x] ✅ Endpoints bassins existants : `/api/admin/bassins/{create,update,delete}`
+   - [x] ✅ Endpoints garanties existants : `/api/client/garanties/{create,update,delete}`
+   - [x] ✅ Endpoints interventions existants : `/api/client/interventions/{create,update,delete,upload-file,delete-file}`
+   - [ ] ⏳ Endpoints rapports : À créer (non critique, utilisé seulement en admin)
 
-2. **Créer les hooks useApiMutation**
+2. **Créer les hooks useApiMutation** ✅ TERMINÉ
    ```typescript
    // Garanties
    const { mutate: createGarantie, isLoading: isCreatingGarantie } = useApiMutation(...)

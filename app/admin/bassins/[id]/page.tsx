@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { useValidatedId } from '@/lib/hooks/useValidatedId'
+import { useApiMutation } from '@/lib/hooks/useApiMutation'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import BassinMap, { InterventionMarker } from '@/components/maps/BassinMap'
 import BassinCompositionCard from '@/components/bassins/BassinCompositionCard'
@@ -276,6 +277,67 @@ export default function AdminBassinDetailPage() {
   const [selectedInterventionForImages, setSelectedInterventionForImages] =
     useState<InterventionWithFiles | null>(null)
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
+
+  // ==================== HOOKS useApiMutation ====================
+
+  // Bassin mutations
+  const { mutate: updateBassinApi, isLoading: isUpdatingBassin } = useApiMutation({
+    method: 'PUT',
+    endpoint: '/api/admin/bassins/update',
+    defaultErrorMessage: 'Erreur lors de la modification du bassin',
+  })
+
+  const { mutate: deleteBassinApi, isLoading: isDeletingBassin } = useApiMutation({
+    method: 'DELETE',
+    endpoint: '/api/admin/bassins/delete',
+    defaultErrorMessage: 'Erreur lors de la suppression du bassin',
+  })
+
+  // Garantie mutations (utilise endpoints client car admin n'en a pas besoin de spécifiques)
+  const { mutate: createGarantieApi, isLoading: isCreatingGarantie } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/client/garanties/create',
+    defaultErrorMessage: 'Erreur lors de la création de la garantie',
+  })
+
+  const { mutate: updateGarantieApi, isLoading: isUpdatingGarantie } = useApiMutation({
+    method: 'PUT',
+    endpoint: '/api/client/garanties/update',
+    defaultErrorMessage: 'Erreur lors de la modification de la garantie',
+  })
+
+  const { mutate: deleteGarantieApi, isLoading: isDeletingGarantie } = useApiMutation({
+    method: 'DELETE',
+    endpoint: '/api/client/garanties/delete',
+    defaultErrorMessage: 'Erreur lors de la suppression de la garantie',
+  })
+
+  // Intervention mutations
+  const { mutate: createInterventionApi, isLoading: isCreatingIntervention } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/client/interventions/create',
+    defaultErrorMessage: 'Erreur lors de la création de l\'intervention',
+  })
+
+  const { mutate: updateInterventionApi, isLoading: isUpdatingIntervention } = useApiMutation({
+    method: 'PUT',
+    endpoint: '/api/client/interventions/update',
+    defaultErrorMessage: 'Erreur lors de la modification de l\'intervention',
+  })
+
+  const { mutate: deleteInterventionApi, isLoading: isDeletingInterventionApi } = useApiMutation({
+    method: 'DELETE',
+    endpoint: '/api/client/interventions/delete',
+    defaultErrorMessage: 'Erreur lors de la suppression de l\'intervention',
+  })
+
+  const { mutate: deleteFileApi, isLoading: isDeletingFile } = useApiMutation({
+    method: 'DELETE',
+    endpoint: '/api/client/interventions/delete-file',
+    defaultErrorMessage: 'Erreur lors de la suppression du fichier',
+  })
+
+  // ==================== FIN HOOKS ====================
 
   useEffect(() => {
     if (!bassinId) return
