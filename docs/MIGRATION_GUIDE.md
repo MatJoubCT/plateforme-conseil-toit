@@ -452,7 +452,7 @@ Pour chaque page admin/client à migrer :
 3. ✅ `/app/admin/batiments/[id]/page.tsx` - **MIGRÉ** (3 modales + 3 mutations)
 4. ✅ `/app/admin/clients/[id]/page.tsx` - **MIGRÉ** (3 modales + 3 mutations)
 5. ✅ `/app/admin/entreprises/page.tsx` - **MIGRÉ** (3 modales + 3 mutations, formulaire partagé)
-6. [ ] `/app/admin/materiaux/page.tsx`
+6. ✅ `/app/admin/materiaux/page.tsx` - **MIGRÉ** (modal combiné create/edit, filtres avancés)
 7. [ ] `/app/admin/listes/page.tsx`
 8. [ ] `/app/admin/bassins/[id]/page.tsx` (utilise déjà ConfirmDialog)
 9. [ ] `/app/admin/utilisateurs/page.tsx` (utilise déjà Dialog)

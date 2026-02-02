@@ -1,19 +1,16 @@
 'use client'
 
-import { useEffect, useMemo, useState, FormEvent, ChangeEvent } from 'react'
-import { supabaseBrowser, createBrowserClient } from '@/lib/supabaseBrowser'
+import { useEffect, useMemo, useState, FormEvent } from 'react'
+import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { Pagination, usePagination } from '@/components/ui/Pagination'
-
-/**
- * Helper pour obtenir le token de session
- */
-async function getSessionToken(): Promise<string | null> {
-  const supabase = createBrowserClient()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  return session?.access_token || null
-}
+import { useApiMutation } from '@/lib/hooks/useApiMutation'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import {
   Layers,
   Plus,
@@ -85,7 +82,6 @@ export default function AdminMateriauxPage() {
   const [showModal, setShowModal] = useState(false)
   const [modalMode, setModalMode] = useState<ModalMode>('create')
   const [editing, setEditing] = useState<MateriauRow | null>(null)
-  const [savingModal, setSavingModal] = useState(false)
 
   const [formNom, setFormNom] = useState('')
   const [formDescription, setFormDescription] = useState('')
@@ -97,7 +93,54 @@ export default function AdminMateriauxPage() {
 
   // suppression
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState(false)
+
+  // API Mutations
+  const {
+    mutate: createMateriau,
+    isLoading: isCreating,
+    error: createError,
+    resetError: resetCreateError,
+  } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/admin/materiaux/create',
+    defaultErrorMessage: 'Erreur lors de la création du matériau',
+    onSuccess: async () => {
+      await fetchAll()
+      setShowModal(false)
+      resetForm()
+    },
+  })
+
+  const {
+    mutate: updateMateriau,
+    isLoading: isUpdating,
+    error: updateError,
+    resetError: resetUpdateError,
+  } = useApiMutation({
+    method: 'PUT',
+    endpoint: '/api/admin/materiaux/update',
+    defaultErrorMessage: 'Erreur lors de la modification du matériau',
+    onSuccess: async () => {
+      await fetchAll()
+      setShowModal(false)
+      setEditing(null)
+    },
+  })
+
+  const {
+    mutate: deleteMateriau,
+    isLoading: isDeleting,
+    error: deleteError,
+    resetError: resetDeleteError,
+  } = useApiMutation({
+    method: 'DELETE',
+    endpoint: '/api/admin/materiaux/delete',
+    defaultErrorMessage: 'Erreur lors de la suppression du matériau',
+    onSuccess: async () => {
+      await fetchAll()
+      setConfirmDeleteId(null)
+    },
+  })
 
   const fetchAll = async () => {
     setLoading(true)
@@ -213,9 +256,7 @@ export default function AdminMateriauxPage() {
     totalItems,
   } = usePagination(filtered, 50) // 50 items per page
 
-  const openCreate = () => {
-    setModalMode('create')
-    setEditing(null)
+  const resetForm = () => {
     setFormNom('')
     setFormDescription('')
     setFormCategorieId('')
@@ -223,6 +264,13 @@ export default function AdminMateriauxPage() {
     setFormPrix('0.00')
     setFormEntrepriseId('')
     setFormActif(true)
+  }
+
+  const openCreate = () => {
+    setModalMode('create')
+    setEditing(null)
+    resetForm()
+    resetCreateError()
     setShowModal(true)
   }
 
@@ -236,13 +284,24 @@ export default function AdminMateriauxPage() {
     setFormPrix(Number(row.prix_cad ?? 0).toFixed(2))
     setFormEntrepriseId(row.manufacturier_entreprise_id || '')
     setFormActif(!!row.actif)
+    resetUpdateError()
     setShowModal(true)
   }
 
-  const closeModal = () => {
-    if (savingModal) return
-    setShowModal(false)
-    setEditing(null)
+  const handleModalOpenChange = (open: boolean) => {
+    if (!open && !isCreating && !isUpdating) {
+      setShowModal(false)
+      setEditing(null)
+      resetCreateError()
+      resetUpdateError()
+    }
+  }
+
+  const handleDeleteOpenChange = (open: boolean) => {
+    if (!open && !isDeleting) {
+      setConfirmDeleteId(null)
+      resetDeleteError()
+    }
   }
 
   const normalizePrix = (s: string) => {
@@ -254,7 +313,6 @@ export default function AdminMateriauxPage() {
 
   const handleModalSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    setErrorMsg(null)
 
     const nom = formNom.trim()
     if (!nom) {
@@ -263,8 +321,6 @@ export default function AdminMateriauxPage() {
     }
 
     const prix = normalizePrix(formPrix)
-
-    setSavingModal(true)
 
     const payload = {
       nom,
@@ -276,112 +332,157 @@ export default function AdminMateriauxPage() {
       actif: formActif,
     }
 
-    try {
-      const token = await getSessionToken()
-      if (!token) {
-        setErrorMsg('Session expirée. Veuillez vous reconnecter.')
-        setSavingModal(false)
+    if (modalMode === 'create') {
+      await createMateriau(payload)
+    } else {
+      if (!editing?.id) {
+        setToast({ type: 'error', message: 'ID matériau introuvable.' })
         return
       }
-
-      if (modalMode === 'create') {
-        const res = await fetch('/api/admin/materiaux/create', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        })
-
-        const data = await res.json()
-
-        if (!res.ok) {
-          setErrorMsg(data.error || 'Erreur lors de la création.')
-          setSavingModal(false)
-          return
-        }
-      } else {
-        if (!editing?.id) {
-          setErrorMsg('ID matériau introuvable.')
-          setSavingModal(false)
-          return
-        }
-
-        const res = await fetch('/api/admin/materiaux/update', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ ...payload, id: editing.id }),
-        })
-
-        const data = await res.json()
-
-        if (!res.ok) {
-          setErrorMsg(data.error || 'Erreur lors de la modification.')
-          setSavingModal(false)
-          return
-        }
-      }
-
-      setShowModal(false)
-      setEditing(null)
-      await fetchAll()
-    } catch (err: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur inattendue sauvegarde matériau:', err)
-      }
-      setErrorMsg(err.message || 'Erreur inattendue lors de la sauvegarde.')
-    } finally {
-      setSavingModal(false)
+      await updateMateriau({ ...payload, id: editing.id })
     }
   }
 
-  const askDelete = (id: string) => setConfirmDeleteId(id)
+  const askDelete = (id: string) => {
+    setConfirmDeleteId(id)
+    resetDeleteError()
+  }
 
   const doDelete = async () => {
     if (!confirmDeleteId) return
-    setDeleting(true)
-    setErrorMsg(null)
-
-    try {
-      const token = await getSessionToken()
-      if (!token) {
-        setErrorMsg('Session expirée. Veuillez vous reconnecter.')
-        setDeleting(false)
-        return
-      }
-
-      const res = await fetch('/api/admin/materiaux/delete', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id: confirmDeleteId }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setErrorMsg(data.error || 'Erreur lors de la suppression.')
-        setDeleting(false)
-        return
-      }
-
-      setConfirmDeleteId(null)
-      setDeleting(false)
-      await fetchAll()
-    } catch (err: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur delete materiaux', err)
-      }
-      setErrorMsg(err.message || 'Erreur inattendue.')
-      setDeleting(false)
-    }
+    await deleteMateriau({ id: confirmDeleteId })
   }
+
+  const renderForm = () => (
+    <div className="grid gap-4 md:grid-cols-2">
+      <div className="md:col-span-2">
+        <label className="mb-1 block text-xs font-semibold text-slate-600">
+          Nom *
+        </label>
+        <input
+          value={formNom}
+          onChange={(e) => setFormNom(e.target.value)}
+          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-300"
+          placeholder="Ex. Sopralène Flam 250 granulé"
+        />
+      </div>
+
+      <div className="md:col-span-2">
+        <label className="mb-1 block text-xs font-semibold text-slate-600">
+          Description
+        </label>
+        <textarea
+          value={formDescription}
+          onChange={(e) => setFormDescription(e.target.value)}
+          className="min-h-[90px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-300"
+          placeholder="Notes utiles (optionnel)"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs font-semibold text-slate-600">
+          Catégorie
+        </label>
+        <div className="relative">
+          <Tag className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <select
+            value={formCategorieId}
+            onChange={(e) => setFormCategorieId(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white py-2 !pl-10 pr-3 text-sm outline-none focus:border-slate-300"
+          >
+            <option value="">—</option>
+            {categories
+              .filter((c) => c.actif !== false)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label || c.code}
+                </option>
+              ))}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs font-semibold text-slate-600">
+          Unité
+        </label>
+        <div className="relative">
+          <Ruler className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <select
+            value={formUniteId}
+            onChange={(e) => setFormUniteId(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white py-2 !pl-10 pr-3 text-sm outline-none focus:border-slate-300"
+          >
+            <option value="">—</option>
+            {unites
+              .filter((u) => u.actif !== false)
+              .map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.label || u.code}
+                </option>
+              ))}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs font-semibold text-slate-600">
+          Prix (CAD)
+        </label>
+        <input
+          value={formPrix}
+          onChange={(e) => setFormPrix(e.target.value)}
+          inputMode="decimal"
+          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-300"
+          placeholder="0.00"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs font-semibold text-slate-600">
+          Manufacturier (entreprise)
+        </label>
+        <div className="relative">
+          <Factory className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <select
+            value={formEntrepriseId}
+            onChange={(e) => setFormEntrepriseId(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white py-2 !pl-10 pr-3 text-sm outline-none focus:border-slate-300"
+          >
+            <option value="">—</option>
+            {entreprises
+              .filter(
+                (e) =>
+                  e.actif &&
+                  ['manufacturier', 'distributeur', 'fournisseur'].includes(
+                    (e.type || '').toLowerCase(),
+                  ),
+              )
+              .map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.nom}
+                </option>
+              ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="md:col-span-2">
+        <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={formActif}
+            onChange={(e) => setFormActif(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-300"
+          />
+          Actif
+        </label>
+      </div>
+    </div>
+  )
+
+  const isLoading = isCreating || isUpdating
+  const modalError = modalMode === 'create' ? createError : updateError
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -602,221 +703,87 @@ export default function AdminMateriauxPage() {
       </div>
 
       {/* MODAL Create/Edit */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            onClick={closeModal}
-          />
-          <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-white/30 bg-white shadow-2xl">
-            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800">
-                    {modalMode === 'create' ? 'Nouveau matériau' : 'Modifier le matériau'}
-                  </h2>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Catalogue (prix CAD avant taxes)
-                  </p>
-                </div>
-                <button
-                  onClick={closeModal}
-                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
-                  disabled={savingModal}
-                  title="Fermer"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+      <Dialog open={showModal} onOpenChange={handleModalOpenChange}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {modalMode === 'create' ? 'Nouveau matériau' : 'Modifier le matériau'}
+            </DialogTitle>
+            <p className="text-xs text-slate-500 mt-1">
+              Catalogue (prix CAD avant taxes)
+            </p>
+          </DialogHeader>
+
+          <form onSubmit={handleModalSubmit} className="space-y-5">
+            {renderForm()}
+
+            {modalError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <p className="text-sm text-red-700">{modalError}</p>
               </div>
-            </div>
+            )}
 
-            <form onSubmit={handleModalSubmit} className="p-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="md:col-span-2">
-                  <label className="mb-1 block text-xs font-semibold text-slate-600">
-                    Nom *
-                  </label>
-                  <input
-                    value={formNom}
-                    onChange={(e) => setFormNom(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-300"
-                    placeholder="Ex. Sopralène Flam 250 granulé"
-                  />
-                </div>
+            <p className="text-xs text-slate-500">
+              Catégories et unités proviennent de <b>listes_choix</b> ({CAT_CATEGORIE} / {CAT_UNITE}).
+            </p>
 
-                <div className="md:col-span-2">
-                  <label className="mb-1 block text-xs font-semibold text-slate-600">
-                    Description
-                  </label>
-                  <textarea
-                    value={formDescription}
-                    onChange={(e) => setFormDescription(e.target.value)}
-                    className="min-h-[90px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-300"
-                    placeholder="Notes utiles (optionnel)"
-                  />
-                </div>
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={() => handleModalOpenChange(false)}
+                disabled={isLoading}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+                Annuler
+              </button>
 
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-600">
-                    Catégorie
-                  </label>
-                  <div className="relative">
-                    <Tag className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <select
-                      value={formCategorieId}
-                      onChange={(e) => setFormCategorieId(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-white py-2 !pl-10 pr-3 text-sm outline-none focus:border-slate-300"
-                    >
-                      <option value="">—</option>
-                      {categories
-                        .filter((c) => c.actif !== false)
-                        .map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.label || c.code}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-600">
-                    Unité
-                  </label>
-                  <div className="relative">
-                    <Ruler className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <select
-                      value={formUniteId}
-                      onChange={(e) => setFormUniteId(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-white py-2 !pl-10 pr-3 text-sm outline-none focus:border-slate-300"
-                    >
-                      <option value="">—</option>
-                      {unites
-                        .filter((u) => u.actif !== false)
-                        .map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.label || u.code}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-600">
-                    Prix (CAD)
-                  </label>
-                  <input
-                    value={formPrix}
-                    onChange={(e) => setFormPrix(e.target.value)}
-                    inputMode="decimal"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-300"
-                    placeholder="0.00"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-600">
-                    Manufacturier (entreprise)
-                  </label>
-                  <div className="relative">
-                    <Factory className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <select
-                      value={formEntrepriseId}
-                      onChange={(e) => setFormEntrepriseId(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-white py-2 !pl-10 pr-3 text-sm outline-none focus:border-slate-300"
-                    >
-                      <option value="">—</option>
-                      {entreprises
-                        .filter(
-                          (e) =>
-                            e.actif &&
-                            ['manufacturier', 'distributeur', 'fournisseur'].includes(
-                              (e.type || '').toLowerCase(),
-                            ),
-                        )
-                        .map((e) => (
-                          <option key={e.id} value={e.id}>
-                            {e.nom}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={formActif}
-                      onChange={(e) => setFormActif(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300"
-                    />
-                    Actif
-                  </label>
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={savingModal}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  <X className="h-4 w-4" />
-                  Annuler
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={savingModal}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50"
-                >
-                  <Save className="h-4 w-4" />
-                  Enregistrer
-                </button>
-              </div>
-
-              <p className="mt-3 text-xs text-slate-500">
-                Catégories et unités proviennent de <b>listes_choix</b> ({CAT_CATEGORIE} / {CAT_UNITE}).
-              </p>
-            </form>
-          </div>
-        </div>
-      )}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" />
+                {isLoading ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* MODAL Delete */}
-      {confirmDeleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !deleting && setConfirmDeleteId(null)} />
-          <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/30 bg-white shadow-2xl">
-            <div className="border-b border-slate-100 bg-gradient-to-r from-red-50 to-white px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10">
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800">
-                    Confirmer la suppression
-                  </h2>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Cette action est irréversible.
-                  </p>
-                </div>
-              </div>
+      <Dialog open={!!confirmDeleteId} onOpenChange={handleDeleteOpenChange}>
+        <DialogContent className="sm:max-w-lg">
+          <div className="flex items-start gap-4">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-red-500/10">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
             </div>
 
-            <div className="p-6">
-              <p className="text-sm text-slate-700">
-                Supprimer ce matériau du catalogue?
-              </p>
+            <div className="min-w-0 flex-1">
+              <DialogHeader>
+                <DialogTitle>Confirmer la suppression</DialogTitle>
+                <p className="text-xs text-slate-500 mt-1">
+                  Cette action est irréversible.
+                </p>
+              </DialogHeader>
 
-              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <div className="mt-4">
+                <p className="text-sm text-slate-700">
+                  Supprimer ce matériau du catalogue?
+                </p>
+
+                {deleteError && (
+                  <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-4">
+                    <p className="text-sm text-red-700">{deleteError}</p>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="mt-6">
                 <button
                   type="button"
-                  onClick={() => setConfirmDeleteId(null)}
-                  disabled={deleting}
+                  onClick={() => handleDeleteOpenChange(false)}
+                  disabled={isDeleting}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   <X className="h-4 w-4" />
@@ -826,17 +793,17 @@ export default function AdminMateriauxPage() {
                 <button
                   type="button"
                   onClick={doDelete}
-                  disabled={deleting}
+                  disabled={isDeleting}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-red-700 disabled:opacity-50"
                 >
                   <Trash2 className="h-4 w-4" />
-                  Supprimer
+                  {isDeleting ? 'Suppression…' : 'Supprimer'}
                 </button>
-              </div>
+              </DialogFooter>
             </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {toast && (
         <Toast
