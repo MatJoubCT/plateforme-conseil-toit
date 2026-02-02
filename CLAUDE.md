@@ -790,7 +790,7 @@ async function handleAction() {
 
 **⭐ RECOMMENDED:** Use this hook for all API mutations (POST, PUT, DELETE) instead of manually calling fetch.
 
-**📊 Adoption Status:** 82% of pages migrated (9/11), widely adopted standard across the codebase.
+**📊 Adoption Status:** 91% of pages migrated (10/11), widely adopted standard across the codebase.
 
 Hook for managing API mutations with automatic state management, error handling, and session token management.
 
@@ -1784,7 +1784,7 @@ const { data: etatData } = await supabase
 - ❌ **DON'T**: Manually manage loading/error states for API calls
 - ❌ **DON'T**: Create custom inline modals
 
-**Migration Progress (9/11 pages - 82% complete):**
+**Migration Progress (10/11 pages - 91% complete):**
 - ✅ `/app/admin/clients/page.tsx` - Reference implementation (simple CRUD)
 - ✅ `/app/admin/batiments/page.tsx` - Simple list with pagination
 - ✅ `/app/admin/batiments/[id]/page.tsx` - Complex page (3 modals, bassins management)
@@ -1792,10 +1792,10 @@ const { data: etatData } = await supabase
 - ✅ `/app/admin/entreprises/page.tsx` - Shared form pattern (3 modals, single form component)
 - ✅ `/app/admin/materiaux/page.tsx` - Combined create/edit modal with advanced filters
 - ✅ `/app/admin/listes/page.tsx` - Dynamic ordering, color picker, usage validation
+- ✅ `/app/admin/utilisateurs/page.tsx` - User management with Dialog and useApiMutation
 - ✅ `/app/client/bassins/[id]/page.tsx` - Client portal with warranties & interventions
 - ✅ `/app/client/interventions/page.tsx` - Modal images (read-only page, no mutations)
-- ⏳ `/app/admin/bassins/[id]/page.tsx` - Partially migrated (ConfirmDialog only)
-- ⏳ `/app/admin/utilisateurs/page.tsx` - Partially migrated (Dialog only, uses useUsersData hook)
+- ⚠️ `/app/admin/bassins/[id]/page.tsx` - **Requires complex migration** (3063 lines, see `/docs/BASSIN_DETAIL_MIGRATION_PLAN.md`)
 
 **Code Reduction Impact:**
 - Average: **-45% lines of code** per migrated page
@@ -2950,7 +2950,7 @@ The project has undergone three major architectural improvements in early 2026:
 - Fixed authentication loop issue (session persistence)
 - **Breaking change**: Server client now requires `await`
 
-**2. UI/UX Layer (useApiMutation + Dialog) - 82% Complete (9/11 pages)**
+**2. UI/UX Layer (useApiMutation + Dialog) - 91% Complete (10/11 pages)**
 
 | Page | Status | Complexity | Notes |
 |------|--------|-----------|-------|
@@ -2961,10 +2961,10 @@ The project has undergone three major architectural improvements in early 2026:
 | `/app/admin/entreprises/page.tsx` | ✅ Complete | Medium | Shared form pattern |
 | `/app/admin/materiaux/page.tsx` | ✅ Complete | Medium | Combined modal, filters |
 | `/app/admin/listes/page.tsx` | ✅ Complete | Medium | Dynamic ordering, validation |
+| `/app/admin/utilisateurs/page.tsx` | ✅ Complete | Medium | User management with Dialog |
 | `/app/client/bassins/[id]/page.tsx` | ✅ Complete | Complex | Warranties & interventions |
 | `/app/client/interventions/page.tsx` | ✅ Complete | Simple | Modal images (read-only page) |
-| `/app/admin/bassins/[id]/page.tsx` | ⏳ Partial | Complex | ConfirmDialog only |
-| `/app/admin/utilisateurs/page.tsx` | ⏳ Partial | Medium | Dialog only, uses useUsersData |
+| `/app/admin/bassins/[id]/page.tsx` | ⚠️ Not Started | Very Complex | 3063 lines, needs phased migration (see `/docs/BASSIN_DETAIL_MIGRATION_PLAN.md`) |
 
 **Impact Metrics:**
 - Average code reduction: **-45%** per page
@@ -2994,13 +2994,13 @@ The project has undergone three major architectural improvements in early 2026:
 
 #### ⏳ In Progress Migrations
 
-**1. Complete UI/UX Migration (2 remaining pages)**
-- Priority: High
-- Effort: ~2-4 hours per page
-- Blockers: None
-- Next pages:
-  1. `/app/admin/bassins/[id]/page.tsx` - Complex (map editing, multiple modals)
-  2. `/app/admin/utilisateurs/page.tsx` - Medium (already uses Dialog, needs useApiMutation)
+**1. Complete UI/UX Migration (1 remaining page)**
+- Priority: Medium
+- Effort: ~7-11 hours (phased migration)
+- Blockers: None, but requires careful phased approach
+- Remaining page:
+  - `/app/admin/bassins/[id]/page.tsx` - Very Complex (3063 lines, Google Maps, 5+ modals, file uploads)
+  - **See migration plan**: `/docs/BASSIN_DETAIL_MIGRATION_PLAN.md`
 
 **2. Direct Supabase → API Endpoint Migration**
 - Priority: Medium
@@ -3119,7 +3119,7 @@ For updates to this document, please ensure changes reflect the current state of
 - ✅ **Created `useApiMutation` hook** - Centralized API mutation logic with automatic session token management, loading states, and error handling
 - ✅ **Standardized `Dialog` component** - Replaced all custom inline modals with accessible, consistent Dialog component
 - ✅ **Created `useSessionToken` hook** - Reactive and synchronous session token management
-- ✅ **Migration progress: 9/11 pages migrated (82%)**
+- ✅ **Migration progress: 10/11 pages migrated (91%)**
   - ✅ `/app/admin/clients/page.tsx` - Reference implementation
   - ✅ `/app/admin/batiments/page.tsx` - Simple CRUD
   - ✅ `/app/admin/batiments/[id]/page.tsx` - Complex page (3 modals)
@@ -3127,10 +3127,10 @@ For updates to this document, please ensure changes reflect the current state of
   - ✅ `/app/admin/entreprises/page.tsx` - Shared form pattern
   - ✅ `/app/admin/materiaux/page.tsx` - Combined modal (create/edit)
   - ✅ `/app/admin/listes/page.tsx` - Dynamic ordering & validation
+  - ✅ `/app/admin/utilisateurs/page.tsx` - User management with EditUserModal migrated to Dialog
   - ✅ `/app/client/bassins/[id]/page.tsx` - Client portal page
   - ✅ `/app/client/interventions/page.tsx` - Modal images (read-only page)
-  - ⏳ `/app/admin/bassins/[id]/page.tsx` - Partially migrated (ConfirmDialog only)
-  - ⏳ `/app/admin/utilisateurs/page.tsx` - Partially migrated (Dialog only)
+  - ⚠️ `/app/admin/bassins/[id]/page.tsx` - **Requires phased migration** (3063 lines, see migration plan)
 - 📊 **Impact**: 40-60% code reduction per page, improved maintainability, consistent UX
 - 📚 **Documentation**: See `/docs/MIGRATION_GUIDE.md` for detailed migration instructions
 
@@ -3160,8 +3160,10 @@ For updates to this document, please ensure changes reflect the current state of
 - 📚 **Documentation**: See `/docs/REACTIVATE_USERS_README.md`
 
 #### Next Steps & Remaining Work
-- ⏳ Complete migration of remaining 3 pages to `useApiMutation` and `Dialog`
-- ⏳ Migrate remaining admin pages from direct Supabase calls to secure API endpoints
+- ⚠️ **Page admin/bassins/[id]** - Complex migration requiring phased approach (see `/docs/BASSIN_DETAIL_MIGRATION_PLAN.md`)
+  - 3063 lines with Google Maps, 5+ modals, file uploads
+  - Estimated effort: 7-11 hours phased over multiple sessions
+  - Priority: Medium (page currently functional, migration for consistency)
 - ⏳ Add integration tests for complex workflows (basin creation with map polygons, warranty uploads)
 - ⏳ Performance optimization: Implement caching for `listes_choix` data
 - ⏳ Accessibility audit: Ensure WCAG 2.1 AA compliance across all pages
