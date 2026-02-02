@@ -459,8 +459,8 @@ Pour chaque page admin/client à migrer :
 
 ### Client Pages (2 pages)
 
-1. [ ] `/app/client/bassins/[id]/page.tsx`
-2. [ ] `/app/client/interventions/page.tsx`
+1. ✅ `/app/client/bassins/[id]/page.tsx` - **MIGRÉ**
+2. ✅ `/app/client/interventions/page.tsx` - **MIGRÉ** (modal images uniquement, pas de mutations)
 
 ---
 

@@ -16,6 +16,12 @@ import {
   Download,
   ChevronRight,
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 type InterventionRow = {
   id: string
@@ -646,113 +652,93 @@ export default function ClientInterventionsPage() {
       )}
 
       {/* Modal images */}
-      {modalOpen && selectedIntervention && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={() => setModalOpen(false)}
-        >
-          <div
-            className="relative w-full max-w-4xl max-h-[90vh] overflow-auto bg-white rounded-2xl shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header du modal */}
-            <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">
-                    Images de l&apos;intervention
-                  </h2>
-                  <p className="text-sm text-slate-600 mt-1">
-                    {new Date(selectedIntervention.date_intervention).toLocaleDateString('fr-FR', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                    {' — '}
-                    {selectedIntervention.bassin_name || 'Sans nom'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Images de l&apos;intervention</DialogTitle>
+            {selectedIntervention && (
+              <p className="text-sm text-slate-600 mt-1">
+                {new Date(selectedIntervention.date_intervention).toLocaleDateString('fr-FR', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+                {' — '}
+                {selectedIntervention.bassin_name || 'Sans nom'}
+              </p>
+            )}
+          </DialogHeader>
 
-            {/* Contenu du modal */}
-            <div className="p-6">
-              {(() => {
-                const files = interventionFiles[selectedIntervention.id] || []
-                const imageFiles = files.filter((f) =>
-                  f.mime_type?.startsWith('image/')
-                )
+          {/* Contenu du modal */}
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            {selectedIntervention && (() => {
+              const files = interventionFiles[selectedIntervention.id] || []
+              const imageFiles = files.filter((f) =>
+                f.mime_type?.startsWith('image/')
+              )
 
-                if (imageFiles.length === 0) {
-                  return (
-                    <div className="text-center py-12">
-                      <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-                      <p className="text-sm text-slate-600">
-                        Aucune image disponible pour cette intervention.
-                      </p>
-                    </div>
-                  )
-                }
-
+              if (imageFiles.length === 0) {
                 return (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {imageFiles.map((file) => {
-                      const imageUrl = imageUrls[file.id]
-
-                      return (
-                        <div
-                          key={file.id}
-                          className="group relative aspect-square overflow-hidden rounded-lg border-2 border-slate-200 hover:border-ct-primary transition-all cursor-pointer bg-slate-50"
-                          onClick={() => handleDownloadImage(file)}
-                        >
-                          {imageUrl ? (
-                            <>
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={imageUrl}
-                                alt={file.file_name}
-                                className="h-full w-full object-cover"
-                              />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Download className="h-8 w-8 text-white drop-shadow-lg" />
-                                </div>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="h-full w-full flex items-center justify-center">
-                              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
-                            </div>
-                          )}
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                            <p className="text-xs text-white truncate">
-                              {file.file_name}
-                            </p>
-                          </div>
-                        </div>
-                      )
-                    })}
+                  <div className="text-center py-12">
+                    <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-sm text-slate-600">
+                      Aucune image disponible pour cette intervention.
+                    </p>
                   </div>
                 )
-              })()}
-            </div>
+              }
 
-            {/* Footer du modal */}
-            <div className="sticky bottom-0 border-t border-slate-200 bg-slate-50 px-6 py-4">
-              <p className="text-xs text-slate-600 text-center">
-                Cliquez sur une image pour la télécharger et l&apos;ouvrir
-              </p>
-            </div>
+              return (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {imageFiles.map((file) => {
+                    const imageUrl = imageUrls[file.id]
+
+                    return (
+                      <div
+                        key={file.id}
+                        className="group relative aspect-square overflow-hidden rounded-lg border-2 border-slate-200 hover:border-ct-primary transition-all cursor-pointer bg-slate-50"
+                        onClick={() => handleDownloadImage(file)}
+                      >
+                        {imageUrl ? (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={imageUrl}
+                              alt={file.file_name}
+                              className="h-full w-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Download className="h-8 w-8 text-white drop-shadow-lg" />
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center">
+                            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
+                          </div>
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                          <p className="text-xs text-white truncate">
+                            {file.file_name}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
-        </div>
-      )}
+
+          {/* Footer du modal */}
+          <div className="border-t border-slate-200 bg-slate-50 px-6 py-4">
+            <p className="text-xs text-slate-600 text-center">
+              Cliquez sur une image pour la télécharger et l&apos;ouvrir
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

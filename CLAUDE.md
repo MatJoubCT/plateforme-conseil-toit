@@ -790,7 +790,7 @@ async function handleAction() {
 
 **⭐ RECOMMENDED:** Use this hook for all API mutations (POST, PUT, DELETE) instead of manually calling fetch.
 
-**📊 Adoption Status:** 73% of pages migrated (8/11), widely adopted standard across the codebase.
+**📊 Adoption Status:** 82% of pages migrated (9/11), widely adopted standard across the codebase.
 
 Hook for managing API mutations with automatic state management, error handling, and session token management.
 
@@ -1784,7 +1784,7 @@ const { data: etatData } = await supabase
 - ❌ **DON'T**: Manually manage loading/error states for API calls
 - ❌ **DON'T**: Create custom inline modals
 
-**Migration Progress (8/11 pages - 73% complete):**
+**Migration Progress (9/11 pages - 82% complete):**
 - ✅ `/app/admin/clients/page.tsx` - Reference implementation (simple CRUD)
 - ✅ `/app/admin/batiments/page.tsx` - Simple list with pagination
 - ✅ `/app/admin/batiments/[id]/page.tsx` - Complex page (3 modals, bassins management)
@@ -1793,9 +1793,9 @@ const { data: etatData } = await supabase
 - ✅ `/app/admin/materiaux/page.tsx` - Combined create/edit modal with advanced filters
 - ✅ `/app/admin/listes/page.tsx` - Dynamic ordering, color picker, usage validation
 - ✅ `/app/client/bassins/[id]/page.tsx` - Client portal with warranties & interventions
+- ✅ `/app/client/interventions/page.tsx` - Modal images (read-only page, no mutations)
 - ⏳ `/app/admin/bassins/[id]/page.tsx` - Partially migrated (ConfirmDialog only)
 - ⏳ `/app/admin/utilisateurs/page.tsx` - Partially migrated (Dialog only, uses useUsersData hook)
-- ⏳ `/app/client/interventions/page.tsx` - Pending migration
 
 **Code Reduction Impact:**
 - Average: **-45% lines of code** per migrated page
@@ -2950,7 +2950,7 @@ The project has undergone three major architectural improvements in early 2026:
 - Fixed authentication loop issue (session persistence)
 - **Breaking change**: Server client now requires `await`
 
-**2. UI/UX Layer (useApiMutation + Dialog) - 73% Complete (8/11 pages)**
+**2. UI/UX Layer (useApiMutation + Dialog) - 82% Complete (9/11 pages)**
 
 | Page | Status | Complexity | Notes |
 |------|--------|-----------|-------|
@@ -2962,9 +2962,9 @@ The project has undergone three major architectural improvements in early 2026:
 | `/app/admin/materiaux/page.tsx` | ✅ Complete | Medium | Combined modal, filters |
 | `/app/admin/listes/page.tsx` | ✅ Complete | Medium | Dynamic ordering, validation |
 | `/app/client/bassins/[id]/page.tsx` | ✅ Complete | Complex | Warranties & interventions |
+| `/app/client/interventions/page.tsx` | ✅ Complete | Simple | Modal images (read-only page) |
 | `/app/admin/bassins/[id]/page.tsx` | ⏳ Partial | Complex | ConfirmDialog only |
 | `/app/admin/utilisateurs/page.tsx` | ⏳ Partial | Medium | Dialog only, uses useUsersData |
-| `/app/client/interventions/page.tsx` | ❌ Pending | Medium | Not started |
 
 **Impact Metrics:**
 - Average code reduction: **-45%** per page
@@ -2994,14 +2994,13 @@ The project has undergone three major architectural improvements in early 2026:
 
 #### ⏳ In Progress Migrations
 
-**1. Complete UI/UX Migration (3 remaining pages)**
+**1. Complete UI/UX Migration (2 remaining pages)**
 - Priority: High
 - Effort: ~2-4 hours per page
 - Blockers: None
 - Next pages:
   1. `/app/admin/bassins/[id]/page.tsx` - Complex (map editing, multiple modals)
   2. `/app/admin/utilisateurs/page.tsx` - Medium (already uses Dialog, needs useApiMutation)
-  3. `/app/client/interventions/page.tsx` - Medium (file uploads, geolocation)
 
 **2. Direct Supabase → API Endpoint Migration**
 - Priority: Medium
@@ -3054,8 +3053,8 @@ The project has undergone three major architectural improvements in early 2026:
 **February 2026:**
 - ✅ Complete @supabase/ssr migration
 - ✅ Create reusable hooks (useApiMutation, useSessionToken)
-- ✅ Migrate 8 pages to new patterns
-- ⏳ Complete remaining 3 page migrations
+- ✅ Migrate 9 pages to new patterns
+- ⏳ Complete remaining 2 page migrations
 
 **March 2026:**
 - [ ] Implement caching strategy for listes_choix
@@ -3120,7 +3119,7 @@ For updates to this document, please ensure changes reflect the current state of
 - ✅ **Created `useApiMutation` hook** - Centralized API mutation logic with automatic session token management, loading states, and error handling
 - ✅ **Standardized `Dialog` component** - Replaced all custom inline modals with accessible, consistent Dialog component
 - ✅ **Created `useSessionToken` hook** - Reactive and synchronous session token management
-- ✅ **Migration progress: 7/11 pages migrated (63%)**
+- ✅ **Migration progress: 9/11 pages migrated (82%)**
   - ✅ `/app/admin/clients/page.tsx` - Reference implementation
   - ✅ `/app/admin/batiments/page.tsx` - Simple CRUD
   - ✅ `/app/admin/batiments/[id]/page.tsx` - Complex page (3 modals)
@@ -3129,9 +3128,9 @@ For updates to this document, please ensure changes reflect the current state of
   - ✅ `/app/admin/materiaux/page.tsx` - Combined modal (create/edit)
   - ✅ `/app/admin/listes/page.tsx` - Dynamic ordering & validation
   - ✅ `/app/client/bassins/[id]/page.tsx` - Client portal page
+  - ✅ `/app/client/interventions/page.tsx` - Modal images (read-only page)
   - ⏳ `/app/admin/bassins/[id]/page.tsx` - Partially migrated (ConfirmDialog only)
   - ⏳ `/app/admin/utilisateurs/page.tsx` - Partially migrated (Dialog only)
-  - ⏳ `/app/client/interventions/page.tsx` - Pending migration
 - 📊 **Impact**: 40-60% code reduction per page, improved maintainability, consistent UX
 - 📚 **Documentation**: See `/docs/MIGRATION_GUIDE.md` for detailed migration instructions
 
