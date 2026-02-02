@@ -75,7 +75,8 @@ The platform is **bilingual** (French/English) with French as the primary langua
 - **TypeScript Config**: Strict mode enabled
 - **Package Manager**: npm (default)
 - **Schema Validation**: Zod v4.3.5
-- **Supabase Helpers**: @supabase/auth-helpers-nextjs v0.10.0
+- **Supabase SSR**: @supabase/ssr v0.8.0 (for automatic cookie management with Next.js)
+- **Supabase Client**: @supabase/supabase-js v2.84.0 (for admin client only)
 
 ### Testing Tools
 
@@ -1256,34 +1257,80 @@ export type BatimentInput = z.infer<typeof batimentSchema>;
 
 ### Supabase Clients
 
+**⚠️ IMPORTANT: All Supabase clients use `@supabase/ssr` for automatic cookie management with Next.js SSR.**
+
+The project has been migrated from `@supabase/supabase-js` to `@supabase/ssr` to properly handle session persistence across client and server via cookies. This resolves authentication issues where sessions were only stored in localStorage and not accessible to server components.
+
 **Three client types:**
 
 1. **Browser Client** (`lib/supabaseBrowser.ts`)
+   - **Uses `@supabase/ssr` with `createBrowserClient`**
+   - Automatically manages cookies for SSR compatibility
    - Use in client components
    - Respects RLS (Row Level Security)
    - User session management
    ```typescript
    import { createBrowserClient } from '@/lib/supabaseBrowser';
    const supabase = createBrowserClient();
+
+   // Or use the singleton instance
+   import { supabaseBrowser } from '@/lib/supabaseBrowser';
    ```
 
 2. **Server Client** (`lib/supabaseClient.ts`)
-   - Use in server components and API routes
+   - **Uses `@supabase/ssr` with `createServerClient`**
+   - Automatically reads/writes cookies via Next.js `cookies()` API
+   - Use in server components, server actions, and API routes
    - Respects RLS
-   - Cookie-based session
+   - Cookie-based session management
    ```typescript
    import { createClient } from '@/lib/supabaseClient';
-   const supabase = await createClient();
+   const supabase = await createClient(); // Must await!
    ```
 
+   **⚠️ Note:** Always `await` the `createClient()` function as it uses the async `cookies()` API.
+
 3. **Admin Client** (`lib/supabaseAdmin.ts`)
+   - **Uses `@supabase/supabase-js` with service role key**
    - Use for admin operations that bypass RLS
-   - Uses service role key
-   - **Use with caution!**
+   - Uses service role key (server-side only)
+   - **Use with caution!** Can bypass all RLS policies
    ```typescript
-   import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
-   const supabase = getSupabaseAdmin();
+   import { supabaseAdmin } from '@/lib/supabaseAdmin';
+   // No await needed - synchronous singleton
    ```
+
+### Cookie-Based Authentication Flow
+
+**How authentication works with @supabase/ssr:**
+
+1. **Login via API** (`/api/auth/login`):
+   - Uses `createClient()` (server client with cookie management)
+   - Calls `supabase.auth.signInWithPassword()`
+   - Cookies are automatically set by `@supabase/ssr`
+   - Returns user data (session is already in cookies)
+
+2. **Client-side session check**:
+   - Uses `supabaseBrowser` (browser client with cookie access)
+   - Calls `supabase.auth.getSession()`
+   - Reads session from cookies automatically
+   - No manual `setSession()` needed!
+
+3. **Server-side session check**:
+   - Uses `await createClient()` (server client with cookie access)
+   - Calls `supabase.auth.getSession()`
+   - Reads session from cookies automatically
+   - Works in server components, API routes, and middleware
+
+**Key differences from old approach:**
+
+| Old (@supabase/supabase-js) | New (@supabase/ssr) |
+|------------------------------|---------------------|
+| Sessions in localStorage only | Sessions in cookies (SSR-compatible) |
+| Manual cookie management | Automatic cookie management |
+| Client/server session mismatch | Shared session via cookies |
+| `setSession()` required after login | Cookies set automatically |
+| Server can't read client session | Server reads same cookies as client |
 
 ### Protected Route Pattern
 
@@ -1379,15 +1426,24 @@ The login API provides detailed error messages to help users understand authenti
 - **Inactive account**: "Votre compte a été désactivé. Contactez un administrateur."
 - **Rate limiting**: "Trop de tentatives de connexion. Veuillez réessayer plus tard."
 
-**Login flow:**
+**Login flow (with @supabase/ssr):**
 ```typescript
+// API Route (/api/auth/login):
 // 1. Rate limiting check (5 attempts per 15 minutes per IP)
 // 2. Email validation with Zod
-// 3. Check if user exists via getUserByEmail
-// 4. Attempt authentication with password
+// 3. Create server client with await createClient()
+// 4. Attempt authentication with supabase.auth.signInWithPassword()
+//    → Cookies are automatically set by @supabase/ssr
 // 5. Verify user profile exists
 // 6. Check if user is active
-// 7. Return session and user data
+// 7. Return user data (session already in cookies)
+
+// Client Side (app/login/page.tsx):
+// 1. Call /api/auth/login with email/password
+// 2. Receive user data response
+// 3. NO manual setSession() needed - cookies already set!
+// 4. Redirect based on user role
+// 5. Protected layouts automatically read session from cookies
 ```
 
 **Login page visual feedback** (`/app/login/page.tsx`)
@@ -1399,7 +1455,7 @@ Error messages are displayed with:
 - ✅ Alert icon in circular background
 - ✅ Clear error hierarchy (title + detailed message)
 
-**Example usage:**
+**Example usage (updated for @supabase/ssr):**
 ```typescript
 try {
   const response = await fetch('/api/auth/login', {
@@ -1416,17 +1472,54 @@ try {
     return;
   }
 
-  // Set session and redirect based on role
-  if (data.session) {
-    await supabaseBrowser.auth.setSession({
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
-    });
-  }
+  // ✅ NO setSession() needed - cookies already set by API!
+  // Session is automatically available to all components
 
+  // Just redirect based on user role
   router.push(data.user.role === 'admin' ? '/admin' : '/client');
 } catch (error) {
   setErrorMsg('Une erreur est survenue lors de la connexion');
+}
+```
+
+**API Route implementation:**
+```typescript
+// app/api/auth/login/route.ts
+import { createClient } from '@/lib/supabaseClient';
+
+export async function POST(request: NextRequest) {
+  // Create server client with automatic cookie management
+  const supabase = await createClient();
+
+  // Authenticate - cookies are set automatically
+  const { data: signInData, error: signInError } =
+    await supabase.auth.signInWithPassword({
+      email: validated.email,
+      password: validated.password,
+    });
+
+  if (signInError) {
+    return NextResponse.json({ error: 'Identifiants incorrects' }, { status: 401 });
+  }
+
+  // Fetch user profile
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role, client_id, is_active, full_name')
+    .eq('user_id', signInData.user.id)
+    .single();
+
+  // Return user data (session already in cookies)
+  return NextResponse.json({
+    ok: true,
+    user: {
+      id: signInData.user.id,
+      email: signInData.user.email,
+      role: profile.role,
+      client_id: profile.client_id,
+      full_name: profile.full_name,
+    },
+  });
 }
 ```
 
@@ -1436,6 +1529,110 @@ Custom CSS animations in `app/globals.css`:
 - `animate-shake`: Horizontal shake animation (0.5s, 4px movement)
 - `slide-in-from-right-full`: Slide-in animation for toast notifications
 - `shrink-width`: Progress bar animation
+
+---
+
+## Common Authentication Issues & Troubleshooting
+
+### Issue: Login successful but redirects back to login (infinite loop)
+
+**Symptoms:**
+- User enters credentials and clicks login
+- Login API returns success
+- Page redirects to `/admin` or `/client`
+- Protected layout checks auth and redirects back to `/login`
+- Infinite redirect loop
+
+**Cause:**
+- Session stored in localStorage (client-only) instead of cookies
+- Server components/layouts can't read localStorage
+- Using `@supabase/supabase-js` instead of `@supabase/ssr`
+
+**Solution:**
+✅ **Migrate to `@supabase/ssr`** (already implemented in this project)
+
+```typescript
+// ❌ OLD - Don't do this
+import { createClient } from '@supabase/supabase-js';
+const supabase = createClient(url, key); // localStorage only
+
+// ✅ NEW - Use this
+import { createBrowserClient } from '@supabase/ssr';
+const supabase = createBrowserClient(url, key); // Cookies + SSR
+```
+
+### Issue: Session not persisting after page refresh
+
+**Symptoms:**
+- User logs in successfully
+- Refresh page → session lost, redirected to login
+
+**Cause:**
+- Cookies not being set properly
+- Using wrong Supabase client type
+
+**Solution:**
+1. Ensure `/api/auth/login` uses `await createClient()` (server client)
+2. Ensure client components use `createBrowserClient()` or `supabaseBrowser`
+3. Check browser cookies after login (DevTools → Application → Cookies)
+4. Should see `sb-[project]-auth-token` cookies
+
+### Issue: TypeScript error "Property 'errors' does not exist on type 'ZodError'"
+
+**Symptoms:**
+```
+Property 'errors' does not exist on type 'ZodError<unknown>'
+```
+
+**Cause:**
+- Zod v4+ changed API from `.errors` to `.issues`
+
+**Solution:**
+```typescript
+// ❌ OLD
+if (error instanceof z.ZodError) {
+  return { error: 'Validation failed', details: error.errors };
+}
+
+// ✅ NEW
+if (error instanceof z.ZodError) {
+  return { error: 'Validation failed', details: error.issues };
+}
+```
+
+### Debugging Authentication
+
+**Check session in browser:**
+```typescript
+import { supabaseBrowser } from '@/lib/supabaseBrowser';
+
+const { data: { session }, error } = await supabaseBrowser.auth.getSession();
+console.log('Session:', session);
+console.log('User:', session?.user);
+```
+
+**Check session in API route:**
+```typescript
+import { createClient } from '@/lib/supabaseClient';
+
+export async function GET(request: NextRequest) {
+  const supabase = await createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  console.log('Server session:', session);
+  return NextResponse.json({ session });
+}
+```
+
+**Verify cookies are set:**
+1. Open DevTools
+2. Application tab → Cookies
+3. Look for cookies starting with `sb-`
+4. Should have: `sb-[project-ref]-auth-token` (and possibly numbered parts)
+
+**Common cookie issues:**
+- No cookies → API not using `@supabase/ssr` server client
+- Cookies present but session null → Cookie parsing issue or expired token
+- Different cookies on client vs server → Domain/path mismatch
 
 ---
 
@@ -2476,24 +2673,58 @@ const geojson = {
 const googleCoords = coordinates[0].map(([lng, lat]) => ({ lat, lng }));
 ```
 
-### 2. Supabase Client Types
+### 2. Supabase Client Types (@supabase/ssr)
 
-**Don't mix client types:**
-- Use browser client in client components
-- Use server client in server components
-- Use admin client only when bypassing RLS is necessary
+**⚠️ CRITICAL: Always use the correct client type for your context!**
 
-**Wrong:**
+All clients use `@supabase/ssr` for automatic cookie management, but you must use:
+- **Browser client** (`createBrowserClient`) in client components
+- **Server client** (`createClient`) in server components and API routes
+- **Admin client** (`supabaseAdmin`) only for operations that bypass RLS
+
+**Common mistakes:**
+
+**❌ Wrong - Server client in client component:**
 ```typescript
 'use client';
-import { createClient } from '@/lib/supabaseClient'; // Server client in client component!
+import { createClient } from '@/lib/supabaseClient'; // Async function, won't work!
+
+// This will error - can't await in module scope
+const supabase = await createClient();
 ```
 
-**Correct:**
+**✅ Correct - Browser client in client component:**
 ```typescript
 'use client';
-import { createBrowserClient } from '@/lib/supabaseBrowser';
+import { createBrowserClient, supabaseBrowser } from '@/lib/supabaseBrowser';
+
+// Synchronous - works immediately
+const supabase = createBrowserClient();
+// Or use the singleton
+const supabase = supabaseBrowser;
 ```
+
+**❌ Wrong - Forgetting to await server client:**
+```typescript
+// In API route or server component
+import { createClient } from '@/lib/supabaseClient';
+
+const supabase = createClient(); // Missing await!
+const { data } = await supabase.from('clients').select(); // Will fail
+```
+
+**✅ Correct - Awaiting server client:**
+```typescript
+// In API route or server component
+import { createClient } from '@/lib/supabaseClient';
+
+const supabase = await createClient(); // ✅ Awaited!
+const { data } = await supabase.from('clients').select(); // Works
+```
+
+**Why the difference?**
+- Browser client: Synchronous, uses document.cookie (always available)
+- Server client: Async, uses Next.js `cookies()` API (requires await)
 
 ### 3. Environment Variables
 
@@ -2696,6 +2927,18 @@ For updates to this document, please ensure changes reflect the current state of
 
 ---
 
-**Last Updated:** 2026-02-01
+**Last Updated:** 2026-02-02
 **Project Version:** 0.1.0
 **Maintainer:** Development Team
+
+### Recent Major Changes
+
+**2026-02-02: Migration to @supabase/ssr**
+- ✅ Migrated all Supabase clients from `@supabase/supabase-js` to `@supabase/ssr`
+- ✅ Implemented automatic cookie-based session management for Next.js SSR
+- ✅ Fixed authentication loop issue (session not persisting after login)
+- ✅ Updated all documentation to reflect new authentication patterns
+- ✅ Browser client now uses `createBrowserClient` from `@supabase/ssr`
+- ✅ Server client now uses `createServerClient` with Next.js `cookies()` API
+- ⚠️ **Breaking change**: Server `createClient()` now requires `await`
+- 📚 Added troubleshooting section for common authentication issues
