@@ -7,19 +7,7 @@ import {
   ChangeEvent,
   FormEvent,
 } from 'react'
-import { supabaseBrowser, createBrowserClient } from '@/lib/supabaseBrowser'
-
-/**
- * Helper pour obtenir le token de session
- */
-async function getSessionToken(): Promise<string | null> {
-  const supabase = createBrowserClient()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  return session?.access_token || null
-}
-
+import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import {
   ListChecks,
   Plus,
@@ -38,6 +26,14 @@ import {
 import { Toast } from '@/components/ui/Toast'
 import { Pagination, usePagination } from '@/components/ui/Pagination'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { useApiMutation } from '@/lib/hooks/useApiMutation'
 
 type ListeChoixRow = {
   id: string
@@ -89,6 +85,63 @@ export default function AdminListesChoixPage() {
   // Confirmation de suppression
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<ListeChoixRow | null>(null)
+
+  // Hooks API pour les mutations
+  const {
+    mutate: createItem,
+    isLoading: isCreating,
+    error: createError,
+    resetError: resetCreateError,
+  } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/admin/listes/create',
+    defaultErrorMessage: "Erreur lors de la création de l'élément",
+    onSuccess: async (data) => {
+      const newItem = data.data as ListeChoixRow
+      setAllItems((prev) => [...prev, newItem])
+      setShowModal(false)
+      setEditingItem(null)
+      setToast({ type: 'success', message: 'Élément créé avec succès.' })
+    },
+  })
+
+  const {
+    mutate: updateItem,
+    isLoading: isUpdating,
+    error: updateError,
+    resetError: resetUpdateError,
+  } = useApiMutation({
+    method: 'PUT',
+    endpoint: '/api/admin/listes/update',
+    defaultErrorMessage: "Erreur lors de la mise à jour de l'élément",
+    onSuccess: async (data) => {
+      const updated = data.data as ListeChoixRow
+      setAllItems((prev) =>
+        prev.map((i) => (i.id === updated.id ? updated : i))
+      )
+      setShowModal(false)
+      setEditingItem(null)
+      setToast({ type: 'success', message: 'Élément mis à jour avec succès.' })
+    },
+  })
+
+  const {
+    mutate: deleteItem,
+    isLoading: isDeleting,
+    error: deleteError,
+    resetError: resetDeleteError,
+  } = useApiMutation({
+    method: 'DELETE',
+    endpoint: '/api/admin/listes/delete',
+    defaultErrorMessage: "Erreur lors de la suppression de l'élément",
+    onSuccess: async () => {
+      if (itemToDelete) {
+        setAllItems((prev) => prev.filter((i) => i.id !== itemToDelete.id))
+        setToast({ type: 'success', message: 'Élément supprimé avec succès.' })
+        setItemToDelete(null)
+      }
+    },
+  })
 
   // Chargement initial
   useEffect(() => {
@@ -200,10 +253,17 @@ export default function AdminListesChoixPage() {
     setShowModal(true)
   }
 
-  const closeModal = () => {
-    if (savingModal) return
-    setShowModal(false)
-    setEditingItem(null)
+  const handleModalOpenChange = (open: boolean) => {
+    if (!open && !savingModal) {
+      setShowModal(false)
+      setEditingItem(null)
+      setFormLabel('')
+      setFormCode('')
+      setFormCouleur('')
+      setFormActif(true)
+      resetCreateError()
+      resetUpdateError()
+    }
   }
 
   const handleModalSubmit = async (e: FormEvent) => {
@@ -234,13 +294,6 @@ export default function AdminListesChoixPage() {
     setSavingModal(true)
 
     try {
-      const token = await getSessionToken()
-      if (!token) {
-        setToast({ type: 'error', message: 'Session expirée. Veuillez vous reconnecter.' })
-        setSavingModal(false)
-        return
-      }
-
       if (modalMode === 'create') {
         // prochain ordre dans cette catégorie
         const maxOrdre =
@@ -259,28 +312,7 @@ export default function AdminListesChoixPage() {
           ordre: newOrdre,
         }
 
-        const res = await fetch('/api/admin/listes/create', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        })
-
-        const data = await res.json()
-
-        if (!res.ok) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Erreur insert listes_choix', data.error)
-          }
-          setToast({ type: 'error', message: "Erreur lors de la création de l'élément : " + (data.error ?? 'Erreur inconnue') })
-          setSavingModal(false)
-          return
-        }
-
-        const newItem = data.data as ListeChoixRow
-        setAllItems((prev) => [...prev, newItem])
+        await createItem(payload)
       } else if (modalMode === 'edit' && editingItem) {
         const payload = {
           id: editingItem.id,
@@ -290,34 +322,8 @@ export default function AdminListesChoixPage() {
           actif: formActif,
         }
 
-        const res = await fetch('/api/admin/listes/update', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        })
-
-        const data = await res.json()
-
-        if (!res.ok) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Erreur update listes_choix', data.error)
-          }
-          setToast({ type: 'error', message: "Erreur lors de la mise à jour de l'élément : " + (data.error ?? 'Erreur inconnue') })
-          setSavingModal(false)
-          return
-        }
-
-        const updated = data.data as ListeChoixRow
-        setAllItems((prev) =>
-          prev.map((i) => (i.id === updated.id ? updated : i))
-        )
+        await updateItem(payload)
       }
-
-      setShowModal(false)
-      setEditingItem(null)
     } catch (err: any) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Erreur inattendue listes_choix:', err)
@@ -530,36 +536,7 @@ export default function AdminListesChoixPage() {
         return
       }
 
-      const token = await getSessionToken()
-      if (!token) {
-        setToast({ type: 'error', message: 'Session expirée. Veuillez vous reconnecter.' })
-        setDeletingId(null)
-        return
-      }
-
-      const res = await fetch('/api/admin/listes/delete', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ id: itemToDelete.id }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur delete listes_choix', data.error)
-        }
-        setToast({ type: 'error', message: "Erreur lors de la suppression de l'élément : " + (data.error ?? 'Erreur inconnue') })
-        setDeletingId(null)
-        return
-      }
-
-      setAllItems((prev) => prev.filter((i) => i.id !== itemToDelete.id))
-      setToast({ type: 'success', message: 'Élément supprimé avec succès.' })
-      setItemToDelete(null)
+      await deleteItem({ id: itemToDelete.id })
     } catch (err: any) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Erreur inattendue delete listes_choix:', err)
@@ -888,131 +865,118 @@ export default function AdminListesChoixPage() {
       </div>
 
       {/* MODAL AJOUT / MODIFICATION */}
-      {showModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          onClick={closeModal}
-        >
-          <div
-            className="w-full max-w-xl max-h-[90vh] overflow-y-auto overflow-hidden rounded-2xl bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">
-                  {modalMode === 'create' ? 'Ajouter un élément' : 'Modifier un élément'}
-                </h3>
-                <p className="mt-0.5 text-sm text-slate-500">
-                  Catégorie : <span className="font-semibold text-slate-700">{selectedCategory}</span>
-                  {needColor ? ' — une couleur est requise.' : ''}
-                </p>
-              </div>
+      <Dialog open={showModal} onOpenChange={handleModalOpenChange}>
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {modalMode === 'create' ? 'Ajouter un élément' : 'Modifier un élément'}
+            </DialogTitle>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Catégorie : <span className="font-semibold text-slate-700">{selectedCategory}</span>
+              {needColor ? ' — une couleur est requise.' : ''}
+            </p>
+          </DialogHeader>
 
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={savingModal}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-                aria-label="Fermer"
-              >
-                <X className="h-5 w-5" />
-              </button>
+          <form
+            onSubmit={handleModalSubmit}
+            className="space-y-5 text-sm"
+          >
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold text-slate-700">
+                Libellé <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formLabel}
+                onChange={(e) => setFormLabel(e.target.value)}
+                required
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+              />
             </div>
 
-            <form
-              onSubmit={handleModalSubmit}
-              className="p-6 space-y-5 text-sm"
-            >
-              <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Libellé <span className="text-red-500">*</span>
-                </label>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold text-slate-700">
+                Code interne (optionnel)
+              </label>
+              <input
+                type="text"
+                value={formCode}
+                onChange={(e) => setFormCode(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold text-slate-700">
+                Couleur {needColor ? '(obligatoire)' : '(optionnelle)'}
+              </label>
+
+              <div className="flex items-center gap-3">
                 <input
                   type="text"
-                  value={formLabel}
-                  onChange={(e) => setFormLabel(e.target.value)}
-                  required
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                  value={formCouleur}
+                  onChange={(e) => setFormCouleur(e.target.value)}
+                  placeholder="#00A3FF"
+                  className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-mono transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                />
+
+                <div
+                  className="h-10 w-10 rounded-full border border-slate-200"
+                  style={{
+                    backgroundColor:
+                      formCouleur && /^#([0-9a-fA-F]{6})$/.test(formCouleur)
+                        ? formCouleur
+                        : '#ffffff',
+                  }}
+                  aria-label="Aperçu couleur"
+                  title="Aperçu couleur"
                 />
               </div>
+            </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Code interne (optionnel)
-                </label>
-                <input
-                  type="text"
-                  value={formCode}
-                  onChange={(e) => setFormCode(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                />
+            <div className="flex items-start gap-2 pt-1">
+              <input
+                id="actif-checkbox"
+                type="checkbox"
+                checked={formActif}
+                onChange={(e) => setFormActif(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#1F4E79] focus:ring-[#1F4E79]/30"
+              />
+              <label
+                htmlFor="actif-checkbox"
+                className="text-sm text-slate-600"
+              >
+                Élément actif (disponible dans les listes de sélection)
+              </label>
+            </div>
+
+            {/* Affichage des erreurs */}
+            {(createError || updateError) && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <p className="text-sm text-red-700">{createError || updateError}</p>
               </div>
+            )}
 
-              <div className="space-y-1.5">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Couleur {needColor ? '(obligatoire)' : '(optionnelle)'}
-                </label>
-
-                <div className="flex items-center gap-3">
-                  <input
-                    type="text"
-                    value={formCouleur}
-                    onChange={(e) => setFormCouleur(e.target.value)}
-                    placeholder="#00A3FF"
-                    className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-mono transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                  />
-
-                  <div
-                    className="h-10 w-10 rounded-full border border-slate-200"
-                    style={{
-                      backgroundColor:
-                        formCouleur && /^#([0-9a-fA-F]{6})$/.test(formCouleur)
-                          ? formCouleur
-                          : '#ffffff',
-                    }}
-                    aria-label="Aperçu couleur"
-                    title="Aperçu couleur"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2 pt-1">
-                <input
-                  id="actif-checkbox"
-                  type="checkbox"
-                  checked={formActif}
-                  onChange={(e) => setFormActif(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#1F4E79] focus:ring-[#1F4E79]/30"
-                />
-                <label
-                  htmlFor="actif-checkbox"
-                  className="text-sm text-slate-600"
-                >
-                  Élément actif (disponible dans les listes de sélection)
-                </label>
-              </div>
-
-              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={savingModal}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingModal}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                >
-                  {savingModal ? 'Enregistrement…' : 'Enregistrer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={() => handleModalOpenChange(false)}
+                disabled={savingModal}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={savingModal}
+                className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {savingModal ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={confirmDeleteOpen}
