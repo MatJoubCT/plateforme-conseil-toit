@@ -1,6 +1,13 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 
 export type ClientRow = {
   id: string
@@ -33,16 +40,13 @@ type EditUserModalProps = {
   toggleClient: (id: string) => void
 
   selectedBatimentIds: string[]
-  // IMPORTANT: signature modifiée pour pouvoir auto-cocher le client côté parent
-  toggleBatiment: (batimentId: string, clientId: string | null) => void
+  toggleBatiment: (batimentId: string, clientId?: string | null) => void
 
   onClose: () => void
   onSave: () => void
 
   errorMsg?: string | null
   successMsg?: string | null
-
-  debugLabel?: string
 }
 
 export default function EditUserModal({
@@ -62,7 +66,6 @@ export default function EditUserModal({
   onSave,
   errorMsg,
   successMsg,
-  debugLabel,
 }: EditUserModalProps) {
   const [clientQuery, setClientQuery] = useState('')
   const [batimentQuery, setBatimentQuery] = useState('')
@@ -240,25 +243,23 @@ export default function EditUserModal({
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [selectedClientIds, clientsById])
 
-  if (!open) return null
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen && !saving) {
+      onClose()
+    }
+  }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-      {/* IMPORTANT: flex-col + max-h + footer toujours visible */}
-      <div className="w-full max-w-6xl mx-4 max-h-[95vh] overflow-hidden rounded-2xl bg-white shadow-xl flex flex-col">
-        {/* Header */}
-        <div className="shrink-0 border-b border-ct-grayLight px-6 py-5">
-          <header className="space-y-1">
-            <h2 className="text-lg font-semibold text-ct-grayDark">Modifier l&apos;utilisateur</h2>
-            {debugLabel && <p className="text-[11px] font-mono text-rose-600">{debugLabel}</p>}
-            <p className="text-sm text-ct-gray">
-              Configurez le rôle, les clients associés et les bâtiments autorisés pour cet utilisateur.
-            </p>
-          </header>
-        </div>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-6xl max-h-[95vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Modifier l&apos;utilisateur</DialogTitle>
+          <p className="mt-1 text-sm text-slate-500">
+            Configurez le rôle, les clients associés et les bâtiments autorisés pour cet utilisateur.
+          </p>
+        </DialogHeader>
 
-        {/* Content scrollable */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="space-y-5">
           {errorMsg && (
             <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               <div className="font-semibold">Erreur d’enregistrement</div>
@@ -551,18 +552,25 @@ export default function EditUserModal({
           </div>
         </div>
 
-        {/* Footer fixe */}
-        <div className="shrink-0 border-t border-ct-grayLight px-6 py-4 bg-white">
-          <div className="flex justify-end gap-3">
-            <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>
-              Annuler
-            </button>
-            <button type="button" className="btn-primary" onClick={onSave} disabled={saving}>
-              {saving ? 'Enregistrement…' : 'Enregistrer'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+        <DialogFooter>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="rounded-xl bg-gradient-to-r from-ct-primary to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+          >
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

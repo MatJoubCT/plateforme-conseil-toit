@@ -40,7 +40,6 @@ export default function AdminUtilisateursPage() {
   const [selectedBatimentIds, setSelectedBatimentIds] = useState<string[]>([])
   const [editFullName, setEditFullName] = useState('')
   const [editRole, setEditRole] = useState('client')
-  const [saving, setSaving] = useState(false)
 
   // Modal création (inline)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -48,8 +47,6 @@ export default function AdminUtilisateursPage() {
   const [createFullName, setCreateFullName] = useState('')
   const [createRole, setCreateRole] = useState('client')
   const [createClientId, setCreateClientId] = useState('')
-  const [createSaving, setCreateSaving] = useState(false)
-  const [createErrorMsg, setCreateErrorMsg] = useState<string | null>(null)
 
   // Reset password (par utilisateur)
   const [resetLoadingByUserId, setResetLoadingByUserId] = useState<Record<string, boolean>>({})
@@ -197,14 +194,13 @@ export default function AdminUtilisateursPage() {
   }
 
   const closeModal = () => {
-    if (saving) return
+    if (isUpdating) return
     setShowModal(false)
     setEditingUser(null)
   }
 
   const handleSave = async () => {
     if (!editingUser) return
-    setSaving(true)
     setErrorMsg(null)
     setSuccessMsg(null)
 
@@ -221,8 +217,6 @@ export default function AdminUtilisateursPage() {
         console.error('Erreur inattendue save:', err)
       }
       setErrorMsg(err.message || 'Erreur inattendue.')
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -266,46 +260,32 @@ export default function AdminUtilisateursPage() {
     setCreateFullName('')
     setCreateRole('client')
     setCreateClientId('')
-    setCreateErrorMsg(null)
+    resetCreateError()
     setShowCreateModal(true)
   }
 
   const handleCreateModalOpenChange = (open: boolean) => {
-    if (!open && !createSaving) {
+    if (!open && !isCreatingUser) {
       setShowCreateModal(false)
       setCreateEmail('')
       setCreateFullName('')
       setCreateRole('client')
       setCreateClientId('')
-      setCreateErrorMsg(null)
       resetCreateError()
     }
   }
 
   const handleCreateUser = async () => {
     if (!createEmail.trim()) {
-      setCreateErrorMsg('Le courriel est obligatoire.')
       return
     }
 
-    setCreateSaving(true)
-    setCreateErrorMsg(null)
-
-    try {
-      await createUser({
-        email: createEmail.trim(),
-        fullName: createFullName.trim() || null,
-        role: createRole,
-        clientId: createClientId || null,
-      })
-    } catch (err: any) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur inattendue création:', err)
-      }
-      setCreateErrorMsg(err.message || 'Erreur inattendue.')
-    } finally {
-      setCreateSaving(false)
-    }
+    await createUser({
+      email: createEmail.trim(),
+      fullName: createFullName.trim() || null,
+      role: createRole,
+      clientId: createClientId || null,
+    })
   }
 
   const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -672,10 +652,10 @@ export default function AdminUtilisateursPage() {
 
           <div className="space-y-5">
             {/* Affichage des erreurs */}
-            {(createErrorMsg || createUserError) && (
+            {createUserError && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                 <div className="font-semibold">Erreur</div>
-                <div className="mt-1">{createErrorMsg || createUserError}</div>
+                <div className="mt-1">{createUserError}</div>
               </div>
             )}
 
@@ -737,7 +717,7 @@ export default function AdminUtilisateursPage() {
             <button
               type="button"
               onClick={() => handleCreateModalOpenChange(false)}
-              disabled={createSaving}
+              disabled={isCreatingUser}
               className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
             >
               Annuler
@@ -745,10 +725,10 @@ export default function AdminUtilisateursPage() {
             <button
               type="button"
               onClick={handleCreateUser}
-              disabled={createSaving}
+              disabled={isCreatingUser}
               className="rounded-xl bg-gradient-to-r from-ct-primary to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
             >
-              {createSaving ? 'Création…' : 'Créer et inviter'}
+              {isCreatingUser ? 'Création…' : 'Créer et inviter'}
             </button>
           </DialogFooter>
         </DialogContent>
@@ -758,7 +738,7 @@ export default function AdminUtilisateursPage() {
       {showModal && editingUser && (
         <EditUserModal
           open={showModal}
-          saving={saving}
+          saving={isUpdating}
           editFullName={editFullName}
           setEditFullName={setEditFullName}
           editRole={editRole}
@@ -773,7 +753,6 @@ export default function AdminUtilisateursPage() {
           onSave={handleSave}
           errorMsg={errorMsg}
           successMsg={successMsg}
-          debugLabel={process.env.NODE_ENV === 'development' ? 'CT-MODAL-UTILISATEUR-TRACE-V2' : undefined}
         />
       )}
 
