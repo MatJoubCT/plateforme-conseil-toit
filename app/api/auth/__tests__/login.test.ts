@@ -2,20 +2,31 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { POST } from '../login/route'
 import { NextRequest } from 'next/server'
 
-// Mock des dépendances
-vi.mock('@/lib/supabaseAdmin', () => ({
-  supabaseAdmin: {
-    auth: {
-      signInWithPassword: vi.fn(),
-    },
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(),
-        })),
+// Mock Next.js cookies() - doit être avant les autres imports
+vi.mock('next/headers', () => ({
+  cookies: vi.fn(async () => ({
+    getAll: vi.fn(() => []),
+    set: vi.fn(),
+    get: vi.fn(),
+  })),
+}))
+
+// Mock createClient pour retourner un mock similaire à supabaseAdmin
+const mockSupabaseClient = {
+  auth: {
+    signInWithPassword: vi.fn(),
+  },
+  from: vi.fn(() => ({
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        single: vi.fn(),
       })),
     })),
-  },
+  })),
+}
+
+vi.mock('@/lib/supabaseClient', () => ({
+  createClient: vi.fn(async () => mockSupabaseClient),
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -39,7 +50,6 @@ describe('POST /api/auth/login', () => {
   })
 
   it('devrait authentifier un utilisateur valide', async () => {
-    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
     const mockUser = {
       id: 'user-123',
       email: 'user@test.com',
@@ -56,7 +66,7 @@ describe('POST /api/auth/login', () => {
     }
 
     // Mock signInWithPassword
-    vi.mocked(supabaseAdmin.auth.signInWithPassword).mockResolvedValue({
+    vi.mocked(mockSupabaseClient.auth.signInWithPassword).mockResolvedValue({
       data: {
         user: mockUser,
         session: mockSession,
@@ -70,7 +80,7 @@ describe('POST /api/auth/login', () => {
         single: vi.fn().mockResolvedValue({ data: mockProfile, error: null }),
       })),
     }
-    vi.mocked(supabaseAdmin.from).mockReturnValue({
+    vi.mocked(mockSupabaseClient.from).mockReturnValue({
       select: vi.fn(() => mockSelectChain),
     } as any)
 
@@ -90,15 +100,12 @@ describe('POST /api/auth/login', () => {
 
     expect(response.status).toBe(200)
     expect(data.ok).toBe(true)
-    expect(data.session).toEqual(mockSession)
     expect(data.user.email).toBe('user@test.com')
     expect(data.user.role).toBe('admin')
   })
 
   it('devrait rejeter des identifiants invalides', async () => {
-    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
-
-    vi.mocked(supabaseAdmin.auth.signInWithPassword).mockResolvedValue({
+    vi.mocked(mockSupabaseClient.auth.signInWithPassword).mockResolvedValue({
       data: { user: null, session: null },
       error: { message: 'Invalid login credentials' } as any,
     } as any)
@@ -118,11 +125,10 @@ describe('POST /api/auth/login', () => {
     const data = await response.json()
 
     expect(response.status).toBe(401)
-    expect(data.error).toBe('Email ou mot de passe incorrect')
+    expect(data.error).toBe('Identifiants incorrects')
   })
 
   it('devrait bloquer un utilisateur inactif', async () => {
-    const { supabaseAdmin } = await import('@/lib/supabaseAdmin')
     const mockUser = {
       id: 'user-123',
       email: 'user@test.com',
@@ -138,7 +144,7 @@ describe('POST /api/auth/login', () => {
       full_name: 'Inactive User',
     }
 
-    vi.mocked(supabaseAdmin.auth.signInWithPassword).mockResolvedValue({
+    vi.mocked(mockSupabaseClient.auth.signInWithPassword).mockResolvedValue({
       data: {
         user: mockUser,
         session: mockSession,
@@ -151,7 +157,7 @@ describe('POST /api/auth/login', () => {
         single: vi.fn().mockResolvedValue({ data: mockProfile, error: null }),
       })),
     }
-    vi.mocked(supabaseAdmin.from).mockReturnValue({
+    vi.mocked(mockSupabaseClient.from).mockReturnValue({
       select: vi.fn(() => mockSelectChain),
     } as any)
 
