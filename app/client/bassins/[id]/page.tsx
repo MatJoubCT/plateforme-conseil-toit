@@ -1669,33 +1669,34 @@ export default function ClientBassinDetailPage() {
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-4">
+              <div className="mt-4 flex flex-wrap items-center gap-2 sm:gap-4">
                 <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-                  <Calendar className="h-4 w-4 text-white/70" />
-                  <span className="text-sm text-white/90">{bassin.annee_installation ?? 'N/D'}</span>
+                  <Calendar className="h-4 w-4 text-white/70 flex-shrink-0" />
+                  <span className="text-sm text-white/90 whitespace-nowrap">{bassin.annee_installation ?? 'N/D'}</span>
                 </div>
                 <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-                  <Layers className="h-4 w-4 text-white/70" />
-                  <span className="text-sm text-white/90">
+                  <Layers className="h-4 w-4 text-white/70 flex-shrink-0" />
+                  <span className="text-sm text-white/90 whitespace-nowrap">
                     {surfaceFt2 != null ? `${surfaceFt2.toLocaleString('fr-CA')} pi²` : 'N/D'}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-                  <Clock className="h-4 w-4 text-white/70" />
-                  <span className="text-sm text-white/90">
-                    Dernière réfection : {bassin.date_derniere_refection ?? 'N/D'}
+                <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 backdrop-blur-sm max-w-full">
+                  <Clock className="h-4 w-4 text-white/70 flex-shrink-0" />
+                  <span className="text-sm text-white/90 truncate">
+                    <span className="hidden sm:inline">Dernière réfection : </span>
+                    {bassin.date_derniere_refection ?? 'N/D'}
                     {bassin.date_derniere_refection && couvreurNom ? ` par ${couvreurNom}` : ''}
                   </span>
                 </div>
 
                 {garantieProche && garantieProche.date_fin && (
                   <div
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 backdrop-blur-sm ${getBadgeColorGarantie(
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 backdrop-blur-sm max-w-full ${getBadgeColorGarantie(
                       garantieProche.date_fin
                     )}`}
                   >
                     <Shield className="h-4 w-4 flex-shrink-0" />
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-medium truncate">
                       {(() => {
                         const dateFin = new Date(garantieProche.date_fin + 'T00:00:00')
                         const aujourdhui = new Date()
@@ -1705,7 +1706,7 @@ export default function ClientBassinDetailPage() {
                         if (diffJours < 0) {
                           return `Garantie échue: ${formatDateEcheance(garantieProche.date_fin)}`
                         }
-                        return `Échéance de la garantie: ${formatDateEcheance(garantieProche.date_fin)}`
+                        return `Échéance: ${formatDateEcheance(garantieProche.date_fin)}`
                       })()}
                     </span>
                   </div>
@@ -1875,7 +1876,7 @@ export default function ClientBassinDetailPage() {
                             )}
                           </div>
 
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                             {(() => {
                               const imageFiles = (it.files || []).filter((f) =>
                                 f.mime_type?.startsWith('image/')
@@ -2113,28 +2114,28 @@ export default function ClientBassinDetailPage() {
                   <button
                     type="button"
                     onClick={() => setActiveDocTab('garanties')}
-                    className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+                    className={`inline-flex items-center gap-1 sm:gap-1.5 rounded-md px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium transition-all ${
                       activeDocTab === 'garanties'
                         ? 'bg-white text-[#1F4E79] shadow-sm'
                         : 'text-slate-600 hover:text-slate-800'
                     }`}
                   >
-                    <Shield className="h-4 w-4" />
-                    Garanties
-                    <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-xs">{garanties.length}</span>
+                    <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="whitespace-nowrap">Garanties</span>
+                    <span className="ml-0.5 sm:ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-xs">{garanties.length}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setActiveDocTab('rapports')}
-                    className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+                    className={`inline-flex items-center gap-1 sm:gap-1.5 rounded-md px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium transition-all ${
                       activeDocTab === 'rapports'
                         ? 'bg-white text-[#1F4E79] shadow-sm'
                         : 'text-slate-600 hover:text-slate-800'
                     }`}
                   >
-                    <FileCheck className="h-4 w-4" />
-                    Rapports
-                    <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-xs">{rapports.length}</span>
+                    <FileCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="whitespace-nowrap">Rapports</span>
+                    <span className="ml-0.5 sm:ml-1 rounded-full bg-slate-200 px-1.5 py-0.5 text-xs">{rapports.length}</span>
                   </button>
                 </div>
               </div>
@@ -2182,7 +2183,7 @@ export default function ClientBassinDetailPage() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                 {g.fichier_pdf_url && (
                                   <a
                                     href={g.fichier_pdf_url}
@@ -2240,7 +2241,7 @@ export default function ClientBassinDetailPage() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                 {r.file_url && (
                                   <a
                                     href={r.file_url}
@@ -2286,7 +2287,7 @@ export default function ClientBassinDetailPage() {
             </div>
 
             <div className="p-4">
-              <div className="h-[520px] w-full overflow-hidden rounded-xl border border-slate-200">
+              <div className="h-[350px] sm:h-[420px] lg:h-[520px] w-full overflow-hidden rounded-xl border border-slate-200">
                 <BassinMap
                   bassinId={bassin.id}
                   center={mapCenter}
@@ -2349,37 +2350,39 @@ export default function ClientBassinDetailPage() {
                   <p className="text-sm text-slate-500">Aucun matériau enregistré</p>
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-xl border border-slate-200">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50">
-                      <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        <th className="px-3 py-2">Matériau</th>
-                        <th className="px-3 py-2">Catégorie</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 bg-white">
-                      {compositionLines.map((row) => {
-                        const materiauNom = row.materiau?.nom || 'Matériau'
-                        const manufacturierNom = row.materiau?.manufacturier?.nom
-                        const displayNom = manufacturierNom
-                          ? `${materiauNom} de ${manufacturierNom}`
-                          : materiauNom
+                <div className="overflow-x-auto">
+                  <div className="overflow-hidden rounded-xl border border-slate-200">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50">
+                        <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                          <th className="px-3 py-2 whitespace-nowrap">Matériau</th>
+                          <th className="px-3 py-2 whitespace-nowrap">Catégorie</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 bg-white">
+                        {compositionLines.map((row) => {
+                          const materiauNom = row.materiau?.nom || 'Matériau'
+                          const manufacturierNom = row.materiau?.manufacturier?.nom
+                          const displayNom = manufacturierNom
+                            ? `${materiauNom} de ${manufacturierNom}`
+                            : materiauNom
 
-                        return (
-                          <tr key={row.id} className="hover:bg-slate-50/50">
-                            <td className="px-3 py-2 align-middle">
-                              <div className="font-semibold text-slate-800">
-                                {displayNom}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 align-middle text-slate-600">
-                              {getCategorieMateriauLabel(row.materiau?.categorie_id || null)}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                          return (
+                            <tr key={row.id} className="hover:bg-slate-50/50">
+                              <td className="px-3 py-2 align-middle">
+                                <div className="font-semibold text-slate-800">
+                                  {displayNom}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2 align-middle text-slate-600 whitespace-nowrap">
+                                {getCategorieMateriauLabel(row.materiau?.categorie_id || null)}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
