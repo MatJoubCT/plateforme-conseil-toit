@@ -1399,7 +1399,11 @@ export default function ClientBassinDetailPage() {
         data = await createInterventionMutation(payload)
       }
 
-      if (!data) {
+      // Vérifier que la mutation a réussi
+      if (!data || !data.success) {
+        if (data?.error) {
+          alert(data.error)
+        }
         setSavingIntervention(false)
         return
       }
@@ -2869,93 +2873,93 @@ export default function ClientBassinDetailPage() {
 
       {/* Modal images */}
       <Dialog open={modalImagesOpen && !!selectedInterventionForImages} onOpenChange={setModalImagesOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
-          {selectedInterventionForImages && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Images de l&apos;intervention</DialogTitle>
-                <p className="text-sm text-slate-600 mt-1">
-                  {new Date(selectedInterventionForImages.date_intervention).toLocaleDateString('fr-FR', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                  {selectedInterventionForImages.commentaire && (
-                    <>
-                      {' — '}
-                      {selectedInterventionForImages.commentaire}
-                    </>
-                  )}
-                </p>
-              </DialogHeader>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Images de l&apos;intervention</DialogTitle>
+            {selectedInterventionForImages && (
+              <p className="text-sm text-slate-600 mt-1">
+                {new Date(selectedInterventionForImages.date_intervention).toLocaleDateString('fr-FR', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+                {selectedInterventionForImages.commentaire && (
+                  <>
+                    {' — '}
+                    {selectedInterventionForImages.commentaire}
+                  </>
+                )}
+              </p>
+            )}
+          </DialogHeader>
 
-              <div className="py-4">
-              {(() => {
-                const imageFiles = (selectedInterventionForImages.files || []).filter((f) =>
-                  f.mime_type?.startsWith('image/')
-                )
+          {/* Contenu du modal */}
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            {selectedInterventionForImages && (() => {
+              const imageFiles = (selectedInterventionForImages.files || []).filter((f) =>
+                f.mime_type?.startsWith('image/')
+              )
 
-                if (imageFiles.length === 0) {
-                  return (
-                    <div className="text-center py-12">
-                      <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-                      <p className="text-sm text-slate-600">
-                        Aucune image disponible pour cette intervention.
-                      </p>
-                    </div>
-                  )
-                }
-
+              if (imageFiles.length === 0) {
                 return (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {imageFiles.map((file) => {
-                      const imageUrl = imageUrls[file.id]
-
-                      return (
-                        <div
-                          key={file.id}
-                          className="group relative aspect-square overflow-hidden rounded-lg border-2 border-slate-200 hover:border-ct-primary transition-all cursor-pointer bg-slate-50"
-                          onClick={() => handleDownloadImage(file)}
-                        >
-                          {imageUrl ? (
-                            <>
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={imageUrl}
-                                alt={file.file_name || 'Image'}
-                                className="h-full w-full object-cover"
-                              />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Download className="h-8 w-8 text-white drop-shadow-lg" />
-                                </div>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="h-full w-full flex items-center justify-center">
-                              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
-                            </div>
-                          )}
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                            <p className="text-xs text-white truncate">
-                              {file.file_name || 'Image'}
-                            </p>
-                          </div>
-                        </div>
-                      )
-                    })}
+                  <div className="text-center py-12">
+                    <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-sm text-slate-600">
+                      Aucune image disponible pour cette intervention.
+                    </p>
                   </div>
                 )
-              })()}
-              </div>
+              }
 
-              <div className="sticky bottom-0 border-t border-slate-200 bg-slate-50 px-6 py-4 -mx-6 -mb-6">
-                <p className="text-xs text-slate-600 text-center">
-                  Cliquez sur une image pour la télécharger et l&apos;ouvrir
-                </p>
-              </div>
-            </>
-          )}
+              return (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {imageFiles.map((file) => {
+                    const imageUrl = imageUrls[file.id]
+
+                    return (
+                      <div
+                        key={file.id}
+                        className="group relative aspect-square overflow-hidden rounded-lg border-2 border-slate-200 hover:border-ct-primary transition-all cursor-pointer bg-slate-50"
+                        onClick={() => handleDownloadImage(file)}
+                      >
+                        {imageUrl ? (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={imageUrl}
+                              alt={file.file_name || 'Image'}
+                              className="h-full w-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Download className="h-8 w-8 text-white drop-shadow-lg" />
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center">
+                            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
+                          </div>
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                          <p className="text-xs text-white truncate">
+                            {file.file_name || 'Image'}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+          </div>
+
+          {/* Footer du modal */}
+          <div className="border-t border-slate-200 bg-slate-50 px-6 py-4">
+            <p className="text-xs text-slate-600 text-center">
+              Cliquez sur une image pour la télécharger et l&apos;ouvrir
+            </p>
+          </div>
         </DialogContent>
       </Dialog>
 
