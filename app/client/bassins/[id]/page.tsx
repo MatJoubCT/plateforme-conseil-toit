@@ -1631,7 +1631,7 @@ export default function ClientBassinDetailPage() {
   }
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-6 max-w-full overflow-hidden">
       {/* ========== HEADER ========== */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-4 sm:p-6 shadow-xl">
         <div className="absolute inset-0 opacity-10">
@@ -1844,28 +1844,28 @@ export default function ClientBassinDetailPage() {
                       <div
                         key={it.id}
                         onClick={() => setSelectedInterventionId(it.id)}
-                        className={`group cursor-pointer rounded-xl border p-4 transition-all ${
+                        className={`group cursor-pointer rounded-xl border p-4 transition-all overflow-hidden ${
                           selected
                             ? 'border-[#1F4E79] bg-[#1F4E79]/5 shadow-sm'
                             : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start justify-between gap-3 min-w-0">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
                               <span
-                                className={`text-sm font-semibold ${
+                                className={`text-sm font-semibold whitespace-nowrap ${
                                   selected ? 'text-[#1F4E79]' : 'text-slate-800'
                                 }`}
                               >
                                 {it.date_intervention}
                               </span>
-                              <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                              <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 whitespace-nowrap">
                                 {typeLabel}
                               </span>
-                              {hasLoc && <MapPin className="h-3.5 w-3.5 text-green-500" />}
+                              {hasLoc && <MapPin className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />}
                             </div>
-                            {it.commentaire && <p className="text-sm text-slate-500 truncate">{it.commentaire}</p>}
+                            {it.commentaire && <p className="text-sm text-slate-500 break-words line-clamp-2">{it.commentaire}</p>}
                             {it.files && it.files.length > 0 && (
                               <div className="mt-2 flex items-center gap-1 text-xs text-slate-400">
                                 <FileText className="h-3.5 w-3.5" />
