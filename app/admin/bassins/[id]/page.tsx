@@ -1821,173 +1821,6 @@ export default function AdminBassinDetailPage() {
                 </div>
               )}
 
-              {showInterventionEditor && (
-                <div className="mt-4 rounded-xl border-2 border-[#1F4E79]/30 bg-[#1F4E79]/5 p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-800">
-                        {editingIntervention ? "Modifier l'intervention" : 'Nouvelle intervention'}
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Activez « Choisir sur la carte » pour localiser l'intervention
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={closeInterventionEditor}
-                        disabled={isCreatingIntervention || isUpdatingIntervention}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
-                      >
-                        <X className="h-4 w-4" />
-                        Annuler
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleSaveIntervention()}
-                        disabled={isCreatingIntervention || isUpdatingIntervention}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#1F4E79] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#163555]"
-                      >
-                        {isCreatingIntervention || isUpdatingIntervention ? 'Enregistrement…' : 'Enregistrer'}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-semibold text-slate-600">
-                        Date de l'intervention <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={intDate}
-                        onChange={(e) => setIntDate(e.target.value)}
-                        required
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-semibold text-slate-600">Type d'intervention</label>
-                      <select
-                        value={intTypeId}
-                        onChange={(e) => setIntTypeId(e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                      >
-                        <option value="">Sélectionner…</option>
-                        {typesInterventions.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="md:col-span-2 space-y-1.5">
-                      <label className="block text-xs font-semibold text-slate-600">Commentaire</label>
-                      <textarea
-                        rows={3}
-                        value={intCommentaire}
-                        onChange={(e) => setIntCommentaire(e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-                      />
-                    </div>
-
-                    <div className="md:col-span-2 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => setIntPickEnabled((v) => !v)}
-                        className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                          intPickEnabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                      >
-                        <MapPin className="h-4 w-4" />
-                        {intPickEnabled ? 'Mode sélection actif' : 'Choisir sur la carte'}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setIntLocation(null)}
-                        disabled={intLocation == null}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
-                      >
-                        <X className="h-4 w-4" />
-                        Effacer
-                      </button>
-
-                      <div className="flex-1 text-xs text-slate-500">
-                        {intLocation ? (
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="h-2 w-2 rounded-full bg-green-500" />
-                            Position : {intLocation.lat.toFixed(6)}, {intLocation.lng.toFixed(6)}
-                          </span>
-                        ) : (
-                          'Aucune localisation définie'
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="md:col-span-2 space-y-1.5">
-                      <label className="block text-xs font-semibold text-slate-600">Ajouter des fichiers / photos</label>
-                      <div className="relative">
-                        <input
-                          type="file"
-                          multiple
-                          onChange={handleInterventionFilesChange}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        />
-                        <div className="flex items-center gap-3 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-center transition-colors hover:border-[#1F4E79]/50 hover:bg-[#1F4E79]/5">
-                          <Upload className="h-5 w-5 text-slate-400" />
-                          <span className="text-sm text-slate-600">Cliquez ou glissez des fichiers ici</span>
-                        </div>
-                      </div>
-                      {intNewFiles.length > 0 && (
-                        <p className="text-xs text-green-600 mt-1">{intNewFiles.length} fichier(s) prêt(s) à téléverser</p>
-                      )}
-                    </div>
-
-                    {editingIntervention && editingIntervention.files.length > 0 && (
-                      <div className="md:col-span-2 space-y-2">
-                        <p className="text-xs font-semibold text-slate-600">Fichiers existants</p>
-                        <div className="space-y-2">
-                          {editingIntervention.files.map((f) => (
-                            <div
-                              key={f.id}
-                              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5"
-                            >
-                              <div className="flex items-center gap-2 text-sm text-slate-700 min-w-0">
-                                <FileText className="h-4 w-4 text-slate-400 shrink-0" />
-                                <span className="truncate font-medium">
-                                  {f.file_name || f.file_path.split('/').pop() || 'Fichier'}
-                                </span>
-                                {f.mime_type && <span className="text-xs text-slate-400">({f.mime_type})</span>}
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <button
-                                  type="button"
-                                  disabled={!!busyFileIds[f.id]}
-                                  onClick={() => void openFileSignedUrl(f)}
-                                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-[#1F4E79]"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={!!busyFileIds[f.id]}
-                                  onClick={() => void requestDeleteFile(f)}
-                                  className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 
@@ -2427,6 +2260,177 @@ export default function AdminBassinDetailPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Modal ajout / modification intervention */}
+      <Dialog
+        open={showInterventionEditor}
+        onOpenChange={(open) => !open && !isCreatingIntervention && !isUpdatingIntervention && closeInterventionEditor()}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingIntervention ? "Modifier l'intervention" : 'Nouvelle intervention'}
+            </DialogTitle>
+            <DialogDescription>
+              Activez « Choisir sur la carte » pour localiser l'intervention
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 md:grid-cols-2 py-4">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-600">
+                Date de l'intervention <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={intDate}
+                onChange={(e) => setIntDate(e.target.value)}
+                required
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-600">Type d'intervention</label>
+              <select
+                value={intTypeId}
+                onChange={(e) => setIntTypeId(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+              >
+                <option value="">Sélectionner…</option>
+                {typesInterventions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2 space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-600">Commentaire</label>
+              <textarea
+                rows={3}
+                value={intCommentaire}
+                onChange={(e) => setIntCommentaire(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+              />
+            </div>
+
+            <div className="md:col-span-2 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setIntPickEnabled((v) => !v)}
+                className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                  intPickEnabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <MapPin className="h-4 w-4" />
+                {intPickEnabled ? 'Mode sélection actif' : 'Choisir sur la carte'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIntLocation(null)}
+                disabled={intLocation == null}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+                Effacer
+              </button>
+
+              <div className="flex-1 text-xs text-slate-500">
+                {intLocation ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-green-500" />
+                    Position : {intLocation.lat.toFixed(6)}, {intLocation.lng.toFixed(6)}
+                  </span>
+                ) : (
+                  'Aucune localisation définie'
+                )}
+              </div>
+            </div>
+
+            <div className="md:col-span-2 space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-600">Ajouter des fichiers / photos</label>
+              <div className="relative">
+                <input
+                  type="file"
+                  multiple
+                  onChange={handleInterventionFilesChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+                <div className="flex items-center gap-3 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-center transition-colors hover:border-[#1F4E79]/50 hover:bg-[#1F4E79]/5">
+                  <Upload className="h-5 w-5 text-slate-400" />
+                  <span className="text-sm text-slate-600">Cliquez ou glissez des fichiers ici</span>
+                </div>
+              </div>
+              {intNewFiles.length > 0 && (
+                <p className="text-xs text-green-600 mt-1">{intNewFiles.length} fichier(s) prêt(s) à téléverser</p>
+              )}
+            </div>
+
+            {editingIntervention && editingIntervention.files.length > 0 && (
+              <div className="md:col-span-2 space-y-2">
+                <p className="text-xs font-semibold text-slate-600">Fichiers existants</p>
+                <div className="space-y-2">
+                  {editingIntervention.files.map((f) => (
+                    <div
+                      key={f.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5"
+                    >
+                      <div className="flex items-center gap-2 text-sm text-slate-700 min-w-0">
+                        <FileText className="h-4 w-4 text-slate-400 shrink-0" />
+                        <span className="truncate font-medium">
+                          {f.file_name || f.file_path.split('/').pop() || 'Fichier'}
+                        </span>
+                        {f.mime_type && <span className="text-xs text-slate-400">({f.mime_type})</span>}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          disabled={!!busyFileIds[f.id]}
+                          onClick={() => void openFileSignedUrl(f)}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-[#1F4E79]"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!!busyFileIds[f.id]}
+                          onClick={() => void requestDeleteFile(f)}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <button
+              type="button"
+              onClick={closeInterventionEditor}
+              disabled={isCreatingIntervention || isUpdatingIntervention}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+            >
+              <X className="h-4 w-4" />
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSaveIntervention()}
+              disabled={isCreatingIntervention || isUpdatingIntervention}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#1F4E79] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#163555]"
+            >
+              {isCreatingIntervention || isUpdatingIntervention ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal ajout / modification garantie */}
       <Dialog open={showModal} onOpenChange={(open) => !open && !(isCreatingGarantie || isUpdatingGarantie) && closeModal()}>
         <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
@@ -2572,25 +2576,16 @@ export default function AdminBassinDetailPage() {
       </Dialog>
 
       {/* Modal ajout / modification rapport */}
-      {showRapportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">{rapportModalTitle}</h3>
-                <p className="text-sm text-slate-500 mt-0.5">Bassin : {bassin.name || '(Sans nom)'}</p>
-              </div>
-              <button
-                type="button"
-                onClick={closeRapportModal}
-                disabled={savingRapport}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      <Dialog open={showRapportModal} onOpenChange={(open) => !open && !savingRapport && closeRapportModal()}>
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-slate-800">{rapportModalTitle}</DialogTitle>
+            <DialogDescription className="text-sm text-slate-500">
+              Bassin : {bassin?.name || '(Sans nom)'}
+            </DialogDescription>
+          </DialogHeader>
 
-            <form onSubmit={handleSubmitRapport} className="p-6 space-y-5">
+          <form onSubmit={handleSubmitRapport} className="space-y-5">
               <div className="space-y-1.5">
                 <label className="block text-sm font-semibold text-slate-700">
                   Type de rapport <span className="text-red-500">*</span>
@@ -2660,27 +2655,26 @@ export default function AdminBassinDetailPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={closeRapportModal}
-                  disabled={savingRapport}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingRapport}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                >
-                  {savingRapport ? 'Enregistrement…' : 'Enregistrer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={closeRapportModal}
+                disabled={savingRapport}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={savingRapport}
+                className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {savingRapport ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal confirmation suppression intervention */}
       {confirmDeleteIntervention && (
@@ -2893,116 +2887,96 @@ export default function AdminBassinDetailPage() {
       </Dialog>
 
       {/* Modal images */}
-      {modalImagesOpen && selectedInterventionForImages && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={() => setModalImagesOpen(false)}
-        >
-          <div
-            className="relative w-full max-w-4xl max-h-[90vh] overflow-auto bg-white rounded-2xl shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header du modal */}
-            <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">
-                    Images de l&apos;intervention
-                  </h2>
-                  <p className="text-sm text-slate-600 mt-1">
-                    {new Date(selectedInterventionForImages.date_intervention).toLocaleDateString('fr-FR', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                    {selectedInterventionForImages.commentaire && (
-                      <>
-                        {' — '}
-                        {selectedInterventionForImages.commentaire}
-                      </>
-                    )}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setModalImagesOpen(false)}
-                  className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
+      <Dialog open={modalImagesOpen} onOpenChange={setModalImagesOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto p-0">
+          <DialogHeader className="sticky top-0 z-10 border-b border-slate-200 bg-white px-6 py-4">
+            <DialogTitle>Images de l&apos;intervention</DialogTitle>
+            {selectedInterventionForImages && (
+              <DialogDescription className="text-sm text-slate-600 mt-1">
+                {new Date(selectedInterventionForImages.date_intervention).toLocaleDateString('fr-FR', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+                {selectedInterventionForImages.commentaire && (
+                  <>
+                    {' — '}
+                    {selectedInterventionForImages.commentaire}
+                  </>
+                )}
+              </DialogDescription>
+            )}
+          </DialogHeader>
 
-            {/* Contenu du modal */}
-            <div className="p-6">
-              {(() => {
-                const imageFiles = (selectedInterventionForImages.files || []).filter((f) =>
-                  f.mime_type?.startsWith('image/')
-                )
+          {/* Contenu du modal */}
+          <div className="p-6">
+            {selectedInterventionForImages && (() => {
+              const imageFiles = (selectedInterventionForImages.files || []).filter((f) =>
+                f.mime_type?.startsWith('image/')
+              )
 
-                if (imageFiles.length === 0) {
-                  return (
-                    <div className="text-center py-12">
-                      <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-                      <p className="text-sm text-slate-600">
-                        Aucune image disponible pour cette intervention.
-                      </p>
-                    </div>
-                  )
-                }
-
+              if (imageFiles.length === 0) {
                 return (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {imageFiles.map((file) => {
-                      const imageUrl = imageUrls[file.id]
-
-                      return (
-                        <div
-                          key={file.id}
-                          className="group relative aspect-square overflow-hidden rounded-lg border-2 border-slate-200 hover:border-ct-primary transition-all cursor-pointer bg-slate-50"
-                          onClick={() => handleDownloadImage(file)}
-                        >
-                          {imageUrl ? (
-                            <>
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={imageUrl}
-                                alt={file.file_name || 'Image'}
-                                className="h-full w-full object-cover"
-                              />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Download className="h-8 w-8 text-white drop-shadow-lg" />
-                                </div>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="h-full w-full flex items-center justify-center">
-                              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
-                            </div>
-                          )}
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                            <p className="text-xs text-white truncate">
-                              {file.file_name || 'Image'}
-                            </p>
-                          </div>
-                        </div>
-                      )
-                    })}
+                  <div className="text-center py-12">
+                    <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-sm text-slate-600">
+                      Aucune image disponible pour cette intervention.
+                    </p>
                   </div>
                 )
-              })()}
-            </div>
+              }
 
-            {/* Footer du modal */}
-            <div className="sticky bottom-0 border-t border-slate-200 bg-slate-50 px-6 py-4">
-              <p className="text-xs text-slate-600 text-center">
-                Cliquez sur une image pour la télécharger et l&apos;ouvrir
-              </p>
-            </div>
+              return (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {imageFiles.map((file) => {
+                    const imageUrl = imageUrls[file.id]
+
+                    return (
+                      <div
+                        key={file.id}
+                        className="group relative aspect-square overflow-hidden rounded-lg border-2 border-slate-200 hover:border-ct-primary transition-all cursor-pointer bg-slate-50"
+                        onClick={() => handleDownloadImage(file)}
+                      >
+                        {imageUrl ? (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={imageUrl}
+                              alt={file.file_name || 'Image'}
+                              className="h-full w-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Download className="h-8 w-8 text-white drop-shadow-lg" />
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center">
+                            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-ct-primary to-[#2d6ba8] shadow-lg animate-pulse" />
+                          </div>
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                          <p className="text-xs text-white truncate">
+                            {file.file_name || 'Image'}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
-        </div>
-      )}
+
+          {/* Footer du modal */}
+          <DialogFooter className="sticky bottom-0 border-t border-slate-200 bg-slate-50 px-6 py-4">
+            <p className="text-xs text-slate-600 text-center w-full">
+              Cliquez sur une image pour la télécharger et l&apos;ouvrir
+            </p>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={!!confirmDeleteFile}
