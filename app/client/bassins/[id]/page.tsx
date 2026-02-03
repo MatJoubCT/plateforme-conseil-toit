@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { useValidatedId } from '@/lib/hooks/useValidatedId'
 import { useApiMutation } from '@/lib/hooks/useApiMutation'
+import { getCsrfTokenFromCookies } from '@/lib/csrf'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
 import BassinMap, { InterventionMarker } from '@/components/maps/BassinMap'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -1419,6 +1420,13 @@ export default function ClientBassinDetailPage() {
           return
         }
 
+        const csrfToken = getCsrfTokenFromCookies()
+        if (!csrfToken) {
+          alert('Token CSRF manquant. Veuillez rafraîchir la page.')
+          setSavingIntervention(false)
+          return
+        }
+
         for (const f of intNewFiles) {
           const formData = new FormData()
           formData.append('interventionId', saved.id)
@@ -1428,6 +1436,7 @@ export default function ClientBassinDetailPage() {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
+              'x-csrf-token': csrfToken,
             },
             body: formData,
           })

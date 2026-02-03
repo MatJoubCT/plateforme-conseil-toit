@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { getSessionToken } from './useSessionToken';
+import { getCsrfTokenFromCookies } from '@/lib/csrf';
 
 export type ApiMutationMethod = 'POST' | 'PUT' | 'DELETE';
 
@@ -117,12 +118,26 @@ export function useApiMutation<TData = any>(
         return { success: false, error: errorMsg };
       }
 
+      // Récupérer le token CSRF
+      const csrfToken = getCsrfTokenFromCookies();
+
+      if (!csrfToken) {
+        const errorMsg = 'Token CSRF manquant. Veuillez rafraîchir la page.';
+        setError(errorMsg);
+        if (options.onError) {
+          await options.onError(errorMsg);
+        }
+        setIsLoading(false);
+        return { success: false, error: errorMsg };
+      }
+
       // Faire l'appel API
       const response = await fetch(options.endpoint, {
         method: options.method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          'x-csrf-token': csrfToken,
         },
         body: JSON.stringify(data),
       });
