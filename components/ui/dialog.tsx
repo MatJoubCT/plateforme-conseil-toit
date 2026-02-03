@@ -57,15 +57,11 @@ export function DialogContent({
 
   return createPortal(
     <div className="fixed inset-0 z-50">
-      {/* Overlay */}
+      {/* Overlay + Content wrapper */}
       <div
-        className="fixed inset-0 bg-black/40"
+        className="fixed inset-0 bg-black/40 flex items-center justify-center p-4"
         onClick={() => setOpen(false)}
-        aria-hidden="true"
-      />
-
-      {/* Content */}
-      <div className="fixed inset-0 flex items-center justify-center p-4">
+      >
         <div
           role="dialog"
           aria-modal="true"
