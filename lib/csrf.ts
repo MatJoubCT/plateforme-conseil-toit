@@ -8,7 +8,7 @@ const CSRF_TOKEN_LENGTH = 32
 const CSRF_COOKIE_NAME = 'csrf-token'
 const CSRF_HEADER_NAME = 'x-csrf-token'
 const CSRF_COOKIE_OPTIONS = {
-  httpOnly: true,
+  httpOnly: false, // Doit être false pour que JavaScript puisse lire le token
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax' as const,
   path: '/',
@@ -111,22 +111,31 @@ export function setCsrfCookie(response: NextResponse): string {
 }
 
 /**
- * Récupère le token CSRF depuis les cookies
+ * Récupère le token CSRF depuis les cookies ou sessionStorage
  * À utiliser côté client pour l'envoyer dans les requêtes
+ * Vérifie d'abord les cookies, puis sessionStorage comme fallback
  */
 export function getCsrfTokenFromCookies(): string | null {
   if (typeof document === 'undefined') {
     return null
   }
 
+  // Essayer d'abord de lire le token depuis les cookies
   const cookies = document.cookie.split(';')
   const csrfCookie = cookies.find(c => c.trim().startsWith(`${CSRF_COOKIE_NAME}=`))
 
-  if (!csrfCookie) {
-    return null
+  if (csrfCookie) {
+    return csrfCookie.split('=')[1]
   }
 
-  return csrfCookie.split('=')[1]
+  // Fallback: Essayer sessionStorage si le cookie n'est pas accessible
+  try {
+    const tokenFromStorage = sessionStorage.getItem(CSRF_COOKIE_NAME)
+    return tokenFromStorage
+  } catch (e) {
+    // sessionStorage peut ne pas être accessible (iframe, navigation privée, etc.)
+    return null
+  }
 }
 
 /**
