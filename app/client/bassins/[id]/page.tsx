@@ -1633,35 +1633,35 @@ export default function ClientBassinDetailPage() {
   return (
     <section className="space-y-6">
       {/* ========== HEADER ========== */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-6 shadow-xl">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1F4E79] via-[#1a4168] to-[#163555] p-4 sm:p-6 shadow-xl">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/20 blur-3xl" />
           <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
         </div>
 
         <div className="relative z-10">
-          <div className="mb-4 flex items-center gap-2 text-sm">
+          <div className="mb-4 flex items-center gap-2 text-sm overflow-x-auto">
             <Link
               href={batiment?.id ? `/client/batiments/${batiment.id}` : '/client/carte'}
-              className="flex items-center gap-1.5 text-white/70 transition-colors hover:text-white"
+              className="flex items-center gap-1.5 text-white/70 transition-colors hover:text-white flex-shrink-0"
             >
               <Building2 className="h-4 w-4" />
-              <span>{batiment?.name || 'Bâtiment'}</span>
+              <span className="truncate max-w-[150px]">{batiment?.name || 'Bâtiment'}</span>
             </Link>
-            <span className="text-white/40">/</span>
-            <span className="font-medium text-white">{bassin.name || 'Sans nom'}</span>
+            <span className="text-white/40 flex-shrink-0">/</span>
+            <span className="font-medium text-white truncate">{bassin.name || 'Sans nom'}</span>
           </div>
 
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20">
-                  <Layers className="h-6 w-6 text-white" />
+                <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm ring-1 ring-white/20 flex-shrink-0">
+                  <Layers className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-white">{bassin.name || '(Sans nom)'}</h1>
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-xl sm:text-2xl font-bold text-white truncate">{bassin.name || '(Sans nom)'}</h1>
                   {batiment && (
-                    <p className="mt-0.5 text-sm text-white/70">
+                    <p className="mt-0.5 text-xs sm:text-sm text-white/70 truncate">
                       {batiment.address}
                       {batiment.city ? `, ${batiment.city}` : ''}
                     </p>
@@ -1714,13 +1714,13 @@ export default function ClientBassinDetailPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
               {batiment && (
                 <Link
                   href={`/client/batiments/${batiment.id}`}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/20 hover:border-white/50"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/20 hover:border-white/50 whitespace-nowrap"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   Bâtiments
                 </Link>
               )}
@@ -1735,16 +1735,16 @@ export default function ClientBassinDetailPage() {
         <div className="space-y-6">
           {/* ----- RÉSUMÉ DU BASSIN ----- */}
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 sm:px-5 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1F4E79]/10 flex-shrink-0">
                   <Info className="h-5 w-5 text-[#1F4E79]" />
                 </div>
                 <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Résumé du bassin</h2>
               </div>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-4 sm:p-5 space-y-4">
               <div className="flex items-center justify-between gap-4 rounded-xl bg-slate-50/80 px-4 py-3">
                 <span className="text-sm font-medium text-slate-600">État global</span>
                   <StateBadge
@@ -1794,7 +1794,7 @@ export default function ClientBassinDetailPage() {
 
           {/* ----- INTERVENTIONS ----- */}
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 sm:px-5 py-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10">
@@ -1820,7 +1820,7 @@ export default function ClientBassinDetailPage() {
               </div>
             </div>
 
-            <div className="p-5">
+            <div className="p-4 sm:p-5">
               {interventions.length === 0 ? (
                 <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 py-8 text-center">
                   <Wrench className="mx-auto h-10 w-10 text-slate-300 mb-3" />
@@ -2098,7 +2098,7 @@ export default function ClientBassinDetailPage() {
 
           {/* ----- DOCUMENTS (GARANTIES / RAPPORTS) ----- */}
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 sm:px-5 py-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10">
@@ -2141,7 +2141,7 @@ export default function ClientBassinDetailPage() {
               </div>
             </div>
 
-            <div className="p-5">
+            <div className="p-4 sm:p-5">
               {activeDocTab === 'garanties' && (
                 <>
                   {garanties.length === 0 ? (
@@ -2270,7 +2270,7 @@ export default function ClientBassinDetailPage() {
         {/* ===== COLONNE DROITE : CARTE ===== */}
         <div className="lg:sticky lg:top-6 space-y-6">
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 sm:px-5 py-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
                   <MapPin className="h-5 w-5 text-blue-600" />
@@ -2327,7 +2327,7 @@ export default function ClientBassinDetailPage() {
 
           {/* Composition (lecture seule) */}
           <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+            <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 sm:px-5 py-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
                   <Layers className="h-5 w-5 text-blue-600" />
