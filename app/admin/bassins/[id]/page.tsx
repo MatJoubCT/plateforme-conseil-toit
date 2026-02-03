@@ -246,7 +246,6 @@ export default function AdminBassinDetailPage() {
   // Modals confirmation suppression (même pattern que page-materiaux.tsx)
   const [confirmDeleteIntervention, setConfirmDeleteIntervention] =
     useState<InterventionWithFiles | null>(null)
-  const [deletingIntervention, setDeletingIntervention] = useState(false)
 
   const [confirmDeleteGarantie, setConfirmDeleteGarantie] = useState<GarantieRow | null>(null)
 
@@ -257,7 +256,6 @@ export default function AdminBassinDetailPage() {
 
   // Interventions — éditeur inline
   const [showInterventionEditor, setShowInterventionEditor] = useState(false)
-  const [savingIntervention, setSavingIntervention] = useState(false)
   const [editingIntervention, setEditingIntervention] = useState<InterventionWithFiles | null>(
     null
   )
@@ -322,7 +320,7 @@ export default function AdminBassinDetailPage() {
     defaultErrorMessage: 'Erreur lors de la modification de l\'intervention',
   })
 
-  const { mutate: deleteInterventionApi, isLoading: isDeletingInterventionApi } = useApiMutation({
+  const { mutate: deleteInterventionApi, isLoading: isDeletingIntervention } = useApiMutation({
     method: 'DELETE',
     endpoint: '/api/client/interventions/delete',
     defaultErrorMessage: 'Erreur lors de la suppression de l\'intervention',
@@ -1135,7 +1133,7 @@ export default function AdminBassinDetailPage() {
   }
 
   const closeInterventionEditor = () => {
-    if (savingIntervention) return
+    if (isCreatingIntervention || isUpdatingIntervention) return
     setShowInterventionEditor(false)
     setEditingIntervention(null)
     setIntPickEnabled(false)
@@ -1217,50 +1215,34 @@ export default function AdminBassinDetailPage() {
       return
     }
 
-    setSavingIntervention(true)
-
     const safeTypeId = intTypeId && intTypeId.trim() !== '' ? intTypeId : null
 
     const payload = {
-      bassin_id: bassin.id,
-      date_intervention: intDate,
-      type_intervention_id: safeTypeId,
+      bassinId: bassin.id,
+      dateIntervention: intDate,
+      typeInterventionId: safeTypeId,
       commentaire: intCommentaire && intCommentaire.trim() !== '' ? intCommentaire : null,
-      location_geojson: toGeoJSONPoint(intLocation),
+      locationGeojson: toGeoJSONPoint(intLocation),
     }
 
+    let result
     let saved: InterventionRow | null = null
-    let err: any = null
 
     if (editingIntervention?.id) {
-      const res = await supabaseBrowser
-        .from('interventions')
-        .update(payload)
-        .eq('id', editingIntervention.id)
-        .select('id, bassin_id, date_intervention, type_intervention_id, commentaire, location_geojson, created_at')
-        .single()
-
-      saved = res.data as any
-      err = res.error
+      result = await updateInterventionApi({ ...payload, id: editingIntervention.id })
     } else {
-      const res = await supabaseBrowser
-        .from('interventions')
-        .insert(payload)
-        .select('id, bassin_id, date_intervention, type_intervention_id, commentaire, location_geojson, created_at')
-        .single()
-
-      saved = res.data as any
-      err = res.error
+      result = await createInterventionApi(payload)
     }
 
-    if (err) {
-      setSavingIntervention(false)
+    if (!result.success || !result.data) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur save intervention', err)
+        console.error('Erreur save intervention', result.error)
       }
-      alert('Erreur enregistrement intervention : ' + (err.message ?? 'Erreur inconnue'))
+      alert('Erreur enregistrement intervention : ' + (result.error ?? 'Erreur inconnue'))
       return
     }
+
+    saved = result.data as InterventionRow
 
     // Upload fichiers (si ajoutés)
     if (saved && intNewFiles.length > 0) {
@@ -1294,7 +1276,6 @@ export default function AdminBassinDetailPage() {
       }
     }
 
-    setSavingIntervention(false)
     setIntNewFiles([])
     setIntPickEnabled(false)
     setSelectedInterventionId(saved?.id ?? null)
@@ -1310,8 +1291,6 @@ export default function AdminBassinDetailPage() {
     const it = confirmDeleteIntervention
     if (!it) return
 
-    setDeletingIntervention(true)
-
     // 1) supprimer fichiers storage + lignes
     if (it.files && it.files.length > 0) {
       const paths = it.files.map((f) => f.file_path).filter(Boolean)
@@ -1323,7 +1302,6 @@ export default function AdminBassinDetailPage() {
             console.error('Erreur suppression storage interventions', rmErr)
           }
           alert('Erreur suppression fichiers (storage) : ' + rmErr.message)
-          setDeletingIntervention(false)
           return
         }
       }
@@ -1338,20 +1316,18 @@ export default function AdminBassinDetailPage() {
           console.error('Erreur suppression intervention_fichiers', delFilesErr)
         }
         alert('Erreur suppression fichiers (DB) : ' + delFilesErr.message)
-        setDeletingIntervention(false)
         return
       }
     }
 
     // 2) supprimer l'intervention
-    const { error: delErr } = await supabaseBrowser.from('interventions').delete().eq('id', it.id)
+    const result = await deleteInterventionApi({ id: it.id })
 
-    if (delErr) {
+    if (!result.success) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur suppression intervention', delErr)
+        console.error('Erreur suppression intervention', result.error)
       }
-      alert('Erreur suppression intervention : ' + delErr.message)
-      setDeletingIntervention(false)
+      alert('Erreur suppression intervention : ' + (result.error ?? 'Erreur inconnue'))
       return
     }
 
@@ -1360,7 +1336,6 @@ export default function AdminBassinDetailPage() {
     if (editingIntervention?.id === it.id) closeInterventionEditor()
 
     setConfirmDeleteIntervention(null)
-    setDeletingIntervention(false)
   }
 
   const openFileSignedUrl = async (file: InterventionFichierRow) => {
@@ -1389,13 +1364,14 @@ export default function AdminBassinDetailPage() {
   const handleConfirmDeleteFile = async () => {
     if (!confirmDeleteFile) return
 
+    const fileToDelete = confirmDeleteFile
     setConfirmDeleteFile(null)
-    setBusyFileIds((p) => ({ ...p, [confirmDeleteFile.id]: true }))
+    setBusyFileIds((p) => ({ ...p, [fileToDelete.id]: true }))
 
-    const { error: rmErr } = await supabaseBrowser.storage.from('interventions').remove([confirmDeleteFile.file_path])
+    const { error: rmErr } = await supabaseBrowser.storage.from('interventions').remove([fileToDelete.file_path])
 
     if (rmErr) {
-      setBusyFileIds((p) => ({ ...p, [confirmDeleteFile.id]: false }))
+      setBusyFileIds((p) => ({ ...p, [fileToDelete.id]: false }))
       if (process.env.NODE_ENV === 'development') {
         console.error('Erreur suppression storage file', rmErr)
       }
@@ -1403,29 +1379,29 @@ export default function AdminBassinDetailPage() {
       return
     }
 
-    const { error: delErr } = await supabaseBrowser.from('intervention_fichiers').delete().eq('id', confirmDeleteFile.id)
+    const result = await deleteFileApi({ id: fileToDelete.id })
 
-    setBusyFileIds((p) => ({ ...p, [confirmDeleteFile.id]: false }))
+    setBusyFileIds((p) => ({ ...p, [fileToDelete.id]: false }))
 
-    if (delErr) {
+    if (!result.success) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur suppression DB file', delErr)
+        console.error('Erreur suppression DB file', result.error)
       }
-      alert('Erreur suppression fichier (DB) : ' + delErr.message)
+      alert('Erreur suppression fichier (DB) : ' + (result.error ?? 'Erreur inconnue'))
       return
     }
 
     setInterventions((prev) =>
       prev.map((it) => {
-        if (it.id !== confirmDeleteFile.intervention_id) return it
-        return { ...it, files: it.files.filter((f) => f.id !== confirmDeleteFile.id) }
+        if (it.id !== fileToDelete.intervention_id) return it
+        return { ...it, files: it.files.filter((f) => f.id !== fileToDelete.id) }
       })
     )
 
     setEditingIntervention((cur) => {
       if (!cur) return cur
-      if (cur.id !== confirmDeleteFile.intervention_id) return cur
-      return { ...cur, files: cur.files.filter((f) => f.id !== confirmDeleteFile.id) }
+      if (cur.id !== fileToDelete.intervention_id) return cur
+      return { ...cur, files: cur.files.filter((f) => f.id !== fileToDelete.id) }
     })
   }
 
@@ -1853,7 +1829,7 @@ export default function AdminBassinDetailPage() {
                       <button
                         type="button"
                         onClick={closeInterventionEditor}
-                        disabled={savingIntervention}
+                        disabled={isCreatingIntervention || isUpdatingIntervention}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
                       >
                         <X className="h-4 w-4" />
@@ -1862,10 +1838,10 @@ export default function AdminBassinDetailPage() {
                       <button
                         type="button"
                         onClick={() => void handleSaveIntervention()}
-                        disabled={savingIntervention}
+                        disabled={isCreatingIntervention || isUpdatingIntervention}
                         className="inline-flex items-center gap-1.5 rounded-lg bg-[#1F4E79] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#163555]"
                       >
-                        {savingIntervention ? 'Enregistrement…' : 'Enregistrer'}
+                        {isCreatingIntervention || isUpdatingIntervention ? 'Enregistrement…' : 'Enregistrer'}
                       </button>
                     </div>
                   </div>
@@ -2724,7 +2700,7 @@ export default function AdminBassinDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            onClick={() => !deletingIntervention && setConfirmDeleteIntervention(null)}
+            onClick={() => !isDeletingIntervention && setConfirmDeleteIntervention(null)}
           />
           <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/30 bg-white shadow-2xl">
             <div className="border-b border-slate-100 bg-gradient-to-r from-red-50 to-white px-6 py-4">
@@ -2748,7 +2724,7 @@ export default function AdminBassinDetailPage() {
                 <button
                   type="button"
                   onClick={() => setConfirmDeleteIntervention(null)}
-                  disabled={deletingIntervention}
+                  disabled={isDeletingIntervention}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   <X className="h-4 w-4" />
@@ -2758,7 +2734,7 @@ export default function AdminBassinDetailPage() {
                 <button
                   type="button"
                   onClick={() => void doDeleteIntervention()}
-                  disabled={deletingIntervention}
+                  disabled={isDeletingIntervention}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-red-700 disabled:opacity-50"
                 >
                   <Trash2 className="h-4 w-4" />
