@@ -1927,9 +1927,9 @@ export default function ClientBassinDetailPage() {
               )}
 
               {showInterventionEditor && (
-                <div className="mt-4 rounded-xl border-2 border-[#1F4E79]/30 bg-[#1F4E79]/5 p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-                    <div>
+                <div className="mt-4 rounded-xl border-2 border-[#1F4E79]/30 bg-[#1F4E79]/5 p-3 sm:p-5">
+                  <div className="flex flex-col sm:flex-row sm:flex-wrap items-start justify-between gap-3 mb-4">
+                    <div className="w-full sm:w-auto">
                       <h3 className="text-sm font-bold text-slate-800">
                         {editingIntervention ? "Modifier l'intervention" : 'Nouvelle intervention'}
                       </h3>
@@ -1937,28 +1937,29 @@ export default function ClientBassinDetailPage() {
                         Activez « Choisir sur la carte » pour localiser l'intervention
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
                       <button
                         type="button"
                         onClick={closeInterventionEditor}
                         disabled={savingIntervention}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
                       >
                         <X className="h-4 w-4" />
-                        Annuler
+                        <span className="hidden xs:inline">Annuler</span>
+                        <span className="xs:hidden">✕</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => void handleSaveIntervention()}
                         disabled={savingIntervention}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#1F4E79] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#163555]"
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#1F4E79] px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-white transition-colors hover:bg-[#163555]"
                       >
                         {savingIntervention ? 'Enregistrement…' : 'Enregistrer'}
                       </button>
                     </div>
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
                     <div className="space-y-1.5">
                       <label className="block text-xs font-semibold text-slate-600">
                         Date de l'intervention <span className="text-red-500">*</span>
@@ -1968,7 +1969,7 @@ export default function ClientBassinDetailPage() {
                         value={intDate}
                         onChange={(e) => setIntDate(e.target.value)}
                         required
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-2 sm:px-3 py-2 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                       />
                     </div>
 
@@ -1977,7 +1978,7 @@ export default function ClientBassinDetailPage() {
                       <select
                         value={intTypeId}
                         onChange={(e) => setIntTypeId(e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-2 sm:px-3 py-2 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                       >
                         <option value="">Sélectionner…</option>
                         {typesInterventions.map((t) => (
@@ -1994,37 +1995,37 @@ export default function ClientBassinDetailPage() {
                         rows={3}
                         value={intCommentaire}
                         onChange={(e) => setIntCommentaire(e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-2 sm:px-3 py-2 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
                       />
                     </div>
 
-                    <div className="md:col-span-2 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+                    <div className="md:col-span-2 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 rounded-lg border border-slate-200 bg-white px-3 sm:px-4 py-3">
                       <button
                         type="button"
                         onClick={() => setIntPickEnabled((v) => !v)}
-                        className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                        className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium transition-colors ${
                           intPickEnabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
                         <MapPin className="h-4 w-4" />
-                        {intPickEnabled ? 'Mode sélection actif' : 'Choisir sur la carte'}
+                        <span className="truncate">{intPickEnabled ? 'Mode sélection actif' : 'Choisir sur la carte'}</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setIntLocation(null)}
                         disabled={intLocation == null}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
                       >
                         <X className="h-4 w-4" />
                         Effacer
                       </button>
 
-                      <div className="flex-1 text-xs text-slate-500">
+                      <div className="flex-1 text-xs text-slate-500 min-w-0">
                         {intLocation ? (
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="h-2 w-2 rounded-full bg-green-500" />
-                            Position : {intLocation.lat.toFixed(6)}, {intLocation.lng.toFixed(6)}
+                          <span className="inline-flex items-center gap-1.5 flex-wrap">
+                            <span className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
+                            <span className="truncate">Position : {intLocation.lat.toFixed(6)}, {intLocation.lng.toFixed(6)}</span>
                           </span>
                         ) : (
                           'Aucune localisation définie'
@@ -2041,9 +2042,9 @@ export default function ClientBassinDetailPage() {
                           onChange={handleInterventionFilesChange}
                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         />
-                        <div className="flex items-center gap-3 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-center transition-colors hover:border-[#1F4E79]/50 hover:bg-[#1F4E79]/5">
-                          <Upload className="h-5 w-5 text-slate-400" />
-                          <span className="text-sm text-slate-600">Cliquez ou glissez des fichiers ici</span>
+                        <div className="flex items-center justify-center gap-2 sm:gap-3 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-3 sm:px-4 py-3 sm:py-4 text-center transition-colors hover:border-[#1F4E79]/50 hover:bg-[#1F4E79]/5">
+                          <Upload className="h-5 w-5 text-slate-400 shrink-0" />
+                          <span className="text-xs sm:text-sm text-slate-600">Cliquez ou glissez des fichiers ici</span>
                         </div>
                       </div>
                       {intNewFiles.length > 0 && (
@@ -2058,21 +2059,21 @@ export default function ClientBassinDetailPage() {
                           {editingIntervention.files.map((f) => (
                             <div
                               key={f.id}
-                              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5"
+                              className="flex items-center justify-between gap-2 sm:gap-3 rounded-lg border border-slate-200 bg-white px-2 sm:px-4 py-2 sm:py-2.5"
                             >
-                              <div className="flex items-center gap-2 text-sm text-slate-700 min-w-0">
+                              <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-700 min-w-0">
                                 <FileText className="h-4 w-4 text-slate-400 shrink-0" />
                                 <span className="truncate font-medium">
                                   {f.file_name || f.file_path.split('/').pop() || 'Fichier'}
                                 </span>
-                                {f.mime_type && <span className="text-xs text-slate-400">({f.mime_type})</span>}
+                                {f.mime_type && <span className="hidden sm:inline text-xs text-slate-400">({f.mime_type})</span>}
                               </div>
-                              <div className="flex items-center gap-1 shrink-0">
+                              <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
                                 <button
                                   type="button"
                                   disabled={!!busyFileIds[f.id]}
                                   onClick={() => void openFileSignedUrl(f)}
-                                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-[#1F4E79]"
+                                  className="rounded-lg p-1 sm:p-1.5 text-slate-400 hover:bg-slate-100 hover:text-[#1F4E79]"
                                 >
                                   <Eye className="h-4 w-4" />
                                 </button>
@@ -2080,7 +2081,7 @@ export default function ClientBassinDetailPage() {
                                   type="button"
                                   disabled={!!busyFileIds[f.id]}
                                   onClick={() => void requestDeleteFile(f)}
-                                  className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                                  className="rounded-lg p-1 sm:p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </button>
