@@ -2158,25 +2158,25 @@ export default function ClientBassinDetailPage() {
                         return (
                           <div
                             key={g.id}
-                            className="group rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-slate-300 hover:shadow-sm"
+                            className="group rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-slate-300 hover:shadow-sm overflow-hidden"
                           >
-                            <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start justify-between gap-3 min-w-0">
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-sm font-semibold text-slate-800">
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                  <span className="text-sm font-semibold text-slate-800 break-words">
                                     {typeLabel || 'Type non spécifié'}
                                   </span>
                                   {statutLabel && (
-                                    <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                                    <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 whitespace-nowrap">
                                       {statutLabel}
                                     </span>
                                   )}
                                 </div>
                                 <div className="text-sm text-slate-500 space-y-0.5">
-                                  {g.fournisseur && <p>Fournisseur : {g.fournisseur}</p>}
-                                  {g.numero_garantie && <p>N° : {g.numero_garantie}</p>}
+                                  {g.fournisseur && <p className="truncate">Fournisseur : {g.fournisseur}</p>}
+                                  {g.numero_garantie && <p className="truncate">N° : {g.numero_garantie}</p>}
                                   {(g.date_debut || g.date_fin) && (
-                                    <p>
+                                    <p className="truncate">
                                       Période : {g.date_debut || '—'} → {g.date_fin || '—'}
                                     </p>
                                   )}
@@ -2221,22 +2221,22 @@ export default function ClientBassinDetailPage() {
                         return (
                           <div
                             key={r.id}
-                            className="group rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-slate-300 hover:shadow-sm"
+                            className="group rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-slate-300 hover:shadow-sm overflow-hidden"
                           >
-                            <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start justify-between gap-3 min-w-0">
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-sm font-semibold text-slate-800">
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                  <span className="text-sm font-semibold text-slate-800 whitespace-nowrap">
                                     {r.date_rapport || 'Date non spécifiée'}
                                   </span>
                                   {typeLabel && (
-                                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 whitespace-nowrap">
                                       {typeLabel}
                                     </span>
                                   )}
                                 </div>
                                 <div className="text-sm text-slate-500 space-y-0.5">
-                                  {r.numero_ct && <p>N° CT : {r.numero_ct}</p>}
+                                  {r.numero_ct && <p className="truncate">N° CT : {r.numero_ct}</p>}
                                   {r.description && <p className="truncate">{r.description}</p>}
                                 </div>
                               </div>
