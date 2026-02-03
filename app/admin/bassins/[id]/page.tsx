@@ -203,7 +203,6 @@ export default function AdminBassinDetailPage() {
 
   // Modal ajout/modif garantie
   const [showModal, setShowModal] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [editingGarantie, setEditingGarantie] = useState<GarantieRow | null>(null)
   const [modalTitle, setModalTitle] = useState('Nouvelle garantie')
   const [formTypeGarantieId, setFormTypeGarantieId] = useState('')
@@ -229,7 +228,6 @@ export default function AdminBassinDetailPage() {
 
   // Édition bassin
   const [showEditBassinModal, setShowEditBassinModal] = useState(false)
-  const [savingBassin, setSavingBassin] = useState(false)
   const [editName, setEditName] = useState('')
   const [editMembraneId, setEditMembraneId] = useState('')
   const [editCouvreurId, setEditCouvreurId] = useState('')
@@ -251,7 +249,6 @@ export default function AdminBassinDetailPage() {
   const [deletingIntervention, setDeletingIntervention] = useState(false)
 
   const [confirmDeleteGarantie, setConfirmDeleteGarantie] = useState<GarantieRow | null>(null)
-  const [deletingGarantie, setDeletingGarantie] = useState(false)
 
   const [confirmDeleteRapport, setConfirmDeleteRapport] = useState<RapportRow | null>(null)
   const [deletingRapport, setDeletingRapport] = useState(false)
@@ -716,7 +713,7 @@ export default function AdminBassinDetailPage() {
   }
 
   const closeModal = () => {
-    if (saving) return
+    if (isCreatingGarantie || isUpdatingGarantie) return
     setShowModal(false)
     setEditingGarantie(null)
   }
@@ -759,8 +756,6 @@ export default function AdminBassinDetailPage() {
       return
     }
 
-    setSaving(true)
-
     // 1) Gestion du PDF
     let fichierUrl: string | null = editingGarantie?.fichier_pdf_url ?? null
 
@@ -774,7 +769,6 @@ export default function AdminBassinDetailPage() {
       })
 
       if (uploadError) {
-        setSaving(false)
         alert('Erreur lors du téléversement du PDF : ' + uploadError.message)
         return
       }
@@ -787,98 +781,73 @@ export default function AdminBassinDetailPage() {
     const safeTypeGarantieId = formTypeGarantieId && formTypeGarantieId.trim() !== '' ? formTypeGarantieId : null
     const safeStatutId = formStatutId && formStatutId.trim() !== '' ? formStatutId : null
 
-    // 3) Payload
+    // 3) Payload (camelCase for API)
     const payload = {
-      bassin_id: bassin.id,
-      type_garantie_id: safeTypeGarantieId,
+      bassinId: bassin.id,
+      typeGarantieId: safeTypeGarantieId,
       fournisseur: formFournisseur || null,
-      numero_garantie: formNumero || null,
-      date_debut: formDateDebut || null,
-      date_fin: formDateFin || null,
-      statut_id: safeStatutId,
+      numeroGarantie: formNumero || null,
+      dateDebut: formDateDebut || null,
+      dateFin: formDateFin || null,
+      statutId: safeStatutId,
       couverture: formCouverture || null,
       commentaire: formCommentaire || null,
-      fichier_pdf_url: fichierUrl,
+      fichierPdfUrl: fichierUrl,
     }
 
     const badUuidFields: string[] = []
-    if ((payload.bassin_id as any) === 'undefined') badUuidFields.push('bassin_id')
-    if ((payload.type_garantie_id as any) === 'undefined') badUuidFields.push('type_garantie_id')
-    if ((payload.statut_id as any) === 'undefined') badUuidFields.push('statut_id')
+    if ((payload.bassinId as any) === 'undefined') badUuidFields.push('bassinId')
+    if ((payload.typeGarantieId as any) === 'undefined') badUuidFields.push('typeGarantieId')
+    if ((payload.statutId as any) === 'undefined') badUuidFields.push('statutId')
 
     if (badUuidFields.length > 0) {
       if (process.env.NODE_ENV === 'development') {
         console.error('BUG: champs uuid = "undefined" dans payload', { payload, badUuidFields })
       }
       alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
-      setSaving(false)
       return
     }
-
-    let data: GarantieRow | null = null
-    let error: any = null
 
     if (editingGarantie && editingGarantie.id) {
-      const res = await supabaseBrowser
-        .from('garanties')
-        .update(payload)
-        .eq('id', editingGarantie.id)
-        .select(
-          'id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url'
-        )
-        .single()
+      // Update existing garantie
+      const result = await updateGarantieApi({ ...payload, id: editingGarantie.id })
 
-      data = res.data as GarantieRow | null
-      error = res.error
+      if (result.success && result.data) {
+        setGaranties((prev) => prev.map((g) => (g.id === result.data!.id ? result.data! : g)))
+
+        const newGaranties = garanties.map((g) => (g.id === result.data!.id ? result.data! : g))
+
+        const garantiesAvecDate = newGaranties
+          .filter((g) => g.date_fin)
+          .sort((a, b) => {
+            if (!a.date_fin || !b.date_fin) return 0
+            return new Date(a.date_fin + 'T00:00:00').getTime() - new Date(b.date_fin + 'T00:00:00').getTime()
+          })
+
+        setGarantieProche(garantiesAvecDate.length > 0 ? garantiesAvecDate[0] : null)
+
+        closeModal()
+      }
     } else {
-      const res = await supabaseBrowser
-        .from('garanties')
-        .insert(payload)
-        .select(
-          'id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url'
-        )
-        .single()
+      // Create new garantie
+      const result = await createGarantieApi(payload)
 
-      data = res.data as GarantieRow | null
-      error = res.error
-    }
+      if (result.success && result.data) {
+        setGaranties((prev) => [...prev, result.data])
 
-    setSaving(false)
+        const newGaranties = [...garanties, result.data]
 
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur Supabase insert/update garantie', error)
+        const garantiesAvecDate = newGaranties
+          .filter((g) => g.date_fin)
+          .sort((a, b) => {
+            if (!a.date_fin || !b.date_fin) return 0
+            return new Date(a.date_fin + 'T00:00:00').getTime() - new Date(b.date_fin + 'T00:00:00').getTime()
+          })
+
+        setGarantieProche(garantiesAvecDate.length > 0 ? garantiesAvecDate[0] : null)
+
+        closeModal()
       }
-      alert(
-        "Erreur lors de l'enregistrement de la garantie : " + ((error as any)?.message ?? 'Erreur inconnue')
-      )
-      return
-    }
-
-    if (data) {
-      if (editingGarantie) {
-        setGaranties((prev) => prev.map((g) => (g.id === data!.id ? data! : g)))
-      } else {
-        setGaranties((prev) => [...prev, data])
-      }
-
-      const newGaranties = editingGarantie
-        ? garanties.map((g) => (g.id === data.id ? data : g))
-        : [...garanties, data]
-
-      const garantiesAvecDate = newGaranties
-        .filter((g) => g.date_fin)
-        .sort((a, b) => {
-          if (!a.date_fin || !b.date_fin) return 0
-          return (
-            new Date(a.date_fin + 'T00:00:00').getTime() -
-            new Date(b.date_fin + 'T00:00:00').getTime()
-          )
-        })
-
-      setGarantieProche(garantiesAvecDate.length > 0 ? garantiesAvecDate[0] : null)
-
-      closeModal()
     }
   }
 
@@ -888,32 +857,23 @@ export default function AdminBassinDetailPage() {
     const garantie = confirmDeleteGarantie
     if (!garantie) return
 
-    setDeletingGarantie(true)
+    const result = await deleteGarantieApi({ id: garantie.id })
 
-    const { error } = await supabaseBrowser.from('garanties').delete().eq('id', garantie.id)
+    if (result.success) {
+      const newGaranties = garanties.filter((g) => g.id !== garantie.id)
+      setGaranties(newGaranties)
 
-    if (error) {
-      alert('Erreur lors de la suppression : ' + error.message)
-      setDeletingGarantie(false)
-      return
+      const garantiesAvecDate = newGaranties
+        .filter((g) => g.date_fin)
+        .sort((a, b) => {
+          if (!a.date_fin || !b.date_fin) return 0
+          return new Date(a.date_fin + 'T00:00:00').getTime() - new Date(b.date_fin + 'T00:00:00').getTime()
+        })
+
+      setGarantieProche(garantiesAvecDate.length > 0 ? garantiesAvecDate[0] : null)
+
+      setConfirmDeleteGarantie(null)
     }
-
-    const newGaranties = garanties.filter((g) => g.id !== garantie.id)
-    setGaranties(newGaranties)
-
-    const garantiesAvecDate = newGaranties
-      .filter((g) => g.date_fin)
-      .sort((a, b) => {
-        if (!a.date_fin || !b.date_fin) return 0
-        return (
-          new Date(a.date_fin + 'T00:00:00').getTime() - new Date(b.date_fin + 'T00:00:00').getTime()
-        )
-      })
-
-    setGarantieProche(garantiesAvecDate.length > 0 ? garantiesAvecDate[0] : null)
-
-    setConfirmDeleteGarantie(null)
-    setDeletingGarantie(false)
   }
 
   const handleSubmitRapport = async (e: FormEvent) => {
@@ -1085,7 +1045,7 @@ export default function AdminBassinDetailPage() {
   }
 
   const closeEditBassinModal = () => {
-    if (savingBassin) return
+    if (isUpdatingBassin) return
     setShowEditBassinModal(false)
   }
 
@@ -1095,15 +1055,13 @@ export default function AdminBassinDetailPage() {
   }
 
   const closeDeleteBassinModal = () => {
-    if (deletingBassin) return
+    if (isDeletingBassin) return
     setShowDeleteBassinModal(false)
   }
 
   const handleSubmitBassin = async (e: FormEvent) => {
     e.preventDefault()
     if (!bassin) return
-
-    setSavingBassin(true)
 
     const safeEtatId = editEtatId && editEtatId.trim() !== '' ? editEtatId : null
     const safeDureeId = editDureeId && editDureeId.trim() !== '' ? editDureeId : null
@@ -1116,39 +1074,23 @@ export default function AdminBassinDetailPage() {
     const safeCouvreurId = editCouvreurId && editCouvreurId.trim() !== '' ? editCouvreurId : null
 
     const payload = {
+      id: bassin.id,
       name: editName || null,
-      membrane_type_id: safeMembraneId,
-      annee_installation: annee,
-      date_derniere_refection: editDateDerniere && editDateDerniere.trim() !== '' ? editDateDerniere : null,
-      couvreur_id: safeCouvreurId,
-      etat_id: safeEtatId,
-      duree_vie_id: safeDureeId,
-      duree_vie_text: dureeText,
-      reference_interne: editReference && editReference.trim() !== '' ? editReference : null,
+      membraneTypeId: safeMembraneId,
+      anneeInstallation: annee,
+      dateDerniereRefection: editDateDerniere && editDateDerniere.trim() !== '' ? editDateDerniere : null,
+      couvreurId: safeCouvreurId,
+      etatId: safeEtatId,
+      dureeVieId: safeDureeId,
+      dureeVieText: dureeText,
+      referenceInterne: editReference && editReference.trim() !== '' ? editReference : null,
       notes: editNotes && editNotes.trim() !== '' ? editNotes : null,
     }
 
-    const { data, error } = await supabaseBrowser
-      .from('bassins')
-      .update(payload)
-      .eq('id', bassin.id)
-      .select(
-        'id, batiment_id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson, couvreur_id'
-      )
-      .single()
+    const result = await updateBassinApi(payload)
 
-    setSavingBassin(false)
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur Supabase update bassin', error)
-      }
-      alert("Erreur lors de la mise à jour du bassin : " + (error.message ?? 'Erreur inconnue'))
-      return
-    }
-
-    if (data) {
-      setBassin(data as BassinRow)
+    if (result.success && result.data) {
+      setBassin(result.data as BassinRow)
       setShowEditBassinModal(false)
     }
   }
@@ -1156,24 +1098,13 @@ export default function AdminBassinDetailPage() {
   const handleDeleteBassin = async () => {
     if (!bassin) return
 
-    setDeletingBassin(true)
+    const result = await deleteBassinApi({ id: bassin.id })
 
-    const { error } = await supabaseBrowser.from('bassins').delete().eq('id', bassin.id)
-
-    setDeletingBassin(false)
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur Supabase delete bassin', error)
-      }
-      alert("Erreur lors de la suppression du bassin : " + (error.message ?? 'Erreur inconnue'))
-      return
+    if (result.success) {
+      setShowDeleteBassinModal(false)
+      if (batiment?.id) router.push(`/admin/batiments/${batiment.id}`)
+      else router.push('/admin/bassins')
     }
-
-    setShowDeleteBassinModal(false)
-
-    if (batiment?.id) router.push(`/admin/batiments/${batiment.id}`)
-    else router.push('/admin/bassins')
   }
 
   // -----------------------------
@@ -2374,7 +2305,7 @@ export default function AdminBassinDetailPage() {
               <button
                 type="button"
                 onClick={closeEditBassinModal}
-                disabled={savingBassin}
+                disabled={isUpdatingBassin}
                 className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
               >
                 <X className="h-5 w-5" />
@@ -2505,17 +2436,17 @@ export default function AdminBassinDetailPage() {
                 <button
                   type="button"
                   onClick={closeEditBassinModal}
-                  disabled={savingBassin}
+                  disabled={isUpdatingBassin}
                   className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  disabled={savingBassin}
+                  disabled={isUpdatingBassin}
                   className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
                 >
-                  {savingBassin ? 'Enregistrement…' : 'Enregistrer'}
+                  {isUpdatingBassin ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
               </div>
             </form>
@@ -2535,7 +2466,7 @@ export default function AdminBassinDetailPage() {
               <button
                 type="button"
                 onClick={closeModal}
-                disabled={saving}
+                disabled={isCreatingGarantie || isUpdatingGarantie}
                 className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
               >
                 <X className="h-5 w-5" />
@@ -2659,17 +2590,17 @@ export default function AdminBassinDetailPage() {
                 <button
                   type="button"
                   onClick={closeModal}
-                  disabled={saving}
+                  disabled={isCreatingGarantie || isUpdatingGarantie}
                   className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={isCreatingGarantie || isUpdatingGarantie}
                   className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
                 >
-                  {saving ? 'Enregistrement…' : 'Enregistrer'}
+                  {isCreatingGarantie || isUpdatingGarantie ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
               </div>
             </form>
@@ -2844,7 +2775,7 @@ export default function AdminBassinDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            onClick={() => !deletingGarantie && setConfirmDeleteGarantie(null)}
+            onClick={() => !isDeletingGarantie && setConfirmDeleteGarantie(null)}
           />
           <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/30 bg-white shadow-2xl">
             <div className="border-b border-slate-100 bg-gradient-to-r from-red-50 to-white px-6 py-4">
@@ -2868,7 +2799,7 @@ export default function AdminBassinDetailPage() {
                 <button
                   type="button"
                   onClick={() => setConfirmDeleteGarantie(null)}
-                  disabled={deletingGarantie}
+                  disabled={isDeletingGarantie}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   <X className="h-4 w-4" />
@@ -2878,7 +2809,7 @@ export default function AdminBassinDetailPage() {
                 <button
                   type="button"
                   onClick={() => void doDeleteGarantie()}
-                  disabled={deletingGarantie}
+                  disabled={isDeletingGarantie}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-red-700 disabled:opacity-50"
                 >
                   <Trash2 className="h-4 w-4" />
