@@ -47,13 +47,18 @@ export const createBatimentSchema = z
       .max(200, 'Le nom est trop long (max 200 caractères)'),
 
     address: z
-      .string().min(1, 'L\'adresse est obligatoire')
-      .max(500, 'L\'adresse est trop longue (max 500 caractères)'),
+      .string()
+      .max(500, 'L\'adresse est trop longue (max 500 caractères)')
+      .nullable()
+      .optional()
+      .or(z.literal('')),
 
     city: z
-      .string().min(1, 'La ville est obligatoire')
-      .min(1, 'La ville est obligatoire')
-      .max(100, 'La ville est trop longue (max 100 caractères)'),
+      .string()
+      .max(100, 'La ville est trop longue (max 100 caractères)')
+      .nullable()
+      .optional()
+      .or(z.literal('')),
 
     postalCode: z
       .string()

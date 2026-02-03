@@ -110,6 +110,9 @@ export function useApiMutation<TData = any>(
 
       if (!token) {
         const errorMsg = 'Session expirée. Veuillez vous reconnecter.';
+        if (process.env.NODE_ENV === 'development') {
+          console.error('❌ Token de session manquant');
+        }
         setError(errorMsg);
         if (options.onError) {
           await options.onError(errorMsg);
@@ -123,6 +126,9 @@ export function useApiMutation<TData = any>(
 
       if (!csrfToken) {
         const errorMsg = 'Token CSRF manquant. Veuillez rafraîchir la page.';
+        if (process.env.NODE_ENV === 'development') {
+          console.error('❌ Token CSRF manquant - rafraîchissez la page');
+        }
         setError(errorMsg);
         if (options.onError) {
           await options.onError(errorMsg);
@@ -147,6 +153,19 @@ export function useApiMutation<TData = any>(
       if (!response.ok) {
         const errorMsg =
           responseData.error || options.defaultErrorMessage || 'Une erreur est survenue';
+
+        // Log détaillé en mode développement
+        if (process.env.NODE_ENV === 'development') {
+          console.error('❌ API Mutation Error:', {
+            endpoint: options.endpoint,
+            method: options.method,
+            status: response.status,
+            error: errorMsg,
+            response: responseData,
+            data: data,
+          });
+        }
+
         setError(errorMsg);
         if (options.onError) {
           await options.onError(errorMsg);
@@ -156,6 +175,14 @@ export function useApiMutation<TData = any>(
       }
 
       // Succès
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ API Mutation Success:', {
+          endpoint: options.endpoint,
+          method: options.method,
+          data: responseData,
+        });
+      }
+
       if (options.onSuccess) {
         await options.onSuccess(responseData.data || responseData);
       }

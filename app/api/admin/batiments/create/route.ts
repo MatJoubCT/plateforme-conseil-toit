@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
     // Conversion camelCase → snake_case pour la DB
     const dbData = {
       name: validated.name,
-      address: validated.address,
-      city: validated.city,
+      address: validated.address || null,
+      city: validated.city || null,
       postal_code: validated.postalCode || null,
       client_id: validated.clientId,
       latitude: validated.latitude ?? null,
