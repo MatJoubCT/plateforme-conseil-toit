@@ -225,7 +225,6 @@ export default function AdminBassinDetailPage() {
 
   // Modal rapports
   const [showRapportModal, setShowRapportModal] = useState(false)
-  const [savingRapport, setSavingRapport] = useState(false)
   const [editingRapport, setEditingRapport] = useState<RapportRow | null>(null)
   const [rapportModalTitle, setRapportModalTitle] = useState('Nouveau rapport')
   const [formTypeRapportId, setFormTypeRapportId] = useState('')
@@ -257,7 +256,6 @@ export default function AdminBassinDetailPage() {
   const [confirmDeleteGarantie, setConfirmDeleteGarantie] = useState<GarantieRow | null>(null)
 
   const [confirmDeleteRapport, setConfirmDeleteRapport] = useState<RapportRow | null>(null)
-  const [deletingRapport, setDeletingRapport] = useState(false)
 
   const [confirmDeleteFile, setConfirmDeleteFile] = useState<InterventionFichierRow | null>(null)
 
@@ -337,6 +335,25 @@ export default function AdminBassinDetailPage() {
     method: 'DELETE',
     endpoint: '/api/client/interventions/delete-file',
     defaultErrorMessage: 'Erreur lors de la suppression du fichier',
+  })
+
+  // Rapport mutations
+  const { mutate: createRapportApi, isLoading: isCreatingRapport } = useApiMutation({
+    method: 'POST',
+    endpoint: '/api/admin/rapports/create',
+    defaultErrorMessage: 'Erreur lors de la création du rapport',
+  })
+
+  const { mutate: updateRapportApi, isLoading: isUpdatingRapport } = useApiMutation({
+    method: 'PUT',
+    endpoint: '/api/admin/rapports/update',
+    defaultErrorMessage: 'Erreur lors de la modification du rapport',
+  })
+
+  const { mutate: deleteRapportApi, isLoading: isDeletingRapport } = useApiMutation({
+    method: 'DELETE',
+    endpoint: '/api/admin/rapports/delete',
+    defaultErrorMessage: 'Erreur lors de la suppression du rapport',
   })
 
   // ==================== FIN HOOKS ====================
@@ -748,7 +765,7 @@ export default function AdminBassinDetailPage() {
   }
 
   const closeRapportModal = () => {
-    if (savingRapport) return
+    if (isCreatingRapport || isUpdatingRapport) return
     setShowRapportModal(false)
     setEditingRapport(null)
   }
@@ -889,8 +906,6 @@ export default function AdminBassinDetailPage() {
       return
     }
 
-    setSavingRapport(true)
-
     // 1) Gestion du PDF
     let fichierUrl: string | null = editingRapport?.file_url ?? null
 
@@ -906,7 +921,6 @@ export default function AdminBassinDetailPage() {
       })
 
       if (uploadError) {
-        setSavingRapport(false)
         alert('Erreur lors du téléversement du PDF : ' + uploadError.message)
         return
       }
@@ -935,51 +949,22 @@ export default function AdminBassinDetailPage() {
         console.error('BUG: champs uuid = "undefined" dans payload rapport', { payload, badUuidFields })
       }
       alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
-      setSavingRapport(false)
       return
     }
 
-    let data: RapportRow | null = null
-    let error: any = null
-
+    // Utiliser useApiMutation au lieu d'appels Supabase directs
     if (editingRapport && editingRapport.id) {
-      const res = await supabaseBrowser
-        .from('rapports')
-        .update(payload)
-        .eq('id', editingRapport.id)
-        .select('id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url')
-        .single()
-
-      data = res.data as RapportRow | null
-      error = res.error
+      const result = await updateRapportApi({ ...payload, id: editingRapport.id })
+      if (result.success && result.data) {
+        setRapports((prev) => prev.map((r) => (r.id === result.data!.id ? result.data! : r)))
+        closeRapportModal()
+      }
     } else {
-      const res = await supabaseBrowser
-        .from('rapports')
-        .insert(payload)
-        .select('id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url')
-        .single()
-
-      data = res.data as RapportRow | null
-      error = res.error
-    }
-
-    setSavingRapport(false)
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur Supabase insert/update rapport', error)
+      const result = await createRapportApi(payload)
+      if (result.success && result.data) {
+        setRapports((prev) => [result.data!, ...prev])
+        closeRapportModal()
       }
-      alert("Erreur lors de l'enregistrement du rapport : " + ((error as any)?.message ?? 'Erreur inconnue'))
-      return
-    }
-
-    if (data) {
-      if (editingRapport) {
-        setRapports((prev) => prev.map((r) => (r.id === data!.id ? data! : r)))
-      } else {
-        setRapports((prev) => [data, ...prev])
-      }
-      closeRapportModal()
     }
   }
 
@@ -989,20 +974,11 @@ export default function AdminBassinDetailPage() {
     const rapport = confirmDeleteRapport
     if (!rapport) return
 
-    setDeletingRapport(true)
-
-    const { error } = await supabaseBrowser.from('rapports').delete().eq('id', rapport.id)
-
-    if (error) {
-      alert('Erreur lors de la suppression : ' + error.message)
-      setDeletingRapport(false)
-      return
+    const result = await deleteRapportApi({ id: rapport.id })
+    if (result.success) {
+      setRapports((prev) => prev.filter((r) => r.id !== rapport.id))
+      setConfirmDeleteRapport(null)
     }
-
-    setRapports((prev) => prev.filter((r) => r.id !== rapport.id))
-
-    setConfirmDeleteRapport(null)
-    setDeletingRapport(false)
   }
 
   // Fonctions pour gérer les images
@@ -2576,7 +2552,7 @@ export default function AdminBassinDetailPage() {
       </Dialog>
 
       {/* Modal ajout / modification rapport */}
-      <Dialog open={showRapportModal} onOpenChange={(open) => !open && !savingRapport && closeRapportModal()}>
+      <Dialog open={showRapportModal} onOpenChange={(open) => !open && !(isCreatingRapport || isUpdatingRapport) && closeRapportModal()}>
         <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-800">{rapportModalTitle}</DialogTitle>
@@ -2659,17 +2635,17 @@ export default function AdminBassinDetailPage() {
               <button
                 type="button"
                 onClick={closeRapportModal}
-                disabled={savingRapport}
+                disabled={isCreatingRapport || isUpdatingRapport}
                 className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
               >
                 Annuler
               </button>
               <button
                 type="submit"
-                disabled={savingRapport}
+                disabled={isCreatingRapport || isUpdatingRapport}
                 className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
               >
-                {savingRapport ? 'Enregistrement…' : 'Enregistrer'}
+                {(isCreatingRapport || isUpdatingRapport) ? 'Enregistrement…' : 'Enregistrer'}
               </button>
             </DialogFooter>
           </form>
@@ -2783,7 +2759,7 @@ export default function AdminBassinDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            onClick={() => !deletingRapport && setConfirmDeleteRapport(null)}
+            onClick={() => !isDeletingRapport && setConfirmDeleteRapport(null)}
           />
           <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/30 bg-white shadow-2xl">
             <div className="border-b border-slate-100 bg-gradient-to-r from-red-50 to-white px-6 py-4">
@@ -2807,7 +2783,7 @@ export default function AdminBassinDetailPage() {
                 <button
                   type="button"
                   onClick={() => setConfirmDeleteRapport(null)}
-                  disabled={deletingRapport}
+                  disabled={isDeletingRapport}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   <X className="h-4 w-4" />
@@ -2817,7 +2793,7 @@ export default function AdminBassinDetailPage() {
                 <button
                   type="button"
                   onClick={() => void doDeleteRapport()}
-                  disabled={deletingRapport}
+                  disabled={isDeletingRapport}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:bg-red-700 disabled:opacity-50"
                 >
                   <Trash2 className="h-4 w-4" />
