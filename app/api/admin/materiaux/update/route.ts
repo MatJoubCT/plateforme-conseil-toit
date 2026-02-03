@@ -61,13 +61,15 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Matériau non trouvé' }, { status: 404 })
     }
 
-    // Conversion camelCase → snake_case
+    // Préparation des données pour la DB
     const dbData = {
       nom: validated.nom,
-      categorie: validated.categorie || null,
-      unite: validated.unite || null,
-      prix_unitaire: validated.prixUnitaire ?? null,
       description: validated.description || null,
+      categorie_id: validated.categorie_id || null,
+      unite_id: validated.unite_id || null,
+      prix_cad: validated.prix_cad,
+      manufacturier_entreprise_id: validated.manufacturier_entreprise_id || null,
+      actif: validated.actif,
     }
 
     // Mise à jour du matériau
