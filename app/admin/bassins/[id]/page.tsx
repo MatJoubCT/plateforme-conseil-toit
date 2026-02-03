@@ -11,6 +11,14 @@ import BassinMap, { InterventionMarker } from '@/components/maps/BassinMap'
 import BassinCompositionCard from '@/components/bassins/BassinCompositionCard'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import {
   Info,
   Wrench,
   FileText,
@@ -241,7 +249,6 @@ export default function AdminBassinDetailPage() {
   // Modal confirmation suppression bassin
   const [showDeleteBassinModal, setShowDeleteBassinModal] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
-  const [deletingBassin, setDeletingBassin] = useState(false)
 
   // Modals confirmation suppression (même pattern que page-materiaux.tsx)
   const [confirmDeleteIntervention, setConfirmDeleteIntervention] =
@@ -2270,25 +2277,16 @@ export default function AdminBassinDetailPage() {
 
       {/* ========== MODALS ========== */}
       {/* Modal édition bassin */}
-      {showEditBassinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">Modifier le bassin</h3>
-                <p className="text-sm text-slate-500 mt-0.5">Ajustez les informations de ce bassin</p>
-              </div>
-              <button
-                type="button"
-                onClick={closeEditBassinModal}
-                disabled={isUpdatingBassin}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      <Dialog open={showEditBassinModal} onOpenChange={(open) => !open && !isUpdatingBassin && closeEditBassinModal()}>
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-slate-800">Modifier le bassin</DialogTitle>
+            <DialogDescription className="text-sm text-slate-500">
+              Ajustez les informations de ce bassin
+            </DialogDescription>
+          </DialogHeader>
 
-            <form onSubmit={handleSubmitBassin} className="p-6 space-y-5">
+          <form onSubmit={handleSubmitBassin} className="space-y-5">
               <div className="space-y-1.5">
                 <label className="block text-sm font-semibold text-slate-700">Nom du bassin</label>
                 <input
@@ -2408,48 +2406,38 @@ export default function AdminBassinDetailPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={closeEditBassinModal}
-                  disabled={isUpdatingBassin}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={isUpdatingBassin}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                >
-                  {isUpdatingBassin ? 'Enregistrement…' : 'Enregistrer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal ajout / modification garantie */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">{modalTitle}</h3>
-                <p className="text-sm text-slate-500 mt-0.5">Bassin : {bassin.name || '(Sans nom)'}</p>
-              </div>
+            <DialogFooter className="flex justify-end gap-3 pt-4 border-t border-slate-200">
               <button
                 type="button"
-                onClick={closeModal}
-                disabled={isCreatingGarantie || isUpdatingGarantie}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                onClick={closeEditBassinModal}
+                disabled={isUpdatingBassin}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
               >
-                <X className="h-5 w-5" />
+                Annuler
               </button>
-            </div>
+              <button
+                type="submit"
+                disabled={isUpdatingBassin}
+                className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {isUpdatingBassin ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-            <form onSubmit={handleSubmitGarantie} className="p-6 space-y-5">
+      {/* Modal ajout / modification garantie */}
+      <Dialog open={showModal} onOpenChange={(open) => !open && !(isCreatingGarantie || isUpdatingGarantie) && closeModal()}>
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-slate-800">{modalTitle}</DialogTitle>
+            <DialogDescription className="text-sm text-slate-500">
+              Bassin : {bassin?.name || '(Sans nom)'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmitGarantie} className="space-y-5">
               <div className="space-y-1.5">
                 <label className="block text-sm font-semibold text-slate-700">
                   Type de garantie <span className="text-red-500">*</span>
@@ -2562,27 +2550,26 @@ export default function AdminBassinDetailPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  disabled={isCreatingGarantie || isUpdatingGarantie}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={isCreatingGarantie || isUpdatingGarantie}
-                  className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
-                >
-                  {isCreatingGarantie || isUpdatingGarantie ? 'Enregistrement…' : 'Enregistrer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <DialogFooter className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={closeModal}
+                disabled={isCreatingGarantie || isUpdatingGarantie}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                disabled={isCreatingGarantie || isUpdatingGarantie}
+                className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
+              >
+                {isCreatingGarantie || isUpdatingGarantie ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal ajout / modification rapport */}
       {showRapportModal && (
@@ -2849,61 +2836,61 @@ export default function AdminBassinDetailPage() {
       )}
 
       {/* Modal confirmation suppression bassin */}
-      {showDeleteBassinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
-            <div className="p-6">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-                  <AlertTriangle className="h-6 w-6 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-800">Supprimer ce bassin ?</h3>
-                  <p className="text-sm text-slate-500">Cette action est irréversible</p>
-                </div>
+      <Dialog open={showDeleteBassinModal} onOpenChange={(open) => !open && !isDeletingBassin && closeDeleteBassinModal()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
               </div>
-
-              <div className="rounded-xl bg-red-50 border border-red-200 p-4 mb-4">
-                <p className="text-sm text-red-700">
-                  Toutes les données associées à ce bassin seront définitivement supprimées : interventions, garanties,
-                  rapports et fichiers.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-slate-700">
-                  Pour confirmer, écrivez <span className="font-bold text-red-600">SUPPRIMER</span>
-                </label>
-                <input
-                  value={deleteConfirmText}
-                  onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  placeholder="SUPPRIMER"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  type="button"
-                  onClick={closeDeleteBassinModal}
-                  disabled={deletingBassin}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeleteBassin}
-                  disabled={deleteConfirmText !== 'SUPPRIMER' || deletingBassin}
-                  className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {deletingBassin ? 'Suppression…' : 'Confirmer la suppression'}
-                </button>
+              <div>
+                <DialogTitle className="text-lg font-bold text-slate-800">Supprimer ce bassin ?</DialogTitle>
+                <DialogDescription className="text-sm text-slate-500">Cette action est irréversible</DialogDescription>
               </div>
             </div>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-xl bg-red-50 border border-red-200 p-4">
+              <p className="text-sm text-red-700">
+                Toutes les données associées à ce bassin seront définitivement supprimées : interventions, garanties,
+                rapports et fichiers.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-slate-700">
+                Pour confirmer, écrivez <span className="font-bold text-red-600">SUPPRIMER</span>
+              </label>
+              <input
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="SUPPRIMER"
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+              />
+            </div>
           </div>
-        </div>
-      )}
+
+          <DialogFooter className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={closeDeleteBassinModal}
+              disabled={isDeletingBassin}
+              className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteBassin}
+              disabled={deleteConfirmText !== 'SUPPRIMER' || isDeletingBassin}
+              className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isDeletingBassin ? 'Suppression…' : 'Confirmer la suppression'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal images */}
       {modalImagesOpen && selectedInterventionForImages && (
