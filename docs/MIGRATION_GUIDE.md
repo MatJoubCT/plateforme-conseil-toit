@@ -454,8 +454,8 @@ Pour chaque page admin/client à migrer :
 5. ✅ `/app/admin/entreprises/page.tsx` - **MIGRÉ** (3 modales + 3 mutations, formulaire partagé)
 6. ✅ `/app/admin/materiaux/page.tsx` - **MIGRÉ** (modal combiné create/edit, filtres avancés)
 7. ✅ `/app/admin/listes/page.tsx` - **MIGRÉ** (ordre dynamique, validation couleur, vérification utilisation)
-8. [ ] `/app/admin/bassins/[id]/page.tsx` (utilise déjà ConfirmDialog)
-9. [ ] `/app/admin/utilisateurs/page.tsx` (utilise déjà Dialog)
+8. ✅ `/app/admin/bassins/[id]/page.tsx` - **MIGRÉ** (5+ modales, toutes mutations vers useApiMutation, endpoints API rapports créés)
+9. ✅ `/app/admin/utilisateurs/page.tsx` - **MIGRÉ** (Dialog + useApiMutation)
 
 ### Client Pages (2 pages)
 
@@ -484,5 +484,16 @@ Oui, ajoutez `className="sm:max-w-2xl"` ou `sm:max-w-4xl` à `DialogContent` pou
 
 ---
 
-**Dernière mise à jour** : 2026-02-01
+**Dernière mise à jour** : 2026-02-03
 **Auteur** : Équipe de développement Plateforme Conseil-Toit
+
+---
+
+## 🎉 Migration Complète - 100%
+
+**Toutes les pages du projet ont été migrées avec succès !**
+
+- **11/11 pages** (100%) utilisent maintenant `useApiMutation` et `Dialog`
+- Dernière page migrée: `/app/admin/bassins/[id]/page.tsx` (2026-02-03)
+- Impact total: ~45% de réduction de code en moyenne par page
+- Sécurité renforcée: CSRF protection + Rate Limiting sur tous les endpoints
