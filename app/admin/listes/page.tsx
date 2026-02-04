@@ -316,6 +316,7 @@ export default function AdminListesChoixPage() {
       } else if (modalMode === 'edit' && editingItem) {
         const payload = {
           id: editingItem.id,
+          categorie: selectedCategory,
           code: formCode.trim() || null,
           label: trimmedLabel,
           couleur: trimmedColor || null,

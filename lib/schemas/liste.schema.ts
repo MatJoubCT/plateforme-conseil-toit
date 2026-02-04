@@ -35,14 +35,15 @@ export const createListeChoixSchema = z.object({
 
   code: z
     .string()
-    .min(1, 'Le code est obligatoire')
+    .min(1, 'Le code ne peut pas être vide')
     .max(50, 'Le code est trop long (max 50 caractères)')
     .regex(/^[a-z0-9_]+$/, 'Le code doit contenir uniquement des lettres minuscules, chiffres et underscores')
     .nullable()
-    .optional(),
+    .optional()
+    .or(z.literal('')),
 
   label: z
-    .string().min(1, 'Le libellé est obligatoire')
+    .string()
     .min(1, 'Le libellé est obligatoire')
     .max(200, 'Le libellé est trop long (max 200 caractères)'),
 
@@ -50,7 +51,8 @@ export const createListeChoixSchema = z.object({
     .string()
     .regex(HEX_COLOR_REGEX, 'La couleur doit être au format hexadécimal (#RRGGBB, ex: #00A3FF)')
     .nullable()
-    .optional(),
+    .optional()
+    .or(z.literal('')),
 
   ordre: z
     .number()
@@ -63,7 +65,8 @@ export const createListeChoixSchema = z.object({
     .string()
     .max(500, 'La description est trop longue (max 500 caractères)')
     .nullable()
-    .optional(),
+    .optional()
+    .or(z.literal('')),
 
   actif: z
     .boolean()
