@@ -1478,7 +1478,10 @@ export default function ClientBassinDetailPage() {
 
     try {
       await deleteInterventionMutation({ id: it.id })
-      setInterventions((prev) => prev.filter((x) => x.id !== it.id))
+
+      // Rafraîchir les interventions pour mettre à jour la carte
+      await refreshInterventions()
+
       if (selectedInterventionId === it.id) setSelectedInterventionId(null)
       if (editingIntervention?.id === it.id) closeInterventionEditor()
 
@@ -1524,18 +1527,8 @@ export default function ClientBassinDetailPage() {
     try {
       await deleteInterventionFileMutation({ fileId: fileToDelete.id })
 
-      setInterventions((prev) =>
-        prev.map((it) => {
-          if (it.id !== fileToDelete.intervention_id) return it
-          return { ...it, files: it.files.filter((f) => f.id !== fileToDelete.id) }
-        })
-      )
-
-      setEditingIntervention((cur) => {
-        if (!cur) return cur
-        if (cur.id !== fileToDelete.intervention_id) return cur
-        return { ...cur, files: cur.files.filter((f) => f.id !== fileToDelete.id) }
-      })
+      // Rafraîchir les interventions pour garantir la synchronisation
+      await refreshInterventions()
     } catch (error: any) {
       console.error('Erreur:', error)
       alert(error.message || 'Erreur inattendue')
