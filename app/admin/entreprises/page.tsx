@@ -287,7 +287,11 @@ export default function AdminEntreprisesPage() {
       return
     }
 
-    await createEntreprise(buildPayload())
+    const payload = buildPayload()
+    console.log('🔍 DEBUG - Payload envoyé:', JSON.stringify(payload, null, 2))
+    console.log('🔍 DEBUG - Type envoyé:', payload.type, '(longueur:', payload.type.length, ')')
+
+    await createEntreprise(payload)
   }
 
   const handleSubmitEdit = async (e: FormEvent) => {

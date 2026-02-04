@@ -66,6 +66,10 @@ export async function POST(req: NextRequest) {
       actif: validated.actif ?? true,
     }
 
+    // Debug logging
+    console.log('🔍 DEBUG API - dbData:', JSON.stringify(dbData, null, 2))
+    console.log('🔍 DEBUG API - Type à insérer:', dbData.type)
+
     // Création de l'entreprise
     const { data, error } = await supabaseAdmin
       .from('entreprises')
@@ -74,6 +78,9 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (error) {
+      console.error('❌ DEBUG API - Erreur Supabase complète:', JSON.stringify(error, null, 2))
+      console.error('❌ DEBUG API - Error details:', error.details)
+      console.error('❌ DEBUG API - Error hint:', error.hint)
       return NextResponse.json(
         { error: `Erreur lors de la création de l'entreprise: ${error.message}` },
         { status: 500 }
