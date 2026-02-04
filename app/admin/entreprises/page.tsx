@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, FormEvent } from 'react'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { Pagination, usePagination } from '@/components/ui/Pagination'
 import { useApiMutation } from '@/lib/hooks/useApiMutation'
-import { ENTREPRISE_TYPES } from '@/lib/schemas/entreprise.schema'
+import { ENTREPRISE_TYPES_OPTIONS } from '@/lib/schemas/entreprise.schema'
 import {
   Dialog,
   DialogContent,
@@ -49,6 +49,12 @@ export default function AdminEntreprisesPage() {
   const [search, setSearch] = useState('')
 
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+
+  // Helper pour obtenir le label lisible d'un type
+  const getTypeLabel = (type: string): string => {
+    const option = ENTREPRISE_TYPES_OPTIONS.find(opt => opt.value === type)
+    return option?.label || type
+  }
 
   // Modal ajout
   const [showAddModal, setShowAddModal] = useState(false)
@@ -317,9 +323,9 @@ export default function AdminEntreprisesPage() {
             className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
           >
             <option value="">-- Sélectionner un type --</option>
-            {ENTREPRISE_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
+            {ENTREPRISE_TYPES_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>
@@ -566,7 +572,7 @@ export default function AdminEntreprisesPage() {
                       </div>
 
                       <div className="mt-1 text-sm text-slate-500">
-                        <span className="font-medium text-slate-600">Type :</span> {e.type}
+                        <span className="font-medium text-slate-600">Type :</span> {getTypeLabel(e.type)}
                         {(e.ville || e.province) && (
                           <>
                             <span className="mx-2 text-slate-300">•</span>

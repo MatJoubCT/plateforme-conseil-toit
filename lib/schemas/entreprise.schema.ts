@@ -6,15 +6,16 @@ import { z } from 'zod'
 const PHONE_REGEX = /^[\d\s\-\(\)\.+]+$/
 
 /**
- * Types d'entreprises valides
+ * Types d'entreprises valides (suggestions pour l'UI)
+ * Note: La validation finale est faite par la contrainte CHECK en BD
  */
-const VALID_TYPES = [
-  'Couvreur',
-  'Fournisseur',
-  'Consultant',
-  'Entrepreneur général',
-  'Sous-traitant',
-  'Autre'
+export const ENTREPRISE_TYPES_OPTIONS = [
+  { value: 'couvreur', label: 'Couvreur' },
+  { value: 'fournisseur', label: 'Fournisseur' },
+  { value: 'consultant', label: 'Consultant' },
+  { value: 'entrepreneur_general', label: 'Entrepreneur général' },
+  { value: 'sous_traitant', label: 'Sous-traitant' },
+  { value: 'autre', label: 'Autre' },
 ] as const
 
 /**
@@ -56,11 +57,7 @@ export const createEntrepriseSchema = z.object({
   type: z
     .string()
     .min(1, 'Le type est obligatoire')
-    .max(100, 'Le type est trop long (max 100 caractères)')
-    .refine(
-      (val) => VALID_TYPES.includes(val as typeof VALID_TYPES[number]),
-      { message: 'Type d\'entreprise invalide. Valeurs acceptées: ' + VALID_TYPES.join(', ') }
-    ),
+    .max(100, 'Le type est trop long (max 100 caractères)'),
 
   nom: z
     .string()
@@ -133,8 +130,3 @@ export const updateEntrepriseSchema = createEntrepriseSchema.extend({
  */
 export type CreateEntrepriseInput = z.infer<typeof createEntrepriseSchema>
 export type UpdateEntrepriseInput = z.infer<typeof updateEntrepriseSchema>
-
-/**
- * Export des types valides pour utilisation dans les composants
- */
-export const ENTREPRISE_TYPES = VALID_TYPES
