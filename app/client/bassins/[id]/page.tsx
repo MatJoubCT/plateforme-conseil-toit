@@ -1706,7 +1706,7 @@ export default function ClientBassinDetailPage() {
                         if (diffJours < 0) {
                           return `Garantie échue: ${formatDateEcheance(garantieProche.date_fin)}`
                         }
-                        return `Échéance: ${formatDateEcheance(garantieProche.date_fin)}`
+                        return `Échéance de la garantie: ${formatDateEcheance(garantieProche.date_fin)}`
                       })()}
                     </span>
                   </div>
