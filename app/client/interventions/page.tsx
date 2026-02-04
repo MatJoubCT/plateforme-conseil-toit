@@ -512,7 +512,17 @@ export default function ClientInterventionsPage() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl bg-white shadow-md border border-slate-200">
-          <table className="w-full">
+          <table className="w-full table-fixed">
+              <colgroup>
+                <col className="w-[140px]" />        {/* Date */}
+                <col className="w-[160px] hidden md:table-column" />  {/* Type */}
+                <col className="w-[180px]" />        {/* Bassin */}
+                <col className="w-[180px] hidden lg:table-column" />  {/* Bâtiment */}
+                <col className="w-[160px] hidden xl:table-column" />  {/* Client */}
+                <col className="hidden 2xl:table-column" />            {/* Commentaire */}
+                <col className="w-[80px]" />         {/* Images */}
+                <col className="w-[80px]" />         {/* Détails */}
+              </colgroup>
               <thead className="border-b-2 border-slate-200 bg-slate-50">
                 <tr>
                   <th className="py-3 pl-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
