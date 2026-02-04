@@ -623,7 +623,7 @@ export default function ClientInterventionsPage() {
                               e.stopPropagation()
                               handleOpenModal(intervention)
                             }}
-                            className="group/eye relative rounded-full p-2 text-slate-400 hover:bg-ct-primary/10 hover:text-ct-primary transition-all"
+                            className="group/eye relative rounded-full p-2 text-slate-400 hover:bg-ct-primary/10 hover:text-ct-primary transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100"
                             title="Voir les images"
                           >
                             <Eye className="h-5 w-5" />
@@ -640,7 +640,7 @@ export default function ClientInterventionsPage() {
                     {/* Détails */}
                     <td className="py-3 pr-4">
                       <div className="flex justify-end">
-                        <ChevronRight className="h-5 w-5 text-slate-400 transition-transform group-hover:translate-x-1" />
+                        <ChevronRight className="h-5 w-5 text-slate-400 transition-transform group-hover:translate-x-1 opacity-100 md:opacity-0 md:group-hover:opacity-100" />
                       </div>
                     </td>
                   </tr>
