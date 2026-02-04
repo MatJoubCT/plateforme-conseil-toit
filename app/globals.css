@@ -314,3 +314,29 @@ textarea:focus {
 .animate-shake {
   animation: shake 0.5s ease-in-out;
 }
+
+/* ========================================
+   Icônes de table au hover (desktop)
+   ======================================== */
+
+/* En mobile, les icônes sont toujours visibles */
+@media (max-width: 767px) {
+  .table-action-icon {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+/* En desktop, les icônes sont cachées par défaut et apparaissent au hover de la ligne */
+@media (min-width: 768px) {
+  .table-action-icon {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+  }
+
+  tr.group:hover .table-action-icon {
+    opacity: 1;
+    visibility: visible;
+  }
+}
