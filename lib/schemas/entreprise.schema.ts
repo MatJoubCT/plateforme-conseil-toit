@@ -6,8 +6,7 @@ import { z } from 'zod'
 const PHONE_REGEX = /^[\d\s\-\(\)\.+]+$/
 
 /**
- * Types d'entreprises valides (suggestions pour l'UI)
- * Note: La validation finale est faite par la contrainte CHECK en BD
+ * Types d'entreprises valides
  */
 export const ENTREPRISE_TYPES_OPTIONS = [
   { value: 'couvreur', label: 'Couvreur' },
@@ -16,6 +15,18 @@ export const ENTREPRISE_TYPES_OPTIONS = [
   { value: 'entrepreneur_general', label: 'Entrepreneur général' },
   { value: 'sous_traitant', label: 'Sous-traitant' },
   { value: 'autre', label: 'Autre' },
+] as const
+
+/**
+ * Valeurs valides pour le champ type (extraites de ENTREPRISE_TYPES_OPTIONS)
+ */
+const VALID_TYPES = [
+  'couvreur',
+  'fournisseur',
+  'consultant',
+  'entrepreneur_general',
+  'sous_traitant',
+  'autre',
 ] as const
 
 /**
@@ -84,10 +95,7 @@ const postalCodeSchema = z
  * Schéma de validation pour la création d'une entreprise
  */
 export const createEntrepriseSchema = z.object({
-  type: z
-    .string()
-    .min(1, 'Le type est obligatoire')
-    .max(100, 'Le type est trop long (max 100 caractères)'),
+  type: z.enum(VALID_TYPES),
 
   nom: z
     .string()
