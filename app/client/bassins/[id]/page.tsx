@@ -1946,7 +1946,6 @@ export default function ClientBassinDetailPage() {
                       >
                         <X className="h-4 w-4" />
                         <span className="hidden xs:inline">Annuler</span>
-                        <span className="xs:hidden">✕</span>
                       </button>
                       <button
                         type="button"
