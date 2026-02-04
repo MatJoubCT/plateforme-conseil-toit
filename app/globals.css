@@ -335,7 +335,7 @@ textarea:focus {
     transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
   }
 
-  tr.group:hover .table-action-icon {
+  .group:hover .table-action-icon {
     opacity: 1;
     visibility: visible;
   }

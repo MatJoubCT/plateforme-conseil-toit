@@ -1876,7 +1876,7 @@ export default function ClientBassinDetailPage() {
                             )}
                           </div>
 
-                          <div className="flex items-center gap-1 transition-opacity duration-200 opacity-0 group-hover:opacity-100">
+                          <div className="table-action-icon flex items-center gap-1">
                             {(() => {
                               const imageFiles = (it.files || []).filter((f) =>
                                 f.mime_type?.startsWith('image/')
