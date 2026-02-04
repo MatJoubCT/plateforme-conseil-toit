@@ -1876,7 +1876,7 @@ export default function ClientBassinDetailPage() {
                             )}
                           </div>
 
-                          <div className="flex items-center gap-1 transition-opacity duration-200 sm:opacity-0 group-hover:opacity-100">
+                          <div className="flex items-center gap-1 transition-opacity duration-200 opacity-0 group-hover:opacity-100">
                             {(() => {
                               const imageFiles = (it.files || []).filter((f) =>
                                 f.mime_type?.startsWith('image/')
@@ -2184,7 +2184,7 @@ export default function ClientBassinDetailPage() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-1 transition-opacity duration-200 sm:opacity-0 group-hover:opacity-100">
+                              <div className="flex items-center gap-1 transition-opacity duration-200 opacity-0 group-hover:opacity-100">
                                 {g.fichier_pdf_url && (
                                   <a
                                     href={g.fichier_pdf_url}
@@ -2242,7 +2242,7 @@ export default function ClientBassinDetailPage() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-1 transition-opacity duration-200 sm:opacity-0 group-hover:opacity-100">
+                              <div className="flex items-center gap-1 transition-opacity duration-200 opacity-0 group-hover:opacity-100">
                                 {r.file_url && (
                                   <a
                                     href={r.file_url}
