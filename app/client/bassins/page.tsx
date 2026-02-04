@@ -92,6 +92,7 @@ export default function ClientBassinsPage() {
 
   const [sortKey, setSortKey] = useState<'batiment' | 'client' | 'etat' | 'duree_vie' | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [hoveredBassinId, setHoveredBassinId] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -719,20 +720,39 @@ export default function ClientBassinsPage() {
                     const etatLibelle = labelEtat(bassin.etat_id)
                     const etatCouleur = couleurEtat(bassin.etat_id)
                     const dureeLibelle = labelDuree(bassin)
+                    const isHovered = hoveredBassinId === bassin.id
 
                     return (
                       <tr
                         key={bassin.id}
-                        className="group cursor-pointer transition-all hover:bg-[#1F4E79]/5 hover:shadow-sm"
+                        className={`group cursor-pointer transition-all ${
+                          isHovered
+                            ? 'bg-[#1F4E79]/10 shadow-sm'
+                            : 'hover:bg-slate-50'
+                        }`}
+                        onMouseEnter={() => setHoveredBassinId(bassin.id)}
+                        onMouseLeave={() => setHoveredBassinId(null)}
                         onClick={() => router.push(`/client/bassins/${bassin.id}`)}
                       >
                         <td className="py-4">
                           <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-sm font-semibold text-white shadow-sm transition-all group-hover:scale-110 group-hover:from-[#1F4E79] group-hover:to-[#163555]">
+                            <div
+                              className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white shadow-sm transition-all ${
+                                isHovered
+                                  ? 'bg-gradient-to-br from-[#1F4E79] to-[#163555] scale-110'
+                                  : 'bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8]'
+                              }`}
+                            >
                               {(bassin.name ?? 'B')[0].toUpperCase()}
                             </div>
                             <div className="min-w-0">
-                              <span className="block truncate font-semibold text-slate-800 transition-colors group-hover:text-[#1F4E79]">
+                              <span
+                                className={`block truncate font-semibold transition-colors ${
+                                  isHovered
+                                    ? 'text-[#1F4E79]'
+                                    : 'text-slate-800 group-hover:text-[#1F4E79]'
+                                }`}
+                              >
                                 {bassin.name ?? '(Sans nom)'}
                               </span>
                               {bassin.reference_interne && (
@@ -772,11 +792,15 @@ export default function ClientBassinsPage() {
                           </span>
                         </td>
                         <td className="py-4 text-center">
-                          <span className={`inline-flex min-w-[3.5rem] items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold transition-all ${
-                            surfaceFt2 != null
-                              ? 'bg-[#1F4E79]/10 text-[#1F4E79] group-hover:bg-[#1F4E79]/20 group-hover:scale-105'
-                              : 'bg-slate-100 text-slate-500'
-                          }`}>
+                          <span
+                            className={`inline-flex min-w-[3.5rem] items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold transition-all ${
+                              surfaceFt2 != null
+                                ? isHovered
+                                  ? 'bg-[#1F4E79]/20 text-[#1F4E79] scale-105'
+                                  : 'bg-[#1F4E79]/10 text-[#1F4E79]'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
                             {surfaceFt2 != null ? `${surfaceFt2.toLocaleString('fr-CA')} pi²` : 'n/d'}
                           </span>
                         </td>
@@ -795,7 +819,13 @@ export default function ClientBassinsPage() {
                         </td>
 
                         <td className="py-4">
-                          <span className="text-sm text-slate-600 transition-colors group-hover:text-slate-900 group-hover:font-medium">
+                          <span
+                            className={`text-sm transition-all ${
+                              isHovered
+                                ? 'text-slate-900 font-medium'
+                                : 'text-slate-600'
+                            }`}
+                          >
                             {dureeLibelle || 'Non définie'}
                           </span>
                         </td>
