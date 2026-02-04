@@ -71,7 +71,6 @@ export async function POST(req: NextRequest) {
       label: validated.label,
       couleur: validated.couleur || null,
       ordre,
-      description: validated.description || null,
       actif: validated.actif ?? true,
     }
 

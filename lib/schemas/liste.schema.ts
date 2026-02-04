@@ -61,13 +61,6 @@ export const createListeChoixSchema = z.object({
     .nullable()
     .optional(),
 
-  description: z
-    .string()
-    .max(500, 'La description est trop longue (max 500 caractères)')
-    .nullable()
-    .optional()
-    .or(z.literal('')),
-
   actif: z
     .boolean()
     .default(true),

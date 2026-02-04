@@ -68,7 +68,6 @@ export async function PUT(req: NextRequest) {
       label: validated.label,
       couleur: validated.couleur || null,
       ordre: validated.ordre ?? null,
-      description: validated.description || null,
       actif: validated.actif ?? true,
     }
 
