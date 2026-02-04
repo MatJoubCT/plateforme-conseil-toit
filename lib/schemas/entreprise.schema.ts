@@ -20,13 +20,43 @@ export const ENTREPRISE_TYPES_OPTIONS = [
 
 /**
  * Schéma de validation pour URL (optionnel)
+ * Accepte les URLs avec ou sans protocole (ajoute https:// automatiquement si nécessaire)
  */
 const urlSchema = z
-  .string()
-  .url('Format d\'URL invalide (doit commencer par http:// ou https://)')
+  .union([z.string(), z.null(), z.literal('')])
+  .transform((val) => {
+    // Gestion des valeurs vides
+    if (!val || val === '' || (typeof val === 'string' && val.trim() === '')) {
+      return null
+    }
+
+    const trimmed = val.trim()
+
+    // Si l'URL commence déjà par http:// ou https://, la retourner telle quelle
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed
+    }
+
+    // Sinon, ajouter https://
+    return `https://${trimmed}`
+  })
+  .refine(
+    (val) => {
+      // Null est accepté
+      if (val === null) return true
+
+      // Vérifier que c'est une URL valide
+      try {
+        new URL(val)
+        return true
+      } catch {
+        return false
+      }
+    },
+    { message: 'Format d\'URL invalide' }
+  )
   .nullable()
   .optional()
-  .or(z.literal(''))
 
 /**
  * Schéma de validation pour téléphone (optionnel)

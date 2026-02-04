@@ -8,7 +8,7 @@ describe('Entreprise Schema Validation', () => {
         type: 'Entrepreneur général',
         nom: 'Construction ABC Inc.',
         telephone: '514-555-1234',
-        siteWeb: 'https://www.example.com',
+        site_web: 'https://www.example.com',
         notes: 'Excellente entreprise',
       };
 
@@ -31,7 +31,7 @@ describe('Entreprise Schema Validation', () => {
         type: 'Entrepreneur général',
         nom: 'Construction ABC Inc.',
         telephone: null,
-        siteWeb: null,
+        site_web: null,
         notes: null,
       };
 
@@ -159,46 +159,83 @@ describe('Entreprise Schema Validation', () => {
       const validEntreprise = {
         type: 'Entrepreneur général',
         nom: 'Construction ABC Inc.',
-        siteWeb: 'https://www.example.com',
+        site_web: 'https://www.example.com',
       };
 
       const result = createEntrepriseSchema.safeParse(validEntreprise);
       expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.site_web).toBe('https://www.example.com');
+      }
     });
 
     it('devrait accepter des URLs valides HTTP', () => {
       const validEntreprise = {
         type: 'Entrepreneur général',
         nom: 'Construction ABC Inc.',
-        siteWeb: 'http://www.example.com',
+        site_web: 'http://www.example.com',
       };
 
       const result = createEntrepriseSchema.safeParse(validEntreprise);
       expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.site_web).toBe('http://www.example.com');
+      }
     });
 
-    it('devrait accepter une chaîne vide pour siteWeb', () => {
+    it('devrait accepter une chaîne vide pour site_web', () => {
       const validEntreprise = {
         type: 'Entrepreneur général',
         nom: 'Construction ABC Inc.',
-        siteWeb: '',
+        site_web: '',
       };
 
       const result = createEntrepriseSchema.safeParse(validEntreprise);
       expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.site_web).toBeNull();
+      }
     });
 
-    it('devrait rejeter une URL sans protocole', () => {
+    it('devrait accepter une URL sans protocole et ajouter https:// automatiquement', () => {
+      const validEntreprise = {
+        type: 'Entrepreneur général',
+        nom: 'Construction ABC Inc.',
+        site_web: 'www.example.com',
+      };
+
+      const result = createEntrepriseSchema.safeParse(validEntreprise);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.site_web).toBe('https://www.example.com');
+      }
+    });
+
+    it('devrait accepter une URL sans www et ajouter https:// automatiquement', () => {
+      const validEntreprise = {
+        type: 'Entrepreneur général',
+        nom: 'Construction ABC Inc.',
+        site_web: 'example.com',
+      };
+
+      const result = createEntrepriseSchema.safeParse(validEntreprise);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.site_web).toBe('https://example.com');
+      }
+    });
+
+    it('devrait rejeter une URL complètement invalide', () => {
       const invalidEntreprise = {
         type: 'Entrepreneur général',
         nom: 'Construction ABC Inc.',
-        siteWeb: 'www.example.com',
+        site_web: 'not a valid url at all',
       };
 
       const result = createEntrepriseSchema.safeParse(invalidEntreprise);
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.issues[0].message).toContain('http');
+        expect(result.error.issues[0].message).toContain('invalide');
       }
     });
 
@@ -235,7 +272,7 @@ describe('Entreprise Schema Validation', () => {
         type: 'Entrepreneur général',
         nom: 'Construction XYZ Inc.',
         telephone: '514-555-9999',
-        siteWeb: 'https://www.newsite.com',
+        site_web: 'https://www.newsite.com',
         notes: 'Mise à jour',
       };
 
