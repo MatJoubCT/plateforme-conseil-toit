@@ -6,21 +6,32 @@ import { z } from 'zod'
 const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/
 
 /**
- * Catégories valides pour les listes de choix
+ * Catégories valides pour les listes de choix (liste de référence)
+ * Note: D'autres catégories peuvent exister dans la BD, la validation finale se fait côté BD
  */
-export const CATEGORIES_VALIDES = [
+export const CATEGORIES_REFERENCE = [
   'etat_bassin',
   'duree_vie',
   'type_membrane',
   'type_toiture',
   'type_isolant',
+  'type_garantie',
+  'statut_garantie',
+  'type_rapport',
+  'type_interventions',
+  'membrane',
+  'materiaux_categorie',
+  'unite',
 ] as const
 
 /**
  * Schéma de validation pour la création d'un élément de liste
  */
 export const createListeChoixSchema = z.object({
-  categorie: z.enum(CATEGORIES_VALIDES),
+  categorie: z
+    .string()
+    .min(1, 'La catégorie est obligatoire')
+    .max(100, 'La catégorie est trop longue (max 100 caractères)'),
 
   code: z
     .string()
@@ -53,6 +64,10 @@ export const createListeChoixSchema = z.object({
     .max(500, 'La description est trop longue (max 500 caractères)')
     .nullable()
     .optional(),
+
+  actif: z
+    .boolean()
+    .default(true),
 })
 
 /**
@@ -82,4 +97,4 @@ export const updateOrdreSchema = z.object({
 export type CreateListeChoixInput = z.infer<typeof createListeChoixSchema>
 export type UpdateListeChoixInput = z.infer<typeof updateListeChoixSchema>
 export type UpdateOrdreInput = z.infer<typeof updateOrdreSchema>
-export type CategorieValide = typeof CATEGORIES_VALIDES[number]
+export type CategorieReference = typeof CATEGORIES_REFERENCE[number]

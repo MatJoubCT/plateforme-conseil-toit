@@ -69,6 +69,7 @@ export async function PUT(req: NextRequest) {
       couleur: validated.couleur || null,
       ordre: validated.ordre ?? null,
       description: validated.description || null,
+      actif: validated.actif ?? true,
     }
 
     // Mise à jour de l'élément

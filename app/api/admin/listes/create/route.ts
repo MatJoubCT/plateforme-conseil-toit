@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
       couleur: validated.couleur || null,
       ordre,
       description: validated.description || null,
+      actif: validated.actif ?? true,
     }
 
     // Création de l'élément de liste
