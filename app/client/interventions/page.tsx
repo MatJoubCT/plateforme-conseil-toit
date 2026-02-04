@@ -69,6 +69,7 @@ export default function ClientInterventionsPage() {
   // Filtres
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState<string>('')
+  const [hoveredInterventionId, setHoveredInterventionId] = useState<string | null>(null)
 
   // Modal images
   const [modalOpen, setModalOpen] = useState(false)
@@ -546,18 +547,37 @@ export default function ClientInterventionsPage() {
                   const imageFiles = files.filter((f) =>
                     f.mime_type?.startsWith('image/')
                   )
+                  const isHovered = hoveredInterventionId === intervention.id
 
                   return (
                   <tr
                     key={intervention.id}
                     onClick={() => router.push(`/client/bassins/${intervention.bassin_id}`)}
-                    className="group cursor-pointer transition-colors hover:bg-slate-50"
+                    className={`group cursor-pointer transition-all ${
+                      isHovered
+                        ? 'bg-[#1F4E79]/10 shadow-sm'
+                        : 'hover:bg-slate-50'
+                    }`}
+                    onMouseEnter={() => setHoveredInterventionId(intervention.id)}
+                    onMouseLeave={() => setHoveredInterventionId(null)}
                   >
                     {/* Date */}
                     <td className="py-3 pl-4">
                       <div className="flex items-center gap-1.5">
-                        <Calendar className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                        <span className="text-sm font-medium text-slate-900">
+                        <div
+                          className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all ${
+                            isHovered
+                              ? 'bg-[#1F4E79] text-white scale-110'
+                              : 'bg-slate-100 text-slate-400'
+                          }`}
+                        >
+                          <Calendar className="h-4 w-4 flex-shrink-0" />
+                        </div>
+                        <span
+                          className={`text-sm font-medium transition-colors ${
+                            isHovered ? 'text-[#1F4E79]' : 'text-slate-900'
+                          }`}
+                        >
                           {new Date(intervention.date_intervention).toLocaleDateString('fr-CA')}
                         </span>
                       </div>
@@ -566,9 +586,11 @@ export default function ClientInterventionsPage() {
                     {/* Type */}
                     <td className="py-3 px-2 hidden md:table-cell">
                       <span
-                        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium transition-all ${
+                          isHovered ? 'scale-105' : ''
+                        }`}
                         style={{
-                          backgroundColor: intervention.type_couleur ? `${intervention.type_couleur}20` : '#1F4E7920',
+                          backgroundColor: intervention.type_couleur ? `${intervention.type_couleur}${isHovered ? '40' : '20'}` : `#1F4E79${isHovered ? '40' : '20'}`,
                           color: intervention.type_couleur || '#1F4E79',
                         }}
                       >
@@ -579,8 +601,18 @@ export default function ClientInterventionsPage() {
                     {/* Bassin */}
                     <td className="py-3 px-2">
                       <div className="flex items-center gap-1.5">
-                        <Layers className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                        <span className="text-sm text-slate-700">
+                        <Layers
+                          className={`h-4 w-4 flex-shrink-0 transition-colors ${
+                            isHovered ? 'text-[#1F4E79]' : 'text-slate-400'
+                          }`}
+                        />
+                        <span
+                          className={`text-sm transition-all ${
+                            isHovered
+                              ? 'text-[#1F4E79] font-semibold'
+                              : 'text-slate-700'
+                          }`}
+                        >
                           {intervention.bassin_name || 'Sans nom'}
                         </span>
                       </div>
@@ -589,8 +621,18 @@ export default function ClientInterventionsPage() {
                     {/* Bâtiment */}
                     <td className="py-3 px-2 hidden lg:table-cell">
                       <div className="flex items-center gap-1.5">
-                        <Building2 className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                        <span className="text-sm text-slate-600">
+                        <Building2
+                          className={`h-4 w-4 flex-shrink-0 transition-colors ${
+                            isHovered ? 'text-[#1F4E79]' : 'text-slate-400'
+                          }`}
+                        />
+                        <span
+                          className={`text-sm transition-all ${
+                            isHovered
+                              ? 'text-slate-900 font-medium'
+                              : 'text-slate-600'
+                          }`}
+                        >
                           {intervention.batiment_name || 'Sans nom'}
                         </span>
                       </div>
@@ -598,7 +640,11 @@ export default function ClientInterventionsPage() {
 
                     {/* Client */}
                     <td className="py-3 px-2 hidden xl:table-cell">
-                      <span className="text-sm text-slate-600">
+                      <span
+                        className={`text-sm transition-all ${
+                          isHovered ? 'text-slate-900 font-medium' : 'text-slate-600'
+                        }`}
+                      >
                         {intervention.client_name || 'Sans nom'}
                       </span>
                     </td>
@@ -623,7 +669,11 @@ export default function ClientInterventionsPage() {
                               e.stopPropagation()
                               handleOpenModal(intervention)
                             }}
-                            className="group/eye relative rounded-full p-2 text-slate-400 hover:bg-ct-primary/10 hover:text-ct-primary transition-colors"
+                            className={`group/eye relative rounded-full p-2 transition-all ${
+                              isHovered
+                                ? 'bg-[#1F4E79]/20 text-[#1F4E79] scale-110'
+                                : 'text-slate-400 hover:bg-ct-primary/10 hover:text-ct-primary'
+                            }`}
                             title="Voir les images"
                           >
                             <Eye className="h-5 w-5" />
@@ -640,7 +690,13 @@ export default function ClientInterventionsPage() {
                     {/* Détails */}
                     <td className="py-3 pr-4">
                       <div className="flex justify-end">
-                        <ChevronRight className="table-action-icon h-5 w-5 text-slate-400 group-hover:translate-x-1" />
+                        <ChevronRight
+                          className={`h-5 w-5 transition-all ${
+                            isHovered
+                              ? 'text-[#1F4E79] translate-x-1 scale-110'
+                              : 'text-slate-400 group-hover:translate-x-1'
+                          }`}
+                        />
                       </div>
                     </td>
                   </tr>
