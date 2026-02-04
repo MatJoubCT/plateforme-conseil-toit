@@ -157,14 +157,12 @@ describe('Validation Utilities', () => {
   });
 
   describe('sanitizeError', () => {
-    const originalNodeEnv = process.env.NODE_ENV;
-
     afterEach(() => {
-      process.env.NODE_ENV = originalNodeEnv;
+      vi.unstubAllEnvs();
     });
 
     it('devrait retourner le message d\'erreur détaillé en développement', () => {
-      process.env.NODE_ENV = 'development';
+      vi.stubEnv('NODE_ENV', 'development');
       const error = new Error('Detailed error message');
 
       const result = sanitizeError(error);
@@ -173,7 +171,7 @@ describe('Validation Utilities', () => {
     });
 
     it('devrait retourner une chaîne d\'erreur en développement', () => {
-      process.env.NODE_ENV = 'development';
+      vi.stubEnv('NODE_ENV', 'development');
       const error = 'String error message';
 
       const result = sanitizeError(error);
@@ -182,7 +180,7 @@ describe('Validation Utilities', () => {
     });
 
     it('devrait retourner un message générique en production pour une Error', () => {
-      process.env.NODE_ENV = 'production';
+      vi.stubEnv('NODE_ENV', 'production');
       const error = new Error('Sensitive error details');
 
       const result = sanitizeError(error);
@@ -192,7 +190,7 @@ describe('Validation Utilities', () => {
     });
 
     it('devrait retourner un message générique en production pour une chaîne', () => {
-      process.env.NODE_ENV = 'production';
+      vi.stubEnv('NODE_ENV', 'production');
       const error = 'Sensitive error details';
 
       const result = sanitizeError(error);
@@ -202,7 +200,7 @@ describe('Validation Utilities', () => {
     });
 
     it('devrait utiliser le message de fallback personnalisé', () => {
-      process.env.NODE_ENV = 'production';
+      vi.stubEnv('NODE_ENV', 'production');
       const error = new Error('Some error');
       const customFallback = 'Custom error message';
 
@@ -212,7 +210,7 @@ describe('Validation Utilities', () => {
     });
 
     it('devrait gérer des types d\'erreur inconnus en production', () => {
-      process.env.NODE_ENV = 'production';
+      vi.stubEnv('NODE_ENV', 'production');
       const error = { some: 'object' };
 
       const result = sanitizeError(error);

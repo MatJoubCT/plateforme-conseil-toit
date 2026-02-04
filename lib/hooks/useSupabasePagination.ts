@@ -147,8 +147,6 @@ export function useSupabasePagination<T = any>(
 
   // Calculs dérivés
   const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const startOffset = (currentPage - 1) * itemsPerPage;
-  const endOffset = startOffset + itemsPerPage - 1;
   const startIndex = (currentPage - 1) * itemsPerPage + 1;
   const endIndex = Math.min(currentPage * itemsPerPage, totalItems);
   const hasMultiplePages = totalPages > 1;
@@ -160,6 +158,10 @@ export function useSupabasePagination<T = any>(
 
     try {
       const supabase = createBrowserClient();
+
+      // Calculer les offsets pour la pagination
+      const startOffset = (currentPage - 1) * itemsPerPage;
+      const endOffset = startOffset + itemsPerPage - 1;
 
       // Construire la query de base
       let query = supabase
@@ -205,7 +207,7 @@ export function useSupabasePagination<T = any>(
     } finally {
       setLoading(false);
     }
-  }, [table, select, filters, orderBy, startOffset, endOffset, transform, queryModifier]);
+  }, [table, select, filters, orderBy, itemsPerPage, transform, queryModifier, currentPage]);
 
   // Charger les données au montage et quand les dépendances changent
   useEffect(() => {

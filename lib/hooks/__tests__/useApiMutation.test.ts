@@ -15,6 +15,8 @@ global.fetch = vi.fn();
 describe('useApiMutation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Initialiser CSRF token
+    document.cookie = 'csrf-token=test-csrf-token-123; path=/';
   });
 
   it('devrait initialiser avec l\'état correct', () => {
@@ -219,6 +221,7 @@ describe('useApiMutation', () => {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${mockToken}`,
+          'x-csrf-token': 'test-csrf-token-123',
         },
         body: JSON.stringify(testData),
       })

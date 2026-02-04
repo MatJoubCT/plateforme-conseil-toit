@@ -71,8 +71,8 @@ describe('useSessionToken', () => {
     });
 
     // Simuler le callback onAuthStateChange
-    let authCallback: ((event: string, session: any) => void) | null = null;
-    mockOnAuthStateChange.mockImplementation((callback) => {
+    let authCallback: ((event: string, session: any) => void) | undefined;
+    mockOnAuthStateChange.mockImplementation((callback: (event: string, session: any) => void) => {
       authCallback = callback;
       return {
         data: { subscription: { unsubscribe: mockUnsubscribe } },
