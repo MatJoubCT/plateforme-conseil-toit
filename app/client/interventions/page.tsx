@@ -511,24 +511,14 @@ export default function ClientInterventionsPage() {
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl bg-white shadow-md border border-slate-200">
-          <table className="w-full table-fixed">
-              <colgroup>
-                <col className="w-[140px]" />        {/* Date */}
-                <col className="w-[160px] hidden md:table-column" />  {/* Type */}
-                <col className="w-[180px]" />        {/* Bassin */}
-                <col className="w-[180px] hidden lg:table-column" />  {/* Bâtiment */}
-                <col className="w-[160px] hidden xl:table-column" />  {/* Client */}
-                <col className="hidden 2xl:table-column" />            {/* Commentaire */}
-                <col className="w-[80px]" />         {/* Images */}
-                <col className="w-[80px]" />         {/* Détails */}
-              </colgroup>
+        <div className="overflow-x-auto rounded-xl bg-white shadow-md border border-slate-200">
+          <table className="w-full">
               <thead className="border-b-2 border-slate-200 bg-slate-50">
                 <tr>
-                  <th className="py-3 pl-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
+                  <th className="py-3 pl-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600 w-px whitespace-nowrap">
                     Date
                   </th>
-                  <th className="py-3 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden md:table-cell">
+                  <th className="py-3 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden md:table-cell w-px whitespace-nowrap">
                     Type
                   </th>
                   <th className="py-3 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
@@ -543,10 +533,10 @@ export default function ClientInterventionsPage() {
                   <th className="py-3 px-2 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden 2xl:table-cell">
                     Commentaire
                   </th>
-                  <th className="py-3 px-2 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
+                  <th className="py-3 px-2 text-center text-xs font-bold uppercase tracking-wide text-slate-600 w-px whitespace-nowrap">
                     Images
                   </th>
-                  <th className="py-3 pr-4 text-right text-xs font-bold uppercase tracking-wide text-slate-600">
+                  <th className="py-3 pr-4 text-right text-xs font-bold uppercase tracking-wide text-slate-600 w-px whitespace-nowrap">
                     Détails
                   </th>
                 </tr>
@@ -572,16 +562,16 @@ export default function ClientInterventionsPage() {
                     onMouseLeave={() => setHoveredInterventionId(null)}
                   >
                     {/* Date */}
-                    <td className="py-3 pl-4">
+                    <td className="py-3 pl-4 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
                         <div
-                          className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all ${
+                          className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors ${
                             isHovered
-                              ? 'bg-[#1F4E79] text-white scale-110'
+                              ? 'bg-[#1F4E79] text-white'
                               : 'bg-slate-100 text-slate-400'
                           }`}
                         >
-                          <Calendar className="h-4 w-4 flex-shrink-0" />
+                          <Calendar className="h-4 w-4" />
                         </div>
                         <span
                           className={`text-sm font-medium transition-colors ${
@@ -594,11 +584,9 @@ export default function ClientInterventionsPage() {
                     </td>
 
                     {/* Type */}
-                    <td className="py-3 px-2 hidden md:table-cell">
+                    <td className="py-3 px-2 hidden md:table-cell whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium transition-all ${
-                          isHovered ? 'scale-105' : ''
-                        }`}
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium transition-all"
                         style={{
                           backgroundColor: intervention.type_couleur ? `${intervention.type_couleur}${isHovered ? '40' : '20'}` : `#1F4E79${isHovered ? '40' : '20'}`,
                           color: intervention.type_couleur || '#1F4E79',
@@ -670,44 +658,40 @@ export default function ClientInterventionsPage() {
                     </td>
 
                     {/* Images */}
-                    <td className="py-3 px-2">
-                      <div className="flex justify-center">
-                        {imageFiles.length > 0 ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleOpenModal(intervention)
-                            }}
-                            className={`group/eye relative rounded-full p-2 transition-all ${
-                              isHovered
-                                ? 'bg-[#1F4E79]/20 text-[#1F4E79] scale-110'
-                                : 'text-slate-400 hover:bg-ct-primary/10 hover:text-ct-primary'
-                            }`}
-                            title="Voir les images"
-                          >
-                            <Eye className="h-5 w-5" />
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover/eye:opacity-100 transition-opacity pointer-events-none">
-                              Voir les images ({imageFiles.length})
-                            </span>
-                          </button>
-                        ) : (
-                          <span className="text-xs text-slate-400">—</span>
-                        )}
-                      </div>
+                    <td className="py-3 px-2 text-center whitespace-nowrap">
+                      {imageFiles.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleOpenModal(intervention)
+                          }}
+                          className={`group/eye relative inline-flex items-center justify-center rounded-full p-2 transition-colors ${
+                            isHovered
+                              ? 'bg-[#1F4E79]/20 text-[#1F4E79]'
+                              : 'text-slate-400 hover:bg-ct-primary/10 hover:text-ct-primary'
+                          }`}
+                          title="Voir les images"
+                        >
+                          <Eye className="h-5 w-5" />
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover/eye:opacity-100 transition-opacity pointer-events-none">
+                            Voir les images ({imageFiles.length})
+                          </span>
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
                     </td>
 
                     {/* Détails */}
-                    <td className="py-3 pr-4">
-                      <div className="flex justify-end">
-                        <ChevronRight
-                          className={`h-5 w-5 transition-all ${
-                            isHovered
-                              ? 'text-[#1F4E79] translate-x-1 scale-110'
-                              : 'text-slate-400 group-hover:translate-x-1'
-                          }`}
-                        />
-                      </div>
+                    <td className="py-3 pr-4 text-right whitespace-nowrap">
+                      <ChevronRight
+                        className={`inline-block h-5 w-5 transition-all ${
+                          isHovered
+                            ? 'text-[#1F4E79] translate-x-1'
+                            : 'text-slate-400 group-hover:translate-x-1'
+                        }`}
+                      />
                     </td>
                   </tr>
                   )
