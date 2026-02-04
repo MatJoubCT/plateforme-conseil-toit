@@ -58,8 +58,9 @@ export const createMateriauSchema = z.object({
 
 /**
  * Schéma de validation pour la mise à jour d'un matériau
+ * Tous les champs sont optionnels sauf l'ID
  */
-export const updateMateriauSchema = createMateriauSchema.extend({
+export const updateMateriauSchema = createMateriauSchema.partial().extend({
   id: z
     .string()
     .min(1, 'ID matériau requis')

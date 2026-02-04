@@ -45,16 +45,16 @@ describe('Batiment Schema Validation', () => {
       expect(result.success).toBe(false);
     });
 
-    it('devrait rejeter une adresse vide', () => {
-      const invalidBatiment = {
+    it('devrait accepter une adresse vide (champ optionnel)', () => {
+      const validBatiment = {
         name: 'Test Building',
         address: '',
         city: 'Montreal',
         clientId: '550e8400-e29b-41d4-a716-446655440000',
       };
 
-      const result = createBatimentSchema.safeParse(invalidBatiment);
-      expect(result.success).toBe(false);
+      const result = createBatimentSchema.safeParse(validBatiment);
+      expect(result.success).toBe(true);
     });
 
     it('devrait valider un code postal canadien valide (avec espace)', () => {
@@ -326,16 +326,16 @@ describe('Batiment Schema Validation', () => {
       }
     });
 
-    it('devrait rejeter une ville vide', () => {
-      const invalidBatiment = {
+    it('devrait accepter une ville vide (champ optionnel)', () => {
+      const validBatiment = {
         name: 'Test Building',
         address: '123 Test Street',
         city: '',
         clientId: '550e8400-e29b-41d4-a716-446655440000',
       };
 
-      const result = createBatimentSchema.safeParse(invalidBatiment);
-      expect(result.success).toBe(false);
+      const result = createBatimentSchema.safeParse(validBatiment);
+      expect(result.success).toBe(true);
     });
 
     it('devrait rejeter un clientId vide', () => {
