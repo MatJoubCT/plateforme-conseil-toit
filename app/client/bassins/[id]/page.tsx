@@ -1844,11 +1844,11 @@ export default function ClientBassinDetailPage() {
                       <div
                         key={it.id}
                         onClick={() => setSelectedInterventionId(it.id)}
-                        className={`group cursor-pointer rounded-xl border p-4 transition-all overflow-hidden ${
+                        className={
                           selected
-                            ? 'border-[#1F4E79] bg-[#1F4E79]/5 shadow-sm'
-                            : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
-                        }`}
+                            ? 'group cursor-pointer rounded-xl border p-4 transition-all overflow-hidden border-[#1F4E79] bg-[#1F4E79]/5 shadow-sm'
+                            : 'group cursor-pointer rounded-xl border p-4 transition-all overflow-hidden border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                        }
                       >
                         <div className="flex items-start justify-between gap-3 min-w-0">
                           <div className="flex-1 min-w-0">

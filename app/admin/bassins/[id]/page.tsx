@@ -1715,11 +1715,11 @@ export default function AdminBassinDetailPage() {
                       <div
                         key={it.id}
                         onClick={() => setSelectedInterventionId(it.id)}
-                        className={`group cursor-pointer rounded-xl border p-4 transition-all ${
+                        className={
                           selected
-                            ? 'border-[#1F4E79] bg-[#1F4E79]/5 shadow-sm'
-                            : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
-                        }`}
+                            ? 'group cursor-pointer rounded-xl border p-4 transition-all border-[#1F4E79] bg-[#1F4E79]/5 shadow-sm'
+                            : 'group cursor-pointer rounded-xl border p-4 transition-all border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                        }
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
