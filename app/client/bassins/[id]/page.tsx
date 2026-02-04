@@ -1876,7 +1876,7 @@ export default function ClientBassinDetailPage() {
                             )}
                           </div>
 
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1 transition-opacity sm:opacity-0 group-hover:opacity-100">
                             {(() => {
                               const imageFiles = (it.files || []).filter((f) =>
                                 f.mime_type?.startsWith('image/')
@@ -2184,7 +2184,7 @@ export default function ClientBassinDetailPage() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex items-center gap-1 transition-opacity sm:opacity-0 group-hover:opacity-100">
                                 {g.fichier_pdf_url && (
                                   <a
                                     href={g.fichier_pdf_url}
@@ -2242,7 +2242,7 @@ export default function ClientBassinDetailPage() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex items-center gap-1 transition-opacity sm:opacity-0 group-hover:opacity-100">
                                 {r.file_url && (
                                   <a
                                     href={r.file_url}
@@ -2944,7 +2944,7 @@ export default function ClientBassinDetailPage() {
                               className="h-full w-full object-cover"
                             />
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="transition-opacity sm:opacity-0 group-hover:opacity-100">
                                 <Download className="h-8 w-8 text-white drop-shadow-lg" />
                               </div>
                             </div>
