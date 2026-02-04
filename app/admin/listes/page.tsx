@@ -97,7 +97,7 @@ export default function AdminListesChoixPage() {
     endpoint: '/api/admin/listes/create',
     defaultErrorMessage: "Erreur lors de la création de l'élément",
     onSuccess: async (data) => {
-      const newItem = data.data as ListeChoixRow
+      const newItem = data as ListeChoixRow
       setAllItems((prev) => [...prev, newItem])
       setShowModal(false)
       setEditingItem(null)
@@ -115,7 +115,7 @@ export default function AdminListesChoixPage() {
     endpoint: '/api/admin/listes/update',
     defaultErrorMessage: "Erreur lors de la mise à jour de l'élément",
     onSuccess: async (data) => {
-      const updated = data.data as ListeChoixRow
+      const updated = data as ListeChoixRow
       setAllItems((prev) =>
         prev.map((i) => (i.id === updated.id ? updated : i))
       )
@@ -320,6 +320,7 @@ export default function AdminListesChoixPage() {
           code: formCode.trim() || null,
           label: trimmedLabel,
           couleur: trimmedColor || null,
+          ordre: editingItem.ordre,
           actif: formActif,
         }
 
