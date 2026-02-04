@@ -623,7 +623,7 @@ export default function ClientInterventionsPage() {
                               e.stopPropagation()
                               handleOpenModal(intervention)
                             }}
-                            className="table-action-icon group/eye relative rounded-full p-2 text-slate-400 hover:bg-ct-primary/10 hover:text-ct-primary"
+                            className="group/eye relative rounded-full p-2 text-slate-400 hover:bg-ct-primary/10 hover:text-ct-primary transition-colors"
                             title="Voir les images"
                           >
                             <Eye className="h-5 w-5" />
