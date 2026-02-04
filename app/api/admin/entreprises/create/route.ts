@@ -54,9 +54,16 @@ export async function POST(req: NextRequest) {
     const dbData = {
       type: validated.type,
       nom: validated.nom,
+      amcq_membre: validated.amcq_membre ?? null,
+      source: validated.source || null,
+      site_web: validated.site_web || null,
       telephone: validated.telephone || null,
-      site_web: validated.siteWeb || null,
+      adresse: validated.adresse || null,
+      ville: validated.ville || null,
+      province: validated.province || null,
+      code_postal: validated.code_postal || null,
       notes: validated.notes || null,
+      actif: validated.actif ?? true,
     }
 
     // Création de l'entreprise

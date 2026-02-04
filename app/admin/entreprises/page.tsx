@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, FormEvent } from 'react'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { Pagination, usePagination } from '@/components/ui/Pagination'
 import { useApiMutation } from '@/lib/hooks/useApiMutation'
+import { ENTREPRISE_TYPES } from '@/lib/schemas/entreprise.schema'
 import {
   Dialog,
   DialogContent,
@@ -259,7 +260,7 @@ export default function AdminEntreprisesPage() {
   const buildPayload = () => ({
     type: fType.trim(),
     nom: fNom.trim(),
-    amcq_membre: fAmcq ? true : null, // colonne nullable -> on met null si non applicable
+    amcq_membre: fAmcq ? true : null,
     source: fSource.trim() !== '' ? fSource.trim() : null,
     site_web: fSiteWeb.trim() !== '' ? fSiteWeb.trim() : null,
     telephone: fTelephone.trim() !== '' ? fTelephone.trim() : null,
@@ -268,7 +269,7 @@ export default function AdminEntreprisesPage() {
     province: fProvince.trim() !== '' ? fProvince.trim() : null,
     code_postal: fCodePostal.trim() !== '' ? fCodePostal.trim() : null,
     notes: fNotes.trim() !== '' ? fNotes.trim() : null,
-    actif: !!fActif,
+    actif: fActif,
   })
 
   const handleSubmitAdd = async (e: FormEvent) => {
@@ -310,11 +311,18 @@ export default function AdminEntreprisesPage() {
           <label className="block text-sm font-semibold text-slate-700">
             Type <span className="text-red-500">*</span>
           </label>
-          <input
+          <select
             value={fType}
             onChange={(e) => setFType(e.target.value)}
             className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm transition-colors focus:border-[#1F4E79] focus:outline-none focus:ring-2 focus:ring-[#1F4E79]/20"
-          />
+          >
+            <option value="">-- Sélectionner un type --</option>
+            {ENTREPRISE_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="space-y-1.5">

@@ -6,6 +6,18 @@ import { z } from 'zod'
 const PHONE_REGEX = /^[\d\s\-\(\)\.+]+$/
 
 /**
+ * Types d'entreprises valides
+ */
+const VALID_TYPES = [
+  'Couvreur',
+  'Fournisseur',
+  'Consultant',
+  'Entrepreneur général',
+  'Sous-traitant',
+  'Autre'
+] as const
+
+/**
  * Schéma de validation pour URL (optionnel)
  */
 const urlSchema = z
@@ -28,28 +40,82 @@ const phoneSchema = z
   .or(z.literal(''))
 
 /**
+ * Schéma de validation pour code postal (optionnel)
+ */
+const postalCodeSchema = z
+  .string()
+  .max(10, 'Le code postal est trop long (max 10 caractères)')
+  .nullable()
+  .optional()
+  .or(z.literal(''))
+
+/**
  * Schéma de validation pour la création d'une entreprise
  */
 export const createEntrepriseSchema = z.object({
   type: z
-    .string().min(1, 'Le type est obligatoire')
+    .string()
     .min(1, 'Le type est obligatoire')
-    .max(100, 'Le type est trop long (max 100 caractères)'),
+    .max(100, 'Le type est trop long (max 100 caractères)')
+    .refine(
+      (val) => VALID_TYPES.includes(val as typeof VALID_TYPES[number]),
+      { message: 'Type d\'entreprise invalide. Valeurs acceptées: ' + VALID_TYPES.join(', ') }
+    ),
 
   nom: z
-    .string().min(1, 'Le nom est obligatoire')
+    .string()
     .min(1, 'Le nom est obligatoire')
     .max(200, 'Le nom est trop long (max 200 caractères)'),
 
+  amcq_membre: z
+    .boolean()
+    .nullable()
+    .optional(),
+
+  source: z
+    .string()
+    .max(200, 'La source est trop longue (max 200 caractères)')
+    .nullable()
+    .optional()
+    .or(z.literal('')),
+
+  site_web: urlSchema,
+
   telephone: phoneSchema,
 
-  siteWeb: urlSchema,
+  adresse: z
+    .string()
+    .max(500, 'L\'adresse est trop longue (max 500 caractères)')
+    .nullable()
+    .optional()
+    .or(z.literal('')),
+
+  ville: z
+    .string()
+    .max(100, 'La ville est trop longue (max 100 caractères)')
+    .nullable()
+    .optional()
+    .or(z.literal('')),
+
+  province: z
+    .string()
+    .max(50, 'La province est trop longue (max 50 caractères)')
+    .nullable()
+    .optional()
+    .or(z.literal('')),
+
+  code_postal: postalCodeSchema,
 
   notes: z
     .string()
     .max(2000, 'Les notes sont trop longues (max 2000 caractères)')
     .nullable()
-    .optional(),
+    .optional()
+    .or(z.literal('')),
+
+  actif: z
+    .boolean()
+    .default(true),
 })
 
 /**
@@ -57,7 +123,8 @@ export const createEntrepriseSchema = z.object({
  */
 export const updateEntrepriseSchema = createEntrepriseSchema.extend({
   id: z
-    .string().min(1, 'ID entreprise requis')
+    .string()
+    .min(1, 'ID entreprise requis')
     .uuid('ID entreprise invalide'),
 })
 
@@ -66,3 +133,8 @@ export const updateEntrepriseSchema = createEntrepriseSchema.extend({
  */
 export type CreateEntrepriseInput = z.infer<typeof createEntrepriseSchema>
 export type UpdateEntrepriseInput = z.infer<typeof updateEntrepriseSchema>
+
+/**
+ * Export des types valides pour utilisation dans les composants
+ */
+export const ENTREPRISE_TYPES = VALID_TYPES
