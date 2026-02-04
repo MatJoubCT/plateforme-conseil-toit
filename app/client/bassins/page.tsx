@@ -723,12 +723,12 @@ export default function ClientBassinsPage() {
                     return (
                       <tr
                         key={bassin.id}
-                        className="group cursor-pointer transition-colors hover:bg-slate-50"
+                        className="group cursor-pointer transition-all hover:bg-[#1F4E79]/5 hover:shadow-sm"
                         onClick={() => router.push(`/client/bassins/${bassin.id}`)}
                       >
                         <td className="py-4">
                           <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-sm font-semibold text-white shadow-sm">
+                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1F4E79] to-[#2d6ba8] text-sm font-semibold text-white shadow-sm transition-all group-hover:scale-110 group-hover:from-[#1F4E79] group-hover:to-[#163555]">
                               {(bassin.name ?? 'B')[0].toUpperCase()}
                             </div>
                             <div className="min-w-0">
@@ -744,13 +744,13 @@ export default function ClientBassinsPage() {
                           </div>
                         </td>
                         <td className="py-4">
-                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 transition-all group-hover:bg-slate-200">
                             <Building2 className="h-3 w-3 text-slate-400" />
                             {bat?.name ?? '—'}
                           </span>
                         </td>
                         <td className="py-4">
-                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 transition-all group-hover:bg-slate-200">
                             <Users className="h-3 w-3 text-slate-400" />
                             {bat?.clients
                               ? Array.isArray(bat.clients)
@@ -772,9 +772,9 @@ export default function ClientBassinsPage() {
                           </span>
                         </td>
                         <td className="py-4 text-center">
-                          <span className={`inline-flex min-w-[3.5rem] items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          <span className={`inline-flex min-w-[3.5rem] items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold transition-all ${
                             surfaceFt2 != null
-                              ? 'bg-[#1F4E79]/10 text-[#1F4E79]'
+                              ? 'bg-[#1F4E79]/10 text-[#1F4E79] group-hover:bg-[#1F4E79]/20 group-hover:scale-105'
                               : 'bg-slate-100 text-slate-500'
                           }`}>
                             {surfaceFt2 != null ? `${surfaceFt2.toLocaleString('fr-CA')} pi²` : 'n/d'}
@@ -795,7 +795,7 @@ export default function ClientBassinsPage() {
                         </td>
 
                         <td className="py-4">
-                          <span className="text-sm text-slate-600">
+                          <span className="text-sm text-slate-600 transition-colors group-hover:text-slate-900 group-hover:font-medium">
                             {dureeLibelle || 'Non définie'}
                           </span>
                         </td>
