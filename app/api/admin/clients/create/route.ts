@@ -53,7 +53,17 @@ export async function POST(req: NextRequest) {
     // Création du client
     const { data, error } = await supabaseAdmin
       .from('clients')
-      .insert({ name: validated.name })
+      .insert({
+        name: validated.name,
+        type: validated.type,
+        address: validated.address,
+        city: validated.city,
+        postal_code: validated.postal_code,
+        contact_name: validated.contact_name,
+        contact_email: validated.contact_email,
+        contact_phone: validated.contact_phone,
+        notes: validated.notes,
+      })
       .select()
       .single()
 

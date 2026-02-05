@@ -64,7 +64,17 @@ export async function PUT(req: NextRequest) {
     // Mise à jour du client
     const { data, error } = await supabaseAdmin
       .from('clients')
-      .update({ name: validated.name })
+      .update({
+        name: validated.name,
+        type: validated.type,
+        address: validated.address,
+        city: validated.city,
+        postal_code: validated.postal_code,
+        contact_name: validated.contact_name,
+        contact_email: validated.contact_email,
+        contact_phone: validated.contact_phone,
+        notes: validated.notes,
+      })
       .eq('id', validated.id)
       .select()
       .single()
