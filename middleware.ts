@@ -43,6 +43,25 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Rediriger la page d'accueil
+  if (pathname === '/') {
+    if (!user) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    } else {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single()
+
+      const url = request.nextUrl.clone()
+      url.pathname = profile?.role === 'admin' ? '/admin' : '/client'
+      return NextResponse.redirect(url)
+    }
+  }
+
   // Routes protégées Admin
   if (pathname.startsWith('/admin')) {
     if (!user) {
@@ -126,14 +145,6 @@ export async function middleware(request: NextRequest) {
  */
 export const config = {
   matcher: [
-    /*
-     * Match toutes les routes sauf:
-     * - api (API routes)
-     * - _next/static (fichiers statiques)
-     * - _next/image (optimisation d'images)
-     * - favicon.ico, sitemap.xml, robots.txt (fichiers publics)
-     * - *.png, *.jpg, *.jpeg, *.gif, *.svg, *.ico (images)
-     */
     '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:png|jpg|jpeg|gif|svg|ico)).*)',
   ],
 }
