@@ -115,6 +115,7 @@ export async function PUT(req: NextRequest) {
       name: validated.name,
       surface_m2: validated.surfaceM2 ?? null,
       membrane_type_id: validated.membraneTypeId || null,
+      couvreur_id: validated.couvreurId || null,
       etat_id: validated.etatId || null,
       duree_vie_id: validated.dureeVieId || null,
       duree_vie_text: validated.dureeVieText || null,

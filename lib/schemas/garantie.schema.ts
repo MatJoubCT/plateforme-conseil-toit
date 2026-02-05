@@ -30,16 +30,18 @@ export const createGarantieSchema = z.object({
   dateDebut: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format de date invalide (YYYY-MM-DD)')
+    .or(z.literal('')) // Accepter chaîne vide
     .nullable()
     .optional()
-    .or(z.literal('')),
+    .transform(val => val === '' ? null : val), // Convertir chaîne vide en null
 
   dateFin: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format de date invalide (YYYY-MM-DD)')
+    .or(z.literal('')) // Accepter chaîne vide
     .nullable()
     .optional()
-    .or(z.literal('')),
+    .transform(val => val === '' ? null : val), // Convertir chaîne vide en null
 
   statutId: z
     .string()
@@ -62,8 +64,10 @@ export const createGarantieSchema = z.object({
   fichierPdfUrl: z
     .string()
     .url('URL invalide')
+    .or(z.literal('')) // Accepter chaîne vide
     .nullable()
-    .optional(),
+    .optional()
+    .transform(val => val === '' ? null : val), // Convertir chaîne vide en null
 })
 
 /**

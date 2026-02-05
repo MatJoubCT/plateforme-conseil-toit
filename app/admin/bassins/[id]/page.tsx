@@ -796,7 +796,8 @@ export default function AdminBassinDetailPage() {
       }
 
       const { data: publicData } = supabaseBrowser.storage.from('garanties').getPublicUrl(path)
-      fichierUrl = publicData?.publicUrl ?? null
+      // S'assurer que l'URL n'est pas une chaîne vide
+      fichierUrl = publicData?.publicUrl && publicData.publicUrl.trim() !== '' ? publicData.publicUrl : null
     }
 
     // 2) Champs UUID sécurisés
@@ -926,7 +927,8 @@ export default function AdminBassinDetailPage() {
       }
 
       const { data: publicData } = supabaseBrowser.storage.from('rapports').getPublicUrl(path)
-      fichierUrl = publicData?.publicUrl ?? null
+      // S'assurer que l'URL n'est pas une chaîne vide
+      fichierUrl = publicData?.publicUrl && publicData.publicUrl.trim() !== '' ? publicData.publicUrl : null
     }
 
     const safeTypeRapportId = formTypeRapportId && formTypeRapportId.trim() !== '' ? formTypeRapportId : null
@@ -936,8 +938,9 @@ export default function AdminBassinDetailPage() {
       type_id: safeTypeRapportId,
       date_rapport: formDateRapport || null,
       numero_ct: formNumeroRapport || null,
+      titre: null, // Champ requis par le schéma, mais pas encore dans le formulaire
       description: formCommentaireRapport || null,
-      file_url: fichierUrl,
+      file_url: fichierUrl || null, // S'assurer que c'est null et non une chaîne vide
     }
 
     const badUuidFields: string[] = []
@@ -1056,7 +1059,9 @@ export default function AdminBassinDetailPage() {
 
     const payload = {
       id: bassin.id,
+      batimentId: bassin.batiment_id!, // Requis par le schéma
       name: editName || null,
+      surfaceM2: bassin.surface_m2, // Inclure la surface actuelle
       membraneTypeId: safeMembraneId,
       anneeInstallation: annee,
       dateDerniereRefection: editDateDerniere && editDateDerniere.trim() !== '' ? editDateDerniere : null,

@@ -45,6 +45,12 @@ export const createBassinSchema = z.object({
     .nullable()
     .optional(),
 
+  couvreurId: z
+    .string()
+    .uuid('ID couvreur invalide')
+    .nullable()
+    .optional(),
+
   etatId: z
     .string()
     .uuid('État invalide')
@@ -68,9 +74,10 @@ export const createBassinSchema = z.object({
   dateDerniereRefection: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format de date invalide (YYYY-MM-DD)')
+    .or(z.literal('')) // Accepter chaîne vide
     .nullable()
     .optional()
-    .or(z.literal('')),
+    .transform(val => val === '' ? null : val), // Convertir chaîne vide en null
 
   referenceInterne: z
     .string()
