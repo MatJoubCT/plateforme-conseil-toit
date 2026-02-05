@@ -490,10 +490,10 @@ export default function AdminBatimentDetailPage() {
     await updateBatiment({
       id: batiment.id,
       name: editName || null,
-      client_id: editClientId || null,
+      clientId: editClientId || null,
       address: editAddress || null,
       city: editCity || null,
-      postal_code: editPostalCode || null,
+      postalCode: editPostalCode || null,
       latitude,
       longitude,
       notes: editNotes || null,
@@ -581,28 +581,28 @@ export default function AdminBatimentDetailPage() {
       addBassinAnnee.trim() !== '' ? Number(addBassinAnnee.trim()) : null
 
     const payload = {
-      batiment_id: batimentId,
+      batimentId: batimentId,
       name: addBassinName || null,
-      membrane_type_id:
+      membraneTypeId:
         addBassinMembraneId.trim() !== ''
           ? addBassinMembraneId.trim()
           : null,
-      surface_m2: surface,
-      annee_installation: annee,
-      date_derniere_refection:
+      surfaceM2: surface,
+      anneeInstallation: annee,
+      dateDerniereRefection:
         addBassinDerniereRef.trim() !== ''
           ? addBassinDerniereRef.trim()
           : null,
-      etat_id: addBassinEtatId.trim() !== '' ? addBassinEtatId.trim() : null,
-      duree_vie_id:
+      etatId: addBassinEtatId.trim() !== '' ? addBassinEtatId.trim() : null,
+      dureeVieId:
         addBassinDureeId.trim() !== '' ? addBassinDureeId.trim() : null,
-      duree_vie_text: null,
-      reference_interne:
+      dureeVieText: null,
+      referenceInterne:
         addBassinReferenceInterne.trim() !== ''
           ? addBassinReferenceInterne.trim()
           : null,
       notes: addBassinNotes.trim() !== '' ? addBassinNotes.trim() : null,
-      polygone_geojson: null,
+      polygoneGeojson: null,
     }
 
     await createBassin(payload)
