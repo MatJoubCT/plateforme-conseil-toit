@@ -37,6 +37,7 @@ export default function AdminClientsPage() {
 
   const [search, setSearch] = useState('')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [hoveredClientId, setHoveredClientId] = useState<string | null>(null)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [createName, setCreateName] = useState('')
@@ -331,41 +332,65 @@ export default function AdminClientsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {currentItems.map((c) => (
-                      <tr
-                        key={c.id}
-                        className="group cursor-pointer transition-colors hover:bg-slate-50"
-                        onClick={() => {
-                          window.location.href = `/admin/clients/${c.id}`
-                        }}
-                      >
-                        <td className="py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-sm font-semibold text-white shadow-sm">
-                              {(c.name ?? 'C')[0].toUpperCase()}
+                    {currentItems.map((c) => {
+                      const isHovered = hoveredClientId === c.id
+
+                      return (
+                        <tr
+                          key={c.id}
+                          className={`group cursor-pointer transition-all ${
+                            isHovered
+                              ? 'bg-ct-primary/10 shadow-sm'
+                              : 'hover:bg-slate-50'
+                          }`}
+                          onMouseEnter={() => setHoveredClientId(c.id)}
+                          onMouseLeave={() => setHoveredClientId(null)}
+                          onClick={() => {
+                            window.location.href = `/admin/clients/${c.id}`
+                          }}
+                        >
+                          <td className="py-4">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white shadow-sm transition-all ${
+                                  isHovered
+                                    ? 'bg-gradient-to-br from-ct-primary to-[#163555] scale-110'
+                                    : 'bg-gradient-to-br from-ct-primary to-[#2d6ba8]'
+                                }`}
+                              >
+                                {(c.name ?? 'C')[0].toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <span
+                                  className={`block truncate font-semibold transition-colors ${
+                                    isHovered
+                                      ? 'text-ct-primary'
+                                      : 'text-slate-800 group-hover:text-ct-primary'
+                                  }`}
+                                >
+                                  {c.name || '(Sans nom)'}
+                                </span>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <span className="block truncate font-semibold text-slate-800 transition-colors group-hover:text-ct-primary">
-                                {c.name || '(Sans nom)'}
+                          </td>
+                          <td className="py-4 px-0">
+                            <div className="flex justify-center">
+                              <span
+                                className={`inline-flex min-w-[2rem] items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold transition-all ${
+                                  c.nb_batiments > 0
+                                    ? isHovered
+                                      ? 'bg-ct-primary/20 text-ct-primary scale-105'
+                                      : 'bg-ct-primary/10 text-ct-primary'
+                                    : 'bg-slate-100 text-slate-500'
+                                }`}
+                              >
+                                {c.nb_batiments}
                               </span>
                             </div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-0">
-                          <div className="flex justify-center">
-                            <span
-                              className={`inline-flex min-w-[2rem] items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                c.nb_batiments > 0
-                                  ? 'bg-ct-primary/10 text-ct-primary'
-                                  : 'bg-slate-100 text-slate-500'
-                              }`}
-                            >
-                              {c.nb_batiments}
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
