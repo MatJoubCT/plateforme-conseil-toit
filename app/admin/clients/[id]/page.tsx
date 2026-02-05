@@ -341,11 +341,11 @@ export default function AdminClientDetailPage() {
     }
 
     const payload = {
-      client_id: clientId,
+      clientId: clientId,
       name: addName.trim(),
       address: addAddress.trim() || null,
       city: addCity.trim() || null,
-      postal_code: addPostalCode.trim() || null,
+      postalCode: addPostalCode.trim() || null,
       latitude,
       longitude,
       notes: addNotes.trim() || null,
