@@ -49,23 +49,26 @@ export const createBatimentSchema = z
     address: z
       .string()
       .max(500, 'L\'adresse est trop longue (max 500 caractères)')
+      .or(z.literal('')) // Accepter chaîne vide
       .nullable()
       .optional()
-      .or(z.literal('')),
+      .transform(val => val === '' ? null : val), // Convertir chaîne vide en null
 
     city: z
       .string()
       .max(100, 'La ville est trop longue (max 100 caractères)')
+      .or(z.literal('')) // Accepter chaîne vide
       .nullable()
       .optional()
-      .or(z.literal('')),
+      .transform(val => val === '' ? null : val), // Convertir chaîne vide en null
 
     postalCode: z
       .string()
       .regex(CANADIAN_POSTAL_CODE_REGEX, 'Code postal invalide (format: A1A 1A1)')
+      .or(z.literal('')) // Accepter chaîne vide
       .nullable()
       .optional()
-      .or(z.literal('')),
+      .transform(val => val === '' ? null : val), // Convertir chaîne vide en null
 
     clientId: z
       .string().min(1, 'Le client est requis')
@@ -88,8 +91,10 @@ export const createBatimentSchema = z
     notes: z
       .string()
       .max(2000, 'Les notes sont trop longues (max 2000 caractères)')
+      .or(z.literal('')) // Accepter chaîne vide
       .nullable()
-      .optional(),
+      .optional()
+      .transform(val => val === '' ? null : val), // Convertir chaîne vide en null
   })
   .refine(
     (data) => {

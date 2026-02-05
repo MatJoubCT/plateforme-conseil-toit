@@ -276,10 +276,10 @@ export default function AdminBatimentsPage() {
 
     const payload = {
       name: addName.trim(),
-      client_id: addClientId,
+      clientId: addClientId,
       address: addAddress.trim() || null,
       city: addCity.trim() || null,
-      postal_code: addPostalCode.trim() || null,
+      postalCode: addPostalCode.trim() || null,
       latitude,
       longitude,
       notes: addNotes.trim() || null,
