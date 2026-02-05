@@ -95,15 +95,53 @@ export default function AdminClientDetailPage() {
   const [addLongitude, setAddLongitude] = useState('')
   const [addNotes, setAddNotes] = useState('')
 
+  // --- Chargement des données ---
+
+  const reloadClient = async () => {
+    if (!clientId) return
+
+    const { data: clientData, error: clientError } = await supabaseBrowser
+      .from('clients')
+      .select('*')
+      .eq('id', clientId)
+      .maybeSingle()
+
+    if (clientError || !clientData) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur rechargement client:', clientError)
+      }
+      return
+    }
+
+    setClient(clientData as ClientRecord)
+  }
+
+  const reloadBatiments = async () => {
+    if (!clientId) return
+    const { data, error } = await supabaseBrowser
+      .from('batiments')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('name', { ascending: true })
+
+    if (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erreur chargement bâtiments:', error)
+      }
+      setBatiments([])
+      return
+    }
+
+    setBatiments((data || []) as BatimentRecord[])
+  }
+
   // Hooks de mutation
   const { mutate: updateClient, isLoading: editSaving, error: editError, resetError: resetEditError } = useApiMutation({
     method: 'PUT',
     endpoint: '/api/admin/clients/update',
     defaultErrorMessage: 'Erreur lors de la modification du client',
-    onSuccess: async (data) => {
-      if (data.data) {
-        setClient(data.data as ClientRecord)
-      }
+    onSuccess: async () => {
+      await reloadClient()
       setEditOpen(false)
     }
   })
@@ -127,27 +165,6 @@ export default function AdminClientDetailPage() {
       setAddOpen(false)
     }
   })
-
-  // --- Chargement des données ---
-
-  const reloadBatiments = async () => {
-    if (!clientId) return
-    const { data, error } = await supabaseBrowser
-      .from('batiments')
-      .select('*')
-      .eq('client_id', clientId)
-      .order('name', { ascending: true })
-
-    if (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur chargement bâtiments:', error)
-      }
-      setBatiments([])
-      return
-    }
-
-    setBatiments((data || []) as BatimentRecord[])
-  }
 
   useEffect(() => {
     if (!clientId) return
