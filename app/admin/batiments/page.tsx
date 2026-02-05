@@ -58,6 +58,7 @@ export default function AdminBatimentsPage() {
   const [search, setSearch] = useState('')
   const [clientFilter, setClientFilter] = useState<string>('all')
   const [cityFilter, setCityFilter] = useState<string>('all')
+  const [hoveredBatimentId, setHoveredBatimentId] = useState<string | null>(null)
 
   // Modal création bâtiment
   const [addOpen, setAddOpen] = useState(false)
@@ -489,10 +490,19 @@ export default function AdminBatimentsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {currentItems.map((b) => (
+                    {currentItems.map((b) => {
+                      const isHovered = hoveredBatimentId === b.id
+
+                      return (
                     <tr
                       key={b.id}
-                      className="group hover:bg-slate-50 transition-colors cursor-pointer"
+                      className={`group cursor-pointer transition-all ${
+                        isHovered
+                          ? 'bg-ct-primary/10 shadow-sm'
+                          : 'hover:bg-slate-50'
+                      }`}
+                      onMouseEnter={() => setHoveredBatimentId(b.id)}
+                      onMouseLeave={() => setHoveredBatimentId(null)}
                       onClick={() => {
                         window.location.href = `/admin/batiments/${b.id}`
                       }}
@@ -500,11 +510,23 @@ export default function AdminBatimentsPage() {
                       {/* Nom du bâtiment */}
                       <td className="py-4 pl-6">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-sm font-semibold text-white shadow-sm">
+                          <div
+                            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white shadow-sm transition-all ${
+                              isHovered
+                                ? 'bg-gradient-to-br from-ct-primary to-[#163555] scale-110'
+                                : 'bg-gradient-to-br from-ct-primary to-[#2d6ba8]'
+                            }`}
+                          >
                             {(b.name ?? 'B')[0].toUpperCase()}
                           </div>
                           <div className="min-w-0">
-                            <span className="block truncate font-semibold text-slate-800 transition-colors group-hover:text-ct-primary">
+                            <span
+                              className={`block truncate font-semibold transition-colors ${
+                                isHovered
+                                  ? 'text-ct-primary'
+                                  : 'text-slate-800 group-hover:text-ct-primary'
+                              }`}
+                            >
                               {b.name || '(Sans nom)'}
                             </span>
                             <p className="truncate text-xs text-slate-500 md:hidden">
@@ -516,17 +538,24 @@ export default function AdminBatimentsPage() {
 
                       {/* Client (caché sur mobile) */}
                       <td className="py-4 hidden md:table-cell">
-                        <p className="text-sm text-slate-700">{b.client_name || '—'}</p>
+                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 transition-all group-hover:bg-slate-200">
+                          <Users className="h-3 w-3 text-slate-400" />
+                          {b.client_name || '—'}
+                        </span>
                       </td>
 
                       {/* Localisation (cachée sur mobile/tablet) */}
                       <td className="py-4 hidden lg:table-cell">
                         <div className="flex items-start gap-2">
                           <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
-                          <div className="text-sm">
+                          <div className={`text-sm transition-all ${
+                            isHovered ? 'text-slate-900' : 'text-slate-600'
+                          }`}>
                             {b.city || b.address ? (
                               <>
-                                <p className="font-medium text-slate-700">{b.city || '—'}</p>
+                                <p className={`font-medium transition-all ${
+                                  isHovered ? 'text-slate-900' : 'text-slate-700'
+                                }`}>{b.city || '—'}</p>
                                 <p className="text-xs text-slate-500">{b.address || '—'}</p>
                               </>
                             ) : (
@@ -540,9 +569,11 @@ export default function AdminBatimentsPage() {
                       <td className="py-4 pr-6">
                         <div className="flex justify-center">
                           <span
-                            className={`inline-flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold ${
+                            className={`inline-flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold transition-all ${
                               b.nb_bassins > 0
-                                ? 'bg-ct-primary/10 text-ct-primary'
+                                ? isHovered
+                                  ? 'bg-ct-primary/20 text-ct-primary scale-105'
+                                  : 'bg-ct-primary/10 text-ct-primary'
                                 : 'bg-slate-100 text-slate-400'
                             }`}
                           >
@@ -551,7 +582,9 @@ export default function AdminBatimentsPage() {
                         </div>
                       </td>
                     </tr>
-                    ))}
+                      )
+                    }
+                    )}
                   </tbody>
                 </table>
               </div>
