@@ -1368,7 +1368,7 @@ function BatimentBasinsMap({
 }: BatimentBasinsMapProps) {
   const router = useRouter()
 
-  const { isLoaded } = useLoadScript({
+  const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
     libraries: ['drawing', 'geometry'] as ('drawing' | 'geometry')[],
   })
@@ -1438,11 +1438,29 @@ function BatimentBasinsMap({
     })
   }, [isLoaded, map, polygons, polygonsKey])
 
+  if (loadError) {
+    return (
+      <div className="flex min-h-[480px] flex-col items-center justify-center rounded-xl bg-red-50 p-6 text-center">
+        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+          <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <p className="mb-2 text-sm font-semibold text-red-900">
+          Erreur de chargement de Google Maps
+        </p>
+        <p className="max-w-md text-xs text-red-700">
+          Vérifiez que la clé API Google Maps est correctement configurée et que votre domaine est autorisé dans les restrictions de la console Google Cloud.
+        </p>
+      </div>
+    )
+  }
+
   if (!isLoaded) {
     return (
-      <div className="flex h-[480px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
+      <div className="flex min-h-[480px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-slate-200 animate-pulse" />
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-ct-primary border-t-transparent" />
           <p className="text-sm text-slate-500">Chargement de la carte…</p>
         </div>
       </div>
@@ -1465,9 +1483,9 @@ function BatimentBasinsMap({
   }
 
   return (
-    <div className="relative h-[480px] w-full overflow-hidden rounded-xl border border-slate-200">
+    <div className="relative h-[480px] min-h-[400px] w-full overflow-hidden rounded-xl border border-slate-200">
       <GoogleMap
-        mapContainerStyle={{ width: '100%', height: '100%' }}
+        mapContainerStyle={{ width: '100%', height: '100%', minHeight: '400px' }}
         // IMPORTANT: center/zoom => contrôlé pour éviter les re-renders inutiles
         center={initialCenterRef.current}
         zoom={18}
