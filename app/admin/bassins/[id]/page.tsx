@@ -293,22 +293,22 @@ export default function AdminBassinDetailPage() {
     defaultErrorMessage: 'Erreur lors de la suppression du bassin',
   })
 
-  // Garantie mutations (utilise endpoints client car admin n'en a pas besoin de spécifiques)
+  // Garantie mutations
   const { mutate: createGarantieApi, isLoading: isCreatingGarantie } = useApiMutation({
     method: 'POST',
-    endpoint: '/api/client/garanties/create',
+    endpoint: '/api/admin/garanties/create',
     defaultErrorMessage: 'Erreur lors de la création de la garantie',
   })
 
   const { mutate: updateGarantieApi, isLoading: isUpdatingGarantie } = useApiMutation({
     method: 'PUT',
-    endpoint: '/api/client/garanties/update',
+    endpoint: '/api/admin/garanties/update',
     defaultErrorMessage: 'Erreur lors de la modification de la garantie',
   })
 
   const { mutate: deleteGarantieApi, isLoading: isDeletingGarantie } = useApiMutation({
     method: 'DELETE',
-    endpoint: '/api/client/garanties/delete',
+    endpoint: '/api/admin/garanties/delete',
     defaultErrorMessage: 'Erreur lors de la suppression de la garantie',
   })
 
@@ -1926,7 +1926,7 @@ export default function AdminBassinDetailPage() {
                                 <button
                                   type="button"
                                   onClick={() => askDeleteGarantie(g)}
-                                  title="Modifier"
+                                  title="Supprimer"
                                   className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500"
                                 >
                                   <Trash2 className="h-4 w-4" />
