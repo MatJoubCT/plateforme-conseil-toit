@@ -930,6 +930,7 @@ export default function AdminBassinDetailPage() {
       batimentId: bassin.batiment_id!, // Requis par le schéma
       name: editName || null,
       surfaceM2: bassin.surface_m2, // Inclure la surface actuelle
+      polygoneGeojson: bassin.polygone_geojson, // Préserver le polygone existant
       membraneTypeId: safeMembraneId,
       anneeInstallation: annee,
       dateDerniereRefection: editDateDerniere && editDateDerniere.trim() !== '' ? editDateDerniere : null,
