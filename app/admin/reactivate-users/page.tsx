@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { UserCheck, UserX, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react'
+import { logger } from '@/lib/logger'
 
 interface UserProfile {
   user_id: string
@@ -35,9 +36,9 @@ export default function ReactivateUsersPage() {
 
       const data = await response.json()
       setUsers(data.users || [])
-      console.log('✅ Utilisateurs récupérés:', data.users)
+      logger.log('✅ Utilisateurs récupérés:', data.users)
     } catch (err: any) {
-      console.error('❌ Erreur lors de la récupération des utilisateurs:', err)
+      logger.error('❌ Erreur lors de la récupération des utilisateurs:', err)
       setError(err.message || 'Erreur lors de la récupération des utilisateurs')
     } finally {
       setLoading(false)
@@ -65,12 +66,12 @@ export default function ReactivateUsersPage() {
       }
 
       setSuccessMsg('Utilisateur réactivé avec succès!')
-      console.log('✅ Utilisateur réactivé:', userId)
+      logger.log('✅ Utilisateur réactivé:', userId)
 
       // Rafraîchir la liste
       await fetchUsers()
     } catch (err: any) {
-      console.error('❌ Erreur lors de la réactivation:', err)
+      logger.error('❌ Erreur lors de la réactivation:', err)
       setError(err.message || 'Erreur lors de la réactivation')
     } finally {
       setReactivating(null)
@@ -103,12 +104,12 @@ export default function ReactivateUsersPage() {
       }
 
       setSuccessMsg(`${data.count} utilisateur(s) réactivé(s) avec succès!`)
-      console.log(`✅ ${data.count} utilisateurs réactivés`)
+      logger.log(`✅ ${data.count} utilisateurs réactivés`)
 
       // Rafraîchir la liste
       await fetchUsers()
     } catch (err: any) {
-      console.error('❌ Erreur lors de la réactivation en masse:', err)
+      logger.error('❌ Erreur lors de la réactivation en masse:', err)
       setError(err.message || 'Erreur lors de la réactivation en masse')
     }
   }

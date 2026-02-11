@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabaseBrowser'
+import { logger } from '@/lib/logger'
 import {
   FileText,
   Search,
@@ -138,7 +139,7 @@ export default function ClientInterventionsPage() {
           .order('ordre', { ascending: true })
 
         if (listesError) {
-          console.error('Erreur chargement listes:', listesError)
+          logger.error('Erreur chargement listes:', listesError)
         }
 
         setListes(listesData || [])
@@ -218,7 +219,7 @@ export default function ClientInterventionsPage() {
             .order('created_at', { ascending: true })
 
           if (filesError) {
-            console.error('Erreur chargement fichiers:', filesError)
+            logger.error('Erreur chargement fichiers:', filesError)
           } else {
             // Organiser les fichiers par intervention_id
             const filesByIntervention: Record<string, InterventionFichierRow[]> = {}
@@ -233,7 +234,7 @@ export default function ClientInterventionsPage() {
         }
       } catch (err: unknown) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur chargement interventions:', err)
+          logger.error('Erreur chargement interventions:', err)
         }
         setErrorMsg(err instanceof Error ? err.message : 'Erreur lors du chargement des interventions.')
       } finally {
@@ -274,7 +275,7 @@ export default function ClientInterventionsPage() {
       }, {} as Record<string, string>)
       setImageUrls(urlMap)
     }).catch((err) => {
-      console.error('Erreur chargement URLs images:', err)
+      logger.error('Erreur chargement URLs images:', err)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modalOpen, selectedIntervention, interventionFiles])
@@ -336,7 +337,7 @@ export default function ClientInterventionsPage() {
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
     } catch (err) {
-      console.error('Erreur téléchargement fichier:', err)
+      logger.error('Erreur téléchargement fichier:', err)
       alert('Erreur lors du téléchargement du fichier.')
     }
   }
@@ -350,7 +351,7 @@ export default function ClientInterventionsPage() {
       if (error) throw error
       return data.signedUrl
     } catch (err) {
-      console.error('Erreur création URL signée:', err)
+      logger.error('Erreur création URL signée:', err)
       return ''
     }
   }

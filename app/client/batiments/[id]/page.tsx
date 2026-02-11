@@ -6,6 +6,9 @@ import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { useValidatedId } from '@/lib/hooks/useValidatedId'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
+import type { GeoJSONPolygon } from '@/types/maps'
+import type { BatimentRow, ListeChoix, BassinRow, UserProfileRow, UserClientRow } from '@/types/database'
+import { mapEtatToStateBadge } from '@/lib/utils/bassin-utils'
 import { GoogleMap, Polygon, useLoadScript } from '@react-google-maps/api'
 import {
   AlertTriangle,
@@ -21,83 +24,12 @@ import {
   Hash,
 } from 'lucide-react'
 
-type GeoJSONPolygon = {
-  type: 'Polygon'
-  coordinates: number[][][]
-}
-
-type BatimentRow = {
-  id: string
-  client_id: string | null
-  name: string | null
-  address: string | null
-  city: string | null
-  postal_code: string | null
-  latitude: number | null
-  longitude: number | null
-}
-
-type ListeChoix = {
-  id: string
-  categorie: string
-  label: string | null
-  couleur: string | null
-  ordre: number | null
-}
-
-type BassinRow = {
-  id: string
-  batiment_id: string | null
-  name: string | null
-  membrane_type_id: string | null
-  surface_m2: number | null
-  annee_installation: number | null
-  date_derniere_refection: string | null
-  etat_id: string | null
-  duree_vie_id: string | null
-  duree_vie_text: string | null
-  reference_interne: string | null
-  polygone_geojson: GeoJSONPolygon | null
-}
-
-type UserProfileRow = {
-  id: string
-  user_id: string
-  role: string | null
-  client_id: string | null
-  full_name: string | null
-}
-
-type UserClientRow = {
-  client_id: string | null
-}
-
 type BatimentBasinsMapProps = {
   center: { lat: number; lng: number }
   bassins: BassinRow[]
   etats: ListeChoix[]
   hoveredBassinId: string | null
   onHoverBassin: (id: string | null) => void
-}
-
-/** mappe un libellé d'état en type pour StateBadge */
-function mapEtatToStateBadge(etat: string | null): BassinState {
-  if (!etat) return 'non_evalue'
-
-  // Normaliser pour gérer accents (très -> tres)
-  const v = etat
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-
-  // IMPORTANT: traiter "tres bon" AVANT "bon"
-  if (v.includes('urgent')) return 'urgent'
-  if (v.includes('tres bon') || v.includes('excellent')) return 'tres_bon'
-  if (v.includes('bon')) return 'bon'
-  if (v.includes('surveiller')) return 'a_surveille'
-  if (v.includes('planifier') || v.includes('planification')) return 'planifier'
-
-  return 'non_evalue'
 }
 
 export default function ClientBatimentDetailPage() {
@@ -208,7 +140,7 @@ export default function ClientBatimentDetailPage() {
         setLoading(false)
         return
       }
-      setBatiment(batData as BatimentRow)
+      setBatiment(batData as unknown as BatimentRow)
       setClientName(
         (batData as any).clients?.name ?? 'Client non défini'
       )
@@ -258,32 +190,35 @@ export default function ClientBatimentDetailPage() {
     )
   }
 
-  const membranes = listes
-    .filter((l) => l.categorie === 'membrane')
-    .slice()
-    .sort(
-      (a, b) =>
-        (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
-        (a.label || '').localeCompare(b.label || '', 'fr-CA')
-    )
+  const membranes = useMemo(() =>
+    listes
+      .filter((l) => l.categorie === 'membrane')
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
+          (a.label || '').localeCompare(b.label || '', 'fr-CA')
+      ), [listes])
 
-  const etats = listes
-    .filter((l) => l.categorie === 'etat_bassin')
-    .slice()
-    .sort(
-      (a, b) =>
-        (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
-        (a.label || '').localeCompare(b.label || '', 'fr-CA')
-    )
+  const etats = useMemo(() =>
+    listes
+      .filter((l) => l.categorie === 'etat_bassin')
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
+          (a.label || '').localeCompare(b.label || '', 'fr-CA')
+      ), [listes])
 
-  const durees = listes
-    .filter((l) => l.categorie === 'duree_vie')
-    .slice()
-    .sort(
-      (a, b) =>
-        (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
-        (a.label || '').localeCompare(b.label || '', 'fr-CA')
-    )
+  const durees = useMemo(() =>
+    listes
+      .filter((l) => l.categorie === 'duree_vie')
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
+          (a.label || '').localeCompare(b.label || '', 'fr-CA')
+      ), [listes])
 
   const mapCenter =
     batiment && batiment.latitude != null && batiment.longitude != null

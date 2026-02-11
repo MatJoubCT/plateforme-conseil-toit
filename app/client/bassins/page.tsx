@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
+import type { BassinRow, ListeChoix, UserProfileRow, UserClientRow } from '@/types/database'
+import { mapEtatToStateBadge } from '@/lib/utils/bassin-utils'
 import { Pagination, usePagination } from '@/components/ui/Pagination'
 import {
   Layers,
@@ -20,19 +22,6 @@ import {
   X,
 } from 'lucide-react'
 
-type BassinRow = {
-  id: string
-  batiment_id: string | null
-  name: string | null
-  surface_m2: number | null
-  annee_installation: number | null
-  date_derniere_refection: string | null
-  etat_id: string | null
-  duree_vie_id: string | null
-  duree_vie_text: string | null
-  reference_interne: string | null
-}
-
 type BatimentRow = {
   id: string
   name: string | null
@@ -41,43 +30,6 @@ type BatimentRow = {
   postal_code: string | null
   client_id: string | null
   clients?: { id: string; name: string | null }[] | { id: string; name: string | null } | null
-}
-
-type ListeChoix = {
-  id: string
-  categorie: string
-  label: string | null
-  couleur: string | null
-  ordre: number | null
-}
-
-type UserProfileRow = {
-  id: string
-  user_id: string
-  role: string | null
-  client_id: string | null
-  full_name: string | null
-}
-
-type UserClientRow = {
-  client_id: string | null
-}
-
-function mapEtatToStateBadge(etat: string | null): BassinState {
-  if (!etat) return 'non_evalue'
-
-  const v = etat
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-
-  if (v.includes('urgent')) return 'urgent'
-  if (v.includes('tres bon') || v.includes('excellent')) return 'tres_bon'
-  if (v.includes('bon')) return 'bon'
-  if (v.includes('surveiller')) return 'a_surveille'
-  if (v.includes('planifier') || v.includes('planification')) return 'planifier'
-
-  return 'non_evalue'
 }
 
 export default function ClientBassinsPage() {

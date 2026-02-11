@@ -21,6 +21,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { logger } from '@/lib/logger'
 
 type ClientRow = {
   id: string
@@ -67,7 +68,7 @@ export default function AdminClientsPage() {
 
       if (clientsError) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur Supabase clients:', clientsError)
+          logger.error('Erreur Supabase clients:', clientsError)
         }
         setErrorMsg(clientsError.message)
         setLoading(false)
@@ -84,7 +85,7 @@ export default function AdminClientsPage() {
       setLoading(false)
     } catch (err: any) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur fetch clients:', err)
+        logger.error('Erreur fetch clients:', err)
       }
       setErrorMsg('Erreur lors du chargement des clients.')
       setLoading(false)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   GoogleMap,
   Polygon,
@@ -9,13 +9,9 @@ import {
   MarkerF,
 } from '@react-google-maps/api'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import type { GeoJSONPolygon } from '@/types/maps'
 
 type LatLngLiteral = google.maps.LatLngLiteral
-
-type GeoJSONPolygon = {
-  type: 'Polygon'
-  coordinates: number[][][]
-}
 
 export type InterventionMarker = {
   id: string
@@ -51,7 +47,7 @@ function samePoint(a: LatLngLiteral, b: LatLngLiteral, eps = 1e-10) {
   return Math.abs(a.lat - b.lat) < eps && Math.abs(a.lng - b.lng) < eps
 }
 
-export default function BassinMap({
+function BassinMap({
   bassinId,
   center,
   initialPolygon,
@@ -552,3 +548,5 @@ export default function BassinMap({
     </div>
   )
 }
+
+export default memo(BassinMap)

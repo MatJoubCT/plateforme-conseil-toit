@@ -4,10 +4,27 @@ import { useEffect, useMemo, useState, FormEvent, ChangeEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
+import { logger } from '@/lib/logger'
 import { useValidatedId } from '@/lib/hooks/useValidatedId'
 import { useApiMutation } from '@/lib/hooks/useApiMutation'
 import { getCsrfTokenFromCookies } from '@/lib/csrf'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
+import type { GeoJSONPolygon, GeoJSONPoint } from '@/types/maps'
+import type {
+  BassinRow,
+  BatimentRow,
+  ListeChoix,
+  GarantieRow,
+  EntrepriseRow,
+  RapportRow,
+  InterventionRow,
+  InterventionFichierRow,
+  InterventionWithFiles,
+  CompositionLineRow,
+  UserProfileRow,
+  UserClientRow,
+} from '@/types/database'
+import { mapEtatToStateBadge } from '@/lib/utils/bassin-utils'
 import BassinMap, { InterventionMarker } from '@/components/maps/BassinMap'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import {
@@ -40,160 +57,6 @@ import {
   StickyNote,
   Hash,
 } from 'lucide-react'
-
-type GeoJSONPolygon = {
-  type: 'Polygon'
-  coordinates: number[][][]
-}
-
-type GeoJSONPoint = {
-  type: 'Point'
-  coordinates: [number, number] // [lng, lat]
-}
-
-type BassinRow = {
-  id: string
-  batiment_id: string | null
-  name: string | null
-  membrane_type_id: string | null
-  surface_m2: number | null
-  annee_installation: number | null
-  date_derniere_refection: string | null
-  couvreur_id: string | null
-  etat_id: string | null
-  duree_vie_id: string | null
-  duree_vie_text: string | null
-  reference_interne: string | null
-  notes: string | null
-  polygone_geojson: GeoJSONPolygon | null
-}
-
-type BatimentRow = {
-  id: string
-  client_id: string | null
-  name: string | null
-  address: string | null
-  city: string | null
-  postal_code: string | null
-  latitude: number | null
-  longitude: number | null
-}
-
-type ListeChoix = {
-  id: string
-  categorie: string
-  label: string | null
-  couleur: string | null
-  ordre?: number | null
-}
-
-type GarantieRow = {
-  id: string
-  bassin_id: string | null
-  type_garantie_id: string | null
-  fournisseur: string | null
-  numero_garantie: string | null
-  date_debut: string | null
-  date_fin: string | null
-  statut_id: string | null
-  couverture: string | null
-  commentaire: string | null
-  fichier_pdf_url: string | null
-}
-
-type EntrepriseRow = {
-  id: string
-  type: string | null
-  nom: string | null
-}
-
-type RapportRow = {
-  id: string
-  bassin_id: string | null
-  type_id: string | null
-  date_rapport: string | null
-  numero_ct: string | null
-  titre: string | null
-  description: string | null
-  file_url: string | null
-}
-
-type InterventionRow = {
-  id: string
-  bassin_id: string
-  date_intervention: string
-  type_intervention_id: string | null
-  commentaire: string | null
-  location_geojson: GeoJSONPoint | null
-  created_at: string
-}
-
-type InterventionFichierRow = {
-  id: string
-  intervention_id: string
-  file_path: string
-  file_name: string | null
-  mime_type: string | null
-  created_at: string
-}
-
-type InterventionWithFiles = InterventionRow & {
-  files: InterventionFichierRow[]
-}
-
-type CompositionLineRow = {
-  id: string
-  bassin_id: string
-  materiau_id: string
-  position: number
-  quantite: number | null
-  notes: string | null
-  created_at: string
-  materiau: {
-    id: string
-    nom: string
-    prix_cad: number
-    actif: boolean
-    categorie_id: string | null
-    manufacturier_entreprise_id: string | null
-    manufacturier?: {
-      id: string
-      nom: string
-    } | null
-  } | null
-}
-
-type UserProfileRow = {
-  id: string
-  user_id: string
-  role: string | null
-  client_id: string | null
-  full_name: string | null
-}
-
-type UserClientRow = {
-  client_id: string | null
-}
-
-/** mappe un libellé d'état en type pour StateBadge */
-function mapEtatToStateBadge(etat: string | null): BassinState {
-  if (!etat) return 'non_evalue'
-
-  // Normaliser pour gérer accents (très -> tres)
-  const v = etat
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-
-  // IMPORTANT: traiter "tres bon" AVANT "bon"
-  if (v.includes('urgent')) return 'urgent'
-  if (v.includes('tres bon') || v.includes('excellent')) return 'tres_bon'
-  if (v.includes('bon')) return 'bon'
-  if (v.includes('surveiller')) return 'a_surveille'
-  if (v.includes('planifier') || v.includes('planification')) return 'planifier'
-
-  return 'non_evalue'
-}
 
 function safePointFromGeoJSON(p: any): { lat: number; lng: number } | null {
   if (!p) return null
@@ -425,6 +288,7 @@ export default function ClientBassinDetailPage() {
       setLoading(true)
       setErrorMsg(null)
 
+      // Authentification
       const {
         data: { user },
         error: userError,
@@ -437,38 +301,38 @@ export default function ClientBassinDetailPage() {
         return
       }
 
-      const { data: profileData, error: profileError } =
-        await supabaseBrowser
+      // Profil + clients autorisés en parallèle (les deux dépendent de user.id)
+      const [profileRes, userClientsRes] = await Promise.all([
+        supabaseBrowser
           .from('user_profiles')
           .select('id, user_id, role, client_id, full_name')
           .eq('user_id', user.id)
-          .maybeSingle()
+          .maybeSingle(),
+        supabaseBrowser
+          .from('user_clients')
+          .select('client_id')
+          .eq('user_id', user.id),
+      ])
 
-      if (profileError || !profileData) {
+      if (profileRes.error || !profileRes.data) {
         setErrorMsg('Profil utilisateur introuvable.')
         setLoading(false)
         return
       }
 
-      const { data: userClientsData, error: userClientsError } =
-        await supabaseBrowser
-          .from('user_clients')
-          .select('client_id')
-          .eq('user_id', user.id)
-
-      if (userClientsError) {
-        setErrorMsg(userClientsError.message)
+      if (userClientsRes.error) {
+        setErrorMsg(userClientsRes.error.message)
         setLoading(false)
         return
       }
 
       const authorizedClientIds = new Set<string>()
-      const profile = profileData as UserProfileRow
+      const profile = profileRes.data as UserProfileRow
       if (profile.client_id) {
         authorizedClientIds.add(profile.client_id)
       }
 
-      const extraClients = (userClientsData || []) as UserClientRow[]
+      const extraClients = (userClientsRes.data || []) as UserClientRow[]
       extraClients.forEach((uc) => {
         if (uc.client_id) authorizedClientIds.add(uc.client_id)
       })
@@ -481,46 +345,104 @@ export default function ClientBassinDetailPage() {
         return
       }
 
-      // 1) Bassin + bâtiment associé
-      const { data: bassinData, error: bassinError } = await supabaseBrowser
-        .from('bassins')
-        .select(
-          `
-          id,
-          batiment_id,
-          name,
-          membrane_type_id,
-          surface_m2,
-          annee_installation,
-          date_derniere_refection,
-          etat_id,
-          duree_vie_id,
-          duree_vie_text,
-          reference_interne,
-          notes,
-          polygone_geojson,
-          couvreur_id,
-          batiments (
+      // Requêtes données principales en parallèle
+      const [bassinRes, listesRes, couvreursRes, garantiesRes, rapportsRes, intRes, compositionRes] = await Promise.all([
+        supabaseBrowser
+          .from('bassins')
+          .select(
+            `
             id,
-            client_id,
+            batiment_id,
             name,
-            address,
-            city,
-            postal_code,
-            latitude,
-            longitude
+            membrane_type_id,
+            surface_m2,
+            annee_installation,
+            date_derniere_refection,
+            etat_id,
+            duree_vie_id,
+            duree_vie_text,
+            reference_interne,
+            notes,
+            polygone_geojson,
+            couvreur_id,
+            batiments (
+              id,
+              client_id,
+              name,
+              address,
+              city,
+              postal_code,
+              latitude,
+              longitude
+            )
+          `
           )
-        `
-        )
-        .eq('id', bassinId)
-        .maybeSingle()
+          .eq('id', bassinId)
+          .maybeSingle(),
+        supabaseBrowser
+          .from('listes_choix')
+          .select('id, categorie, label, couleur, ordre'),
+        supabaseBrowser
+          .from('entreprises')
+          .select('id, type, nom')
+          .eq('type', 'couvreur')
+          .order('nom', { ascending: true }),
+        supabaseBrowser
+          .from('garanties')
+          .select(
+            'id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url'
+          )
+          .eq('bassin_id', bassinId)
+          .order('date_debut', { ascending: true }),
+        supabaseBrowser
+          .from('rapports')
+          .select('id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url')
+          .eq('bassin_id', bassinId)
+          .order('date_rapport', { ascending: false }),
+        supabaseBrowser
+          .from('interventions')
+          .select('id, bassin_id, date_intervention, type_intervention_id, commentaire, location_geojson, created_at')
+          .eq('bassin_id', bassinId)
+          .order('date_intervention', { ascending: false })
+          .order('created_at', { ascending: false }),
+        supabaseBrowser
+          .from('bassin_composition_lignes')
+          .select(
+            `
+            id,
+            bassin_id,
+            materiau_id,
+            position,
+            quantite,
+            notes,
+            created_at,
+            materiau:materiaux (
+              id,
+              nom,
+              prix_cad,
+              actif,
+              categorie_id,
+              manufacturier_entreprise_id,
+              manufacturier:entreprises!manufacturier_entreprise_id (
+                id,
+                nom
+              )
+            )
+          `
+          )
+          .eq('bassin_id', bassinId)
+          .order('position', { ascending: true })
+          .order('created_at', { ascending: true }),
+      ])
 
-      if (bassinError) {
-        setErrorMsg(bassinError.message)
+      const firstError = bassinRes.error || listesRes.error || couvreursRes.error || garantiesRes.error || rapportsRes.error || intRes.error || compositionRes.error
+      if (firstError) {
+        setErrorMsg(firstError.message)
         setLoading(false)
         return
       }
 
+      const bassinData = bassinRes.data
       if (!bassinData) {
         setErrorMsg('Bassin introuvable ou non accessible.')
         setLoading(false)
@@ -534,44 +456,7 @@ export default function ClientBassinDetailPage() {
         return
       }
 
-      // 3) Listes de choix
-      const { data: listesData, error: listesError } = await supabaseBrowser
-        .from('listes_choix')
-        .select('id, categorie, label, couleur, ordre')
-
-      if (listesError) {
-        setErrorMsg(listesError.message)
-        setLoading(false)
-        return
-      }
-
-      // 3.1) Entreprises (couvreurs)
-      const { data: couvreursData, error: couvreursError } = await supabaseBrowser
-        .from('entreprises')
-        .select('id, type, nom')
-        .eq('type', 'couvreur')
-        .order('nom', { ascending: true })
-
-      if (couvreursError) {
-        setErrorMsg(couvreursError.message)
-        setLoading(false)
-        return
-      }
-
-      // 4) Garanties du bassin
-      const { data: garantiesData, error: garantiesError } = await supabaseBrowser
-        .from('garanties')
-        .select(
-          'id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url'
-        )
-        .eq('bassin_id', bassinId)
-        .order('date_debut', { ascending: true })
-
-      if (garantiesError) {
-        setErrorMsg(garantiesError.message)
-        setLoading(false)
-        return
-      }
+      const garantiesData = garantiesRes.data
 
       // Trouver la garantie avec date de fin la plus proche
       if (garantiesData && garantiesData.length > 0) {
@@ -590,34 +475,8 @@ export default function ClientBassinDetailPage() {
         setGarantieProche(null)
       }
 
-      // 5) Rapports du bassin
-      const { data: rapportsData, error: rapportsError } = await supabaseBrowser
-        .from('rapports')
-        .select('id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url')
-        .eq('bassin_id', bassinId)
-        .order('date_rapport', { ascending: false })
-
-      if (rapportsError) {
-        setErrorMsg(rapportsError.message)
-        setLoading(false)
-        return
-      }
-
-      // 6) Interventions + fichiers
-      const { data: intData, error: intError } = await supabaseBrowser
-        .from('interventions')
-        .select('id, bassin_id, date_intervention, type_intervention_id, commentaire, location_geojson, created_at')
-        .eq('bassin_id', bassinId)
-        .order('date_intervention', { ascending: false })
-        .order('created_at', { ascending: false })
-
-      if (intError) {
-        setErrorMsg(intError.message)
-        setLoading(false)
-        return
-      }
-
-      const intRows = (intData || []) as InterventionRow[]
+      // Fichiers d'interventions (dépend des IDs d'interventions)
+      const intRows = (intRes.data || []) as InterventionRow[]
       const ids = intRows.map((i) => i.id)
 
       let filesRows: InterventionFichierRow[] = []
@@ -648,54 +507,18 @@ export default function ClientBassinDetailPage() {
         files: filesByIntervention[i.id] || [],
       }))
 
-      const { data: compositionData, error: compositionError } =
-        await supabaseBrowser
-          .from('bassin_composition_lignes')
-          .select(
-            `
-            id,
-            bassin_id,
-            materiau_id,
-            position,
-            quantite,
-            notes,
-            created_at,
-            materiau:materiaux (
-              id,
-              nom,
-              prix_cad,
-              actif,
-              categorie_id,
-              manufacturier_entreprise_id,
-              manufacturier:entreprises!manufacturier_entreprise_id (
-                id,
-                nom
-              )
-            )
-          `
-          )
-          .eq('bassin_id', bassinId)
-          .order('position', { ascending: true })
-          .order('created_at', { ascending: true })
-
-      if (compositionError) {
-        setErrorMsg(compositionError.message)
-        setLoading(false)
-        return
-      }
-
       // Normaliser les données de composition (materiau peut être un tableau)
-      const normalizedComposition = (compositionData || []).map((row: any) => ({
+      const normalizedComposition = (compositionRes.data || []).map((row: any) => ({
         ...row,
         materiau: Array.isArray(row.materiau) ? row.materiau[0] || null : row.materiau
       }))
 
       setBassin(bassinData as BassinRow)
       setBatiment(batData)
-      setListes((listesData || []) as ListeChoix[])
-      setCouvreurs((couvreursData || []) as EntrepriseRow[])
+      setListes((listesRes.data || []) as ListeChoix[])
+      setCouvreurs((couvreursRes.data || []) as EntrepriseRow[])
       setGaranties((garantiesData || []) as GarantieRow[])
-      setRapports((rapportsData || []) as RapportRow[])
+      setRapports((rapportsRes.data || []) as RapportRow[])
       setInterventions(combined)
       setCompositionLines(normalizedComposition as CompositionLineRow[])
       setLoading(false)
@@ -729,7 +552,7 @@ export default function ClientBassinDetailPage() {
         if (error) throw error
         return data.signedUrl
       } catch (err) {
-        console.error('Erreur création URL signée:', err)
+        logger.error('Erreur création URL signée:', err)
         return ''
       }
     }
@@ -749,15 +572,15 @@ export default function ClientBassinDetailPage() {
         setImageUrls(urlMap)
       })
       .catch((err) => {
-        console.error('Erreur chargement URLs images:', err)
+        logger.error('Erreur chargement URLs images:', err)
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modalImagesOpen, selectedInterventionForImages])
 
   // Listes de choix garanties / rapports
-  const typesGarantie = listes.filter((l) => l.categorie === 'type_garantie')
-  const statutsGarantie = listes.filter((l) => l.categorie === 'statut_garantie')
-  const typesRapport = listes.filter((l) => l.categorie === 'type_rapport')
+  const typesGarantie = useMemo(() => listes.filter((l) => l.categorie === 'type_garantie'), [listes])
+  const statutsGarantie = useMemo(() => listes.filter((l) => l.categorie === 'statut_garantie'), [listes])
+  const typesRapport = useMemo(() => listes.filter((l) => l.categorie === 'type_rapport'), [listes])
 
   // Interventions - type_interventions
   const typesInterventions = useMemo(() => {
@@ -967,7 +790,7 @@ export default function ClientBassinDetailPage() {
 
         if (uploadError) {
           if (process.env.NODE_ENV === 'development') {
-            console.error('Erreur upload PDF garantie', uploadError)
+            logger.error('Erreur upload PDF garantie', uploadError)
           }
           alert(uploadError.message)
           setSaving(false)
@@ -1002,7 +825,7 @@ export default function ClientBassinDetailPage() {
       setSaving(false)
       setShowModal(false)
     } catch (error: any) {
-      console.error('Erreur:', error)
+      logger.error('Erreur:', error)
       alert(error.message || 'Erreur inattendue')
       setSaving(false)
     }
@@ -1021,7 +844,7 @@ export default function ClientBassinDetailPage() {
       setGaranties((prev) => prev.filter((g) => g.id !== garantie.id))
       setConfirmDeleteGarantie(null)
     } catch (error: any) {
-      console.error('Erreur:', error)
+      logger.error('Erreur:', error)
       alert(error.message || 'Erreur inattendue')
     } finally {
       setDeletingGarantie(false)
@@ -1084,7 +907,7 @@ export default function ClientBassinDetailPage() {
     if (res.error) {
       setSavingRapport(false)
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur Supabase rapport:', res.error)
+        logger.error('Erreur Supabase rapport:', res.error)
       }
       alert(res.error.message)
       return
@@ -1101,7 +924,7 @@ export default function ClientBassinDetailPage() {
       if (uploadError) {
         setSavingRapport(false)
         if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur upload PDF rapport', uploadError)
+          logger.error('Erreur upload PDF rapport', uploadError)
         }
         alert(uploadError.message)
         return
@@ -1142,7 +965,7 @@ export default function ClientBassinDetailPage() {
 
     if (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur suppression rapport', error)
+        logger.error('Erreur suppression rapport', error)
       }
       alert(error.message)
       setDeletingRapport(false)
@@ -1179,7 +1002,7 @@ export default function ClientBassinDetailPage() {
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
     } catch (err) {
-      console.error('Erreur téléchargement fichier:', err)
+      logger.error('Erreur téléchargement fichier:', err)
       alert('Erreur lors du téléchargement du fichier.')
     }
   }
@@ -1232,7 +1055,7 @@ export default function ClientBassinDetailPage() {
         setShowEditBassinModal(false)
       }
     } catch (error: any) {
-      console.error('Erreur:', error)
+      logger.error('Erreur:', error)
       alert(error.message || 'Erreur inattendue')
     } finally {
       setSavingBassin(false)
@@ -1261,7 +1084,7 @@ export default function ClientBassinDetailPage() {
       if (batiment?.id) router.push(`/client/batiments/${batiment.id}`)
       else router.push('/client/carte')
     } catch (error: any) {
-      console.error('Erreur:', error)
+      logger.error('Erreur:', error)
       alert(error.message || 'Erreur inattendue')
     } finally {
       setDeletingBassin(false)
@@ -1320,7 +1143,7 @@ export default function ClientBassinDetailPage() {
 
     if (intError) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur refresh interventions', intError)
+        logger.error('Erreur refresh interventions', intError)
       }
       alert('Erreur chargement interventions : ' + intError.message)
       return
@@ -1339,7 +1162,7 @@ export default function ClientBassinDetailPage() {
 
       if (filesError) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur refresh intervention_fichiers', filesError)
+          logger.error('Erreur refresh intervention_fichiers', filesError)
         }
         alert('Erreur chargement fichiers interventions : ' + filesError.message)
         return
@@ -1445,7 +1268,7 @@ export default function ClientBassinDetailPage() {
 
           if (!uploadRes.ok) {
             if (process.env.NODE_ENV === 'development') {
-              console.error('Erreur upload fichier intervention', uploadData.error)
+              logger.error('Erreur upload fichier intervention', uploadData.error)
             }
             alert('Erreur upload fichier : ' + (uploadData.error || 'Erreur inconnue'))
             continue
@@ -1462,7 +1285,7 @@ export default function ClientBassinDetailPage() {
       setShowInterventionEditor(false)
       setEditingIntervention(null)
     } catch (error: any) {
-      console.error('Erreur:', error)
+      logger.error('Erreur:', error)
       alert(error.message || 'Erreur inattendue')
       setSavingIntervention(false)
     }
@@ -1487,7 +1310,7 @@ export default function ClientBassinDetailPage() {
 
       setConfirmDeleteIntervention(null)
     } catch (error: any) {
-      console.error('Erreur:', error)
+      logger.error('Erreur:', error)
       alert(error.message || 'Erreur inattendue')
     } finally {
       setDeletingIntervention(false)
@@ -1501,7 +1324,7 @@ export default function ClientBassinDetailPage() {
 
       if (error) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur signed url', error)
+          logger.error('Erreur signed url', error)
         }
         alert('Erreur accès fichier : ' + error.message)
         return
@@ -1530,7 +1353,7 @@ export default function ClientBassinDetailPage() {
       // Rafraîchir les interventions pour garantir la synchronisation
       await refreshInterventions()
     } catch (error: any) {
-      console.error('Erreur:', error)
+      logger.error('Erreur:', error)
       alert(error.message || 'Erreur inattendue')
     } finally {
       setBusyFileIds((p) => ({ ...p, [fileToDelete.id]: false }))
