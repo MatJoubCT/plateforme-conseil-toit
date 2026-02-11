@@ -241,6 +241,10 @@ export default function AdminBassinDetailPage() {
     defaultErrorMessage: 'Erreur lors de la suppression du rapport',
   })
 
+  // Guards anti-doublon (couvrent upload PDF + appel API)
+  const [isSubmittingRapport, setIsSubmittingRapport] = useState(false)
+  const [isSubmittingGarantie, setIsSubmittingGarantie] = useState(false)
+
   // ==================== FIN HOOKS ====================
 
   useEffect(() => {
@@ -587,7 +591,7 @@ export default function AdminBassinDetailPage() {
   }
 
   const closeModal = () => {
-    if (isCreatingGarantie || isUpdatingGarantie) return
+    if (isSubmittingGarantie) return
     setShowModal(false)
     setEditingGarantie(null)
   }
@@ -617,112 +621,118 @@ export default function AdminBassinDetailPage() {
   }
 
   const closeRapportModal = () => {
-    if (isCreatingRapport || isUpdatingRapport) return
+    if (isSubmittingRapport) return
     setShowRapportModal(false)
     setEditingRapport(null)
   }
 
   const handleSubmitGarantie = async (e: FormEvent) => {
     e.preventDefault()
+    if (isSubmittingGarantie) return
+    setIsSubmittingGarantie(true)
 
-    if (!bassin || !bassin.id) {
-      alert('Bassin introuvable (id manquant).')
-      return
-    }
-
-    // 1) Gestion du PDF
-    let fichierUrl: string | null = editingGarantie?.fichier_pdf_url ?? null
-
-    if (pdfFile) {
-      const ext = pdfFile.name.split('.').pop() || 'pdf'
-      const safeName = sanitizeStorageKey(pdfFile.name)
-      const path = `${bassin.id}/${crypto.randomUUID()}-${safeName}.${ext}`
-
-      const { error: uploadError } = await supabaseBrowser.storage.from('garanties').upload(path, pdfFile, {
-        upsert: false,
-      })
-
-      if (uploadError) {
-        alert('Erreur lors du téléversement du PDF : ' + uploadError.message)
+    try {
+      if (!bassin || !bassin.id) {
+        alert('Bassin introuvable (id manquant).')
         return
       }
 
-      const { data: publicData } = supabaseBrowser.storage.from('garanties').getPublicUrl(path)
-      // S'assurer que l'URL n'est pas une chaîne vide
-      fichierUrl = publicData?.publicUrl && publicData.publicUrl.trim() !== '' ? publicData.publicUrl : null
-    }
+      // 1) Gestion du PDF
+      let fichierUrl: string | null = editingGarantie?.fichier_pdf_url ?? null
 
-    // 2) Champs UUID sécurisés
-    const safeTypeGarantieId = formTypeGarantieId && formTypeGarantieId.trim() !== '' ? formTypeGarantieId : null
-    const safeStatutId = formStatutId && formStatutId.trim() !== '' ? formStatutId : null
+      if (pdfFile) {
+        const ext = pdfFile.name.split('.').pop() || 'pdf'
+        const safeName = sanitizeStorageKey(pdfFile.name)
+        const path = `${bassin.id}/${crypto.randomUUID()}-${safeName}.${ext}`
 
-    // 3) Payload (camelCase for API)
-    const payload = {
-      bassinId: bassin.id,
-      typeGarantieId: safeTypeGarantieId,
-      fournisseur: formFournisseur || null,
-      numeroGarantie: formNumero || null,
-      dateDebut: formDateDebut || null,
-      dateFin: formDateFin || null,
-      statutId: safeStatutId,
-      couverture: formCouverture || null,
-      commentaire: formCommentaire || null,
-      fichierPdfUrl: fichierUrl,
-    }
+        const { error: uploadError } = await supabaseBrowser.storage.from('garanties').upload(path, pdfFile, {
+          upsert: false,
+        })
 
-    const badUuidFields: string[] = []
-    if ((payload.bassinId as any) === 'undefined') badUuidFields.push('bassinId')
-    if ((payload.typeGarantieId as any) === 'undefined') badUuidFields.push('typeGarantieId')
-    if ((payload.statutId as any) === 'undefined') badUuidFields.push('statutId')
+        if (uploadError) {
+          alert('Erreur lors du téléversement du PDF : ' + uploadError.message)
+          return
+        }
 
-    if (badUuidFields.length > 0) {
-      if (process.env.NODE_ENV === 'development') {
-        logger.error('BUG: champs uuid = "undefined" dans payload', { payload, badUuidFields })
+        const { data: publicData } = supabaseBrowser.storage.from('garanties').getPublicUrl(path)
+        // S'assurer que l'URL n'est pas une chaîne vide
+        fichierUrl = publicData?.publicUrl && publicData.publicUrl.trim() !== '' ? publicData.publicUrl : null
       }
-      alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
-      return
-    }
 
-    if (editingGarantie && editingGarantie.id) {
-      // Update existing garantie
-      const result = await updateGarantieApi({ ...payload, id: editingGarantie.id })
+      // 2) Champs UUID sécurisés
+      const safeTypeGarantieId = formTypeGarantieId && formTypeGarantieId.trim() !== '' ? formTypeGarantieId : null
+      const safeStatutId = formStatutId && formStatutId.trim() !== '' ? formStatutId : null
 
-      if (result.success && result.data) {
-        setGaranties((prev) => prev.map((g) => (g.id === result.data!.id ? result.data! : g)))
-
-        const newGaranties = garanties.map((g) => (g.id === result.data!.id ? result.data! : g))
-
-        const garantiesAvecDate = newGaranties
-          .filter((g) => g.date_fin)
-          .sort((a, b) => {
-            if (!a.date_fin || !b.date_fin) return 0
-            return new Date(a.date_fin + 'T00:00:00').getTime() - new Date(b.date_fin + 'T00:00:00').getTime()
-          })
-
-        setGarantieProche(garantiesAvecDate.length > 0 ? garantiesAvecDate[0] : null)
-
-        closeModal()
+      // 3) Payload (camelCase for API)
+      const payload = {
+        bassinId: bassin.id,
+        typeGarantieId: safeTypeGarantieId,
+        fournisseur: formFournisseur || null,
+        numeroGarantie: formNumero || null,
+        dateDebut: formDateDebut || null,
+        dateFin: formDateFin || null,
+        statutId: safeStatutId,
+        couverture: formCouverture || null,
+        commentaire: formCommentaire || null,
+        fichierPdfUrl: fichierUrl,
       }
-    } else {
-      // Create new garantie
-      const result = await createGarantieApi(payload)
 
-      if (result.success && result.data) {
-        setGaranties((prev) => [...prev, result.data])
+      const badUuidFields: string[] = []
+      if ((payload.bassinId as any) === 'undefined') badUuidFields.push('bassinId')
+      if ((payload.typeGarantieId as any) === 'undefined') badUuidFields.push('typeGarantieId')
+      if ((payload.statutId as any) === 'undefined') badUuidFields.push('statutId')
 
-        const newGaranties = [...garanties, result.data]
-
-        const garantiesAvecDate = newGaranties
-          .filter((g) => g.date_fin)
-          .sort((a, b) => {
-            if (!a.date_fin || !b.date_fin) return 0
-            return new Date(a.date_fin + 'T00:00:00').getTime() - new Date(b.date_fin + 'T00:00:00').getTime()
-          })
-
-        setGarantieProche(garantiesAvecDate.length > 0 ? garantiesAvecDate[0] : null)
-
-        closeModal()
+      if (badUuidFields.length > 0) {
+        if (process.env.NODE_ENV === 'development') {
+          logger.error('BUG: champs uuid = "undefined" dans payload', { payload, badUuidFields })
+        }
+        alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
+        return
       }
+
+      if (editingGarantie && editingGarantie.id) {
+        // Update existing garantie
+        const result = await updateGarantieApi({ ...payload, id: editingGarantie.id })
+
+        if (result.success && result.data) {
+          setGaranties((prev) => prev.map((g) => (g.id === result.data!.id ? result.data! : g)))
+
+          const newGaranties = garanties.map((g) => (g.id === result.data!.id ? result.data! : g))
+
+          const garantiesAvecDate = newGaranties
+            .filter((g) => g.date_fin)
+            .sort((a, b) => {
+              if (!a.date_fin || !b.date_fin) return 0
+              return new Date(a.date_fin + 'T00:00:00').getTime() - new Date(b.date_fin + 'T00:00:00').getTime()
+            })
+
+          setGarantieProche(garantiesAvecDate.length > 0 ? garantiesAvecDate[0] : null)
+
+          closeModal()
+        }
+      } else {
+        // Create new garantie
+        const result = await createGarantieApi(payload)
+
+        if (result.success && result.data) {
+          setGaranties((prev) => [...prev, result.data])
+
+          const newGaranties = [...garanties, result.data]
+
+          const garantiesAvecDate = newGaranties
+            .filter((g) => g.date_fin)
+            .sort((a, b) => {
+              if (!a.date_fin || !b.date_fin) return 0
+              return new Date(a.date_fin + 'T00:00:00').getTime() - new Date(b.date_fin + 'T00:00:00').getTime()
+            })
+
+          setGarantieProche(garantiesAvecDate.length > 0 ? garantiesAvecDate[0] : null)
+
+          closeModal()
+        }
+      }
+    } finally {
+      setIsSubmittingGarantie(false)
     }
   }
 
@@ -753,73 +763,79 @@ export default function AdminBassinDetailPage() {
 
   const handleSubmitRapport = async (e: FormEvent) => {
     e.preventDefault()
+    if (isSubmittingRapport) return
+    setIsSubmittingRapport(true)
 
-    if (!bassin || !bassin.id) {
-      alert('Bassin introuvable (id manquant).')
-      return
-    }
-
-    // 1) Gestion du PDF
-    let fichierUrl: string | null = editingRapport?.file_url ?? null
-
-    if (rapportPdfFile) {
-      const ext = rapportPdfFile.name.split('.').pop() || 'pdf'
-      const baseNumero =
-        formNumeroRapport && formNumeroRapport.trim() !== '' ? formNumeroRapport.trim() : 'rapport'
-      const safeName = sanitizeStorageKey(rapportPdfFile.name)
-      const path = `${bassin.id}/${baseNumero}-${crypto.randomUUID()}-${safeName}.${ext}`
-
-      const { error: uploadError } = await supabaseBrowser.storage.from('rapports').upload(path, rapportPdfFile, {
-        upsert: false,
-      })
-
-      if (uploadError) {
-        alert('Erreur lors du téléversement du PDF : ' + uploadError.message)
+    try {
+      if (!bassin || !bassin.id) {
+        alert('Bassin introuvable (id manquant).')
         return
       }
 
-      const { data: publicData } = supabaseBrowser.storage.from('rapports').getPublicUrl(path)
-      // S'assurer que l'URL n'est pas une chaîne vide
-      fichierUrl = publicData?.publicUrl && publicData.publicUrl.trim() !== '' ? publicData.publicUrl : null
-    }
+      // 1) Gestion du PDF
+      let fichierUrl: string | null = editingRapport?.file_url ?? null
 
-    const safeTypeRapportId = formTypeRapportId && formTypeRapportId.trim() !== '' ? formTypeRapportId : null
+      if (rapportPdfFile) {
+        const ext = rapportPdfFile.name.split('.').pop() || 'pdf'
+        const baseNumero =
+          formNumeroRapport && formNumeroRapport.trim() !== '' ? formNumeroRapport.trim() : 'rapport'
+        const safeName = sanitizeStorageKey(rapportPdfFile.name)
+        const path = `${bassin.id}/${baseNumero}-${crypto.randomUUID()}-${safeName}.${ext}`
 
-    const payload = {
-      bassin_id: bassin.id,
-      type_id: safeTypeRapportId,
-      date_rapport: formDateRapport || null,
-      numero_ct: formNumeroRapport || null,
-      titre: null, // Champ requis par le schéma, mais pas encore dans le formulaire
-      description: formCommentaireRapport || null,
-      file_url: fichierUrl || null, // S'assurer que c'est null et non une chaîne vide
-    }
+        const { error: uploadError } = await supabaseBrowser.storage.from('rapports').upload(path, rapportPdfFile, {
+          upsert: false,
+        })
 
-    const badUuidFields: string[] = []
-    if ((payload.bassin_id as any) === 'undefined') badUuidFields.push('bassin_id')
-    if ((payload.type_id as any) === 'undefined') badUuidFields.push('type_id')
+        if (uploadError) {
+          alert('Erreur lors du téléversement du PDF : ' + uploadError.message)
+          return
+        }
 
-    if (badUuidFields.length > 0) {
-      if (process.env.NODE_ENV === 'development') {
-        logger.error('BUG: champs uuid = "undefined" dans payload rapport', { payload, badUuidFields })
+        const { data: publicData } = supabaseBrowser.storage.from('rapports').getPublicUrl(path)
+        // S'assurer que l'URL n'est pas une chaîne vide
+        fichierUrl = publicData?.publicUrl && publicData.publicUrl.trim() !== '' ? publicData.publicUrl : null
       }
-      alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
-      return
-    }
 
-    // Utiliser useApiMutation au lieu d'appels Supabase directs
-    if (editingRapport && editingRapport.id) {
-      const result = await updateRapportApi({ ...payload, id: editingRapport.id })
-      if (result.success && result.data) {
-        setRapports((prev) => prev.map((r) => (r.id === result.data!.id ? result.data! : r)))
-        closeRapportModal()
+      const safeTypeRapportId = formTypeRapportId && formTypeRapportId.trim() !== '' ? formTypeRapportId : null
+
+      const payload = {
+        bassin_id: bassin.id,
+        type_id: safeTypeRapportId,
+        date_rapport: formDateRapport || null,
+        numero_ct: formNumeroRapport || null,
+        titre: null, // Champ requis par le schéma, mais pas encore dans le formulaire
+        description: formCommentaireRapport || null,
+        file_url: fichierUrl || null, // S'assurer que c'est null et non une chaîne vide
       }
-    } else {
-      const result = await createRapportApi(payload)
-      if (result.success && result.data) {
-        setRapports((prev) => [result.data!, ...prev])
-        closeRapportModal()
+
+      const badUuidFields: string[] = []
+      if ((payload.bassin_id as any) === 'undefined') badUuidFields.push('bassin_id')
+      if ((payload.type_id as any) === 'undefined') badUuidFields.push('type_id')
+
+      if (badUuidFields.length > 0) {
+        if (process.env.NODE_ENV === 'development') {
+          logger.error('BUG: champs uuid = "undefined" dans payload rapport', { payload, badUuidFields })
+        }
+        alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
+        return
       }
+
+      // Utiliser useApiMutation au lieu d'appels Supabase directs
+      if (editingRapport && editingRapport.id) {
+        const result = await updateRapportApi({ ...payload, id: editingRapport.id })
+        if (result.success && result.data) {
+          setRapports((prev) => prev.map((r) => (r.id === result.data!.id ? result.data! : r)))
+          closeRapportModal()
+        }
+      } else {
+        const result = await createRapportApi(payload)
+        if (result.success && result.data) {
+          setRapports((prev) => [result.data!, ...prev])
+          closeRapportModal()
+        }
+      }
+    } finally {
+      setIsSubmittingRapport(false)
     }
   }
 
@@ -2263,7 +2279,7 @@ export default function AdminBassinDetailPage() {
       </Dialog>
 
       {/* Modal ajout / modification garantie */}
-      <Dialog open={showModal} onOpenChange={(open) => !open && !(isCreatingGarantie || isUpdatingGarantie) && closeModal()}>
+      <Dialog open={showModal} onOpenChange={(open) => !open && !isSubmittingGarantie && closeModal()}>
         <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-800">{modalTitle}</DialogTitle>
@@ -2389,17 +2405,17 @@ export default function AdminBassinDetailPage() {
               <button
                 type="button"
                 onClick={closeModal}
-                disabled={isCreatingGarantie || isUpdatingGarantie}
+                disabled={isSubmittingGarantie}
                 className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
               >
                 Annuler
               </button>
               <button
                 type="submit"
-                disabled={isCreatingGarantie || isUpdatingGarantie}
+                disabled={isSubmittingGarantie}
                 className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
               >
-                {isCreatingGarantie || isUpdatingGarantie ? 'Enregistrement…' : 'Enregistrer'}
+                {isSubmittingGarantie ? 'Enregistrement…' : 'Enregistrer'}
               </button>
             </DialogFooter>
           </form>
@@ -2407,7 +2423,7 @@ export default function AdminBassinDetailPage() {
       </Dialog>
 
       {/* Modal ajout / modification rapport */}
-      <Dialog open={showRapportModal} onOpenChange={(open) => !open && !(isCreatingRapport || isUpdatingRapport) && closeRapportModal()}>
+      <Dialog open={showRapportModal} onOpenChange={(open) => !open && !isSubmittingRapport && closeRapportModal()}>
         <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-800">{rapportModalTitle}</DialogTitle>
@@ -2490,17 +2506,17 @@ export default function AdminBassinDetailPage() {
               <button
                 type="button"
                 onClick={closeRapportModal}
-                disabled={isCreatingRapport || isUpdatingRapport}
+                disabled={isSubmittingRapport}
                 className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
               >
                 Annuler
               </button>
               <button
                 type="submit"
-                disabled={isCreatingRapport || isUpdatingRapport}
+                disabled={isSubmittingRapport}
                 className="rounded-xl bg-gradient-to-r from-[#1F4E79] to-[#2d6ba8] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg disabled:opacity-50"
               >
-                {(isCreatingRapport || isUpdatingRapport) ? 'Enregistrement…' : 'Enregistrer'}
+                {isSubmittingRapport ? 'Enregistrement…' : 'Enregistrer'}
               </button>
             </DialogFooter>
           </form>
