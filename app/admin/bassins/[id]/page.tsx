@@ -315,25 +315,25 @@ export default function AdminBassinDetailPage() {
   // Intervention mutations
   const { mutate: createInterventionApi, isLoading: isCreatingIntervention } = useApiMutation({
     method: 'POST',
-    endpoint: '/api/client/interventions/create',
+    endpoint: '/api/admin/interventions/create',
     defaultErrorMessage: 'Erreur lors de la création de l\'intervention',
   })
 
   const { mutate: updateInterventionApi, isLoading: isUpdatingIntervention } = useApiMutation({
     method: 'PUT',
-    endpoint: '/api/client/interventions/update',
+    endpoint: '/api/admin/interventions/update',
     defaultErrorMessage: 'Erreur lors de la modification de l\'intervention',
   })
 
   const { mutate: deleteInterventionApi, isLoading: isDeletingIntervention } = useApiMutation({
     method: 'DELETE',
-    endpoint: '/api/client/interventions/delete',
+    endpoint: '/api/admin/interventions/delete',
     defaultErrorMessage: 'Erreur lors de la suppression de l\'intervention',
   })
 
   const { mutate: deleteFileApi, isLoading: isDeletingFile } = useApiMutation({
     method: 'DELETE',
-    endpoint: '/api/client/interventions/delete-file',
+    endpoint: '/api/admin/interventions/delete-file',
     defaultErrorMessage: 'Erreur lors de la suppression du fichier',
   })
 
