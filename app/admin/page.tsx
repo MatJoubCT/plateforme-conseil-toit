@@ -15,35 +15,8 @@ import {
   Activity,
 } from 'lucide-react'
 import { StateBadge, BassinState } from '@/components/ui/StateBadge'
-
-type ClientRow = {
-  id: string
-  name: string | null
-}
-
-type BatimentRow = {
-  id: string
-  client_id: string | null
-  name: string | null
-}
-
-type BassinRow = {
-  id: string
-  batiment_id: string | null
-  name: string | null
-  surface_m2: number | null
-  etat_id: string | null
-  duree_vie_id: string | null
-  duree_vie_text: string | null
-}
-
-type ListeChoix = {
-  id: string
-  categorie: string
-  code: string | null
-  label: string | null
-  couleur: string | null
-}
+import type { ClientRow, BatimentRow, BassinRow, ListeChoix } from '@/types/database'
+import { mapEtatToStateBadge } from '@/lib/utils/bassin-utils'
 
 type DashboardStateCounts = {
   tres_bon: number
@@ -52,23 +25,6 @@ type DashboardStateCounts = {
   planifier: number
   urgent: number
   non_evalue: number
-}
-
-function mapEtatToStateBadge(etat: string | null): BassinState {
-  if (!etat) return 'non_evalue'
-
-  const v = etat
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-
-  if (v.includes('urgent')) return 'urgent'
-  if (v.includes('tres bon') || v.includes('excellent')) return 'tres_bon'
-  if (v.includes('bon')) return 'bon'
-  if (v.includes('surveiller')) return 'a_surveille'
-  if (v.includes('planifier') || v.includes('planification')) return 'planifier'
-
-  return 'non_evalue'
 }
 
 export default function AdminDashboardPage() {

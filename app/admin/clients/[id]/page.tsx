@@ -30,6 +30,7 @@ import {
   X,
   AlertTriangle,
 } from 'lucide-react'
+import { logger } from '@/lib/logger'
 
 type ClientRecord = {
   id: string
@@ -108,7 +109,7 @@ export default function AdminClientDetailPage() {
 
     if (clientError || !clientData) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur rechargement client:', clientError)
+        logger.error('Erreur rechargement client:', clientError)
       }
       return
     }
@@ -126,7 +127,7 @@ export default function AdminClientDetailPage() {
 
     if (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur chargement bâtiments:', error)
+        logger.error('Erreur chargement bâtiments:', error)
       }
       setBatiments([])
       return
@@ -181,7 +182,7 @@ export default function AdminClientDetailPage() {
 
       if (clientError || !clientData) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur chargement client:', clientError)
+          logger.error('Erreur chargement client:', clientError)
         }
         setErrorMsg(
           clientError?.message ||

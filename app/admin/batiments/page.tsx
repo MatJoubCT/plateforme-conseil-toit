@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   SlidersHorizontal,
 } from 'lucide-react'
+import { logger } from '@/lib/logger'
 
 type BatimentRow = {
   id: string
@@ -107,7 +108,7 @@ export default function AdminBatimentsPage() {
 
       if (batimentsError) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur Supabase batiments:', batimentsError)
+          logger.error('Erreur Supabase batiments:', batimentsError)
         }
         setErrorMsg(batimentsError.message)
         setLoading(false)
@@ -145,7 +146,7 @@ export default function AdminBatimentsPage() {
       setLoading(false)
     } catch (err: any) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur load batiments:', err)
+        logger.error('Erreur load batiments:', err)
       }
       setErrorMsg('Erreur lors du chargement des bâtiments.')
       setLoading(false)

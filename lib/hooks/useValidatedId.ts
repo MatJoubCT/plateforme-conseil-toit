@@ -1,6 +1,7 @@
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo } from 'react'
 import { validateUUID } from '@/lib/validation'
+import { logger } from '@/lib/logger'
 
 /**
  * Hook personnalisé pour valider les IDs UUID dans les routes dynamiques
@@ -33,7 +34,7 @@ export function useValidatedId(redirectPath?: string): string | null {
   useEffect(() => {
     if (!validation.success) {
       // ID invalide - rediriger
-      console.error('Invalid UUID in route:', params?.id, validation.error)
+      logger.error('Invalid UUID in route:', params?.id, validation.error)
 
       // Rediriger vers la page parente ou le chemin spécifié
       if (redirectPath) {

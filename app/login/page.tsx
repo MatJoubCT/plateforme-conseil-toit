@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react'
+import { logger } from '@/lib/logger'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -17,25 +18,25 @@ export default function LoginPage() {
     setErrorMsg(null)
     setLoading(true)
 
-    console.log('🔄 Tentative de connexion...', { email })
+    logger.log('🔄 Tentative de connexion...', { email })
 
     try {
       // Vérifier la connexion Supabase avant d'essayer de se connecter
-      console.log('🔍 Vérification de la configuration Supabase...')
+      logger.log('🔍 Vérification de la configuration Supabase...')
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
       const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
       if (!supabaseUrl || !supabaseKey) {
-        console.error('❌ Variables d\'environnement Supabase manquantes')
+        logger.error('❌ Variables d\'environnement Supabase manquantes')
         setLoading(false)
         setErrorMsg('Configuration Supabase manquante. Contactez l\'administrateur.')
         return
       }
 
-      console.log('✅ Configuration Supabase trouvée')
+      logger.log('✅ Configuration Supabase trouvée')
 
       // 1) Appeler l'API de login avec timeout de 30 secondes
-      console.log('📡 Envoi de la requête de connexion...')
+      logger.log('📡 Envoi de la requête de connexion...')
 
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 secondes
@@ -51,11 +52,11 @@ export default function LoginPage() {
           signal: controller.signal,
         })
         clearTimeout(timeoutId)
-        console.log('✅ Réponse reçue:', response.status)
+        logger.log('✅ Réponse reçue:', response.status)
       } catch (fetchError: any) {
         clearTimeout(timeoutId)
         if (fetchError.name === 'AbortError') {
-          console.error('⏱️ Timeout de la requête de connexion')
+          logger.error('⏱️ Timeout de la requête de connexion')
           setLoading(false)
           setErrorMsg('La requête a pris trop de temps. Vérifiez que la base de données Supabase est active.')
           return
@@ -66,37 +67,37 @@ export default function LoginPage() {
       let data
       try {
         data = await response.json()
-        console.log('📦 Données reçues:', { ok: data.ok, hasUser: !!data.user })
+        logger.log('📦 Données reçues:', { ok: data.ok, hasUser: !!data.user })
       } catch (jsonError) {
-        console.error('❌ Erreur de parsing JSON:', jsonError)
+        logger.error('❌ Erreur de parsing JSON:', jsonError)
         setLoading(false)
         setErrorMsg('Réponse invalide du serveur')
         return
       }
 
       if (!response.ok) {
-        console.error('❌ Erreur d\'authentification:', data.error)
+        logger.error('❌ Erreur d\'authentification:', data.error)
         setLoading(false)
         setErrorMsg(data.error || 'Erreur lors de la connexion')
         return
       }
 
       // La session est automatiquement définie via les cookies par l'API
-      console.log('✅ Authentification réussie')
+      logger.log('✅ Authentification réussie')
       setLoading(false)
 
       // Redirection selon le rôle
-      console.log('🚀 Redirection...', { role: data.user.role })
+      logger.log('🚀 Redirection...', { role: data.user.role })
       if (data.user.role === 'admin') {
         router.push('/admin')
       } else if (data.user.role === 'client') {
         router.push('/client')
       } else {
-        console.error('❌ Rôle inconnu:', data.user.role)
+        logger.error('❌ Rôle inconnu:', data.user.role)
         setErrorMsg(`Rôle inconnu : ${data.user.role}`)
       }
     } catch (error: any) {
-      console.error('❌ Erreur inattendue lors de la connexion:', error)
+      logger.error('❌ Erreur inattendue lors de la connexion:', error)
       setLoading(false)
 
       // Message d'erreur plus informatif

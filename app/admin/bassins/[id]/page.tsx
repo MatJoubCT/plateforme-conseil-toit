@@ -6,7 +6,10 @@ import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { useValidatedId } from '@/lib/hooks/useValidatedId'
 import { useApiMutation } from '@/lib/hooks/useApiMutation'
-import { StateBadge, BassinState } from '@/components/ui/StateBadge'
+import { StateBadge } from '@/components/ui/StateBadge'
+import type { GeoJSONPolygon, GeoJSONPoint } from '@/types/maps'
+import type { BassinRow, BatimentRow, ListeChoix, GarantieRow, EntrepriseRow, RapportRow, InterventionRow, InterventionFichierRow, InterventionWithFiles } from '@/types/database'
+import { mapEtatToStateBadge } from '@/lib/utils/bassin-utils'
 import BassinMap, { InterventionMarker } from '@/components/maps/BassinMap'
 import BassinCompositionCard from '@/components/bassins/BassinCompositionCard'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -41,125 +44,7 @@ import {
   StickyNote,
   Hash,
 } from 'lucide-react'
-
-type GeoJSONPolygon = {
-  type: 'Polygon'
-  coordinates: number[][][]
-}
-
-type GeoJSONPoint = {
-  type: 'Point'
-  coordinates: [number, number] // [lng, lat]
-}
-
-type BassinRow = {
-  id: string
-  batiment_id: string | null
-  name: string | null
-  membrane_type_id: string | null
-  surface_m2: number | null
-  annee_installation: number | null
-  date_derniere_refection: string | null
-  couvreur_id: string | null
-  etat_id: string | null
-  duree_vie_id: string | null
-  duree_vie_text: string | null
-  reference_interne: string | null
-  notes: string | null
-  polygone_geojson: GeoJSONPolygon | null
-}
-
-type BatimentRow = {
-  id: string
-  name: string | null
-  address: string | null
-  city: string | null
-  postal_code: string | null
-  latitude: number | null
-  longitude: number | null
-}
-
-type ListeChoix = {
-  id: string
-  categorie: string
-  label: string | null
-  couleur: string | null
-  ordre?: number | null
-}
-
-type GarantieRow = {
-  id: string
-  bassin_id: string | null
-  type_garantie_id: string | null
-  fournisseur: string | null
-  numero_garantie: string | null
-  date_debut: string | null
-  date_fin: string | null
-  statut_id: string | null
-  couverture: string | null
-  commentaire: string | null
-  fichier_pdf_url: string | null
-}
-
-type EntrepriseRow = {
-  id: string
-  type: string | null
-  nom: string | null
-}
-
-type RapportRow = {
-  id: string
-  bassin_id: string | null
-  type_id: string | null
-  date_rapport: string | null
-  numero_ct: string | null
-  titre: string | null
-  description: string | null
-  file_url: string | null
-}
-
-type InterventionRow = {
-  id: string
-  bassin_id: string
-  date_intervention: string
-  type_intervention_id: string | null
-  commentaire: string | null
-  location_geojson: GeoJSONPoint | null
-  created_at: string
-}
-
-type InterventionFichierRow = {
-  id: string
-  intervention_id: string
-  file_path: string
-  file_name: string | null
-  mime_type: string | null
-  created_at: string
-}
-
-type InterventionWithFiles = InterventionRow & {
-  files: InterventionFichierRow[]
-}
-
-/** mappe un libellé d'état en type pour StateBadge */
-function mapEtatToStateBadge(etat: string | null): BassinState {
-  if (!etat) return 'non_evalue'
-
-  // Normaliser pour gérer accents (très -> tres)
-  const v = etat
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-
-  // IMPORTANT: traiter "tres bon" AVANT "bon"
-  if (v.includes('urgent')) return 'urgent'
-  if (v.includes('tres bon') || v.includes('excellent')) return 'tres_bon'
-  if (v.includes('bon')) return 'bon'
-  if (v.includes('surveiller')) return 'a_surveille'
-  if (v.includes('planifier') || v.includes('planification')) return 'planifier'
-
-  return 'non_evalue'
-}
+import { logger } from '@/lib/logger'
 
 function safePointFromGeoJSON(p: any): { lat: number; lng: number } | null {
   if (!p) return null
@@ -365,22 +250,54 @@ export default function AdminBassinDetailPage() {
       setLoading(true)
       setErrorMsg(null)
 
-      // 1) Bassin
-      const { data: bassinData, error: bassinError } = await supabaseBrowser
-        .from('bassins')
-        .select(
-          'id, batiment_id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson, couvreur_id'
-        )
-        .eq('id', bassinId)
-        .single()
+      // Groupe 1 : requêtes indépendantes en parallèle
+      const [bassinRes, listesRes, couvreursRes, garantiesRes, rapportsRes, intRes] = await Promise.all([
+        supabaseBrowser
+          .from('bassins')
+          .select(
+            'id, batiment_id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson, couvreur_id'
+          )
+          .eq('id', bassinId)
+          .single(),
+        supabaseBrowser
+          .from('listes_choix')
+          .select('id, categorie, label, couleur, ordre'),
+        supabaseBrowser
+          .from('entreprises')
+          .select('id, type, nom')
+          .eq('type', 'couvreur')
+          .order('nom', { ascending: true }),
+        supabaseBrowser
+          .from('garanties')
+          .select(
+            'id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url'
+          )
+          .eq('bassin_id', bassinId)
+          .order('date_debut', { ascending: true }),
+        supabaseBrowser
+          .from('rapports')
+          .select('id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url')
+          .eq('bassin_id', bassinId)
+          .order('date_rapport', { ascending: false }),
+        supabaseBrowser
+          .from('interventions')
+          .select('id, bassin_id, date_intervention, type_intervention_id, commentaire, location_geojson, created_at')
+          .eq('bassin_id', bassinId)
+          .order('date_intervention', { ascending: false })
+          .order('created_at', { ascending: false }),
+      ])
 
-      if (bassinError) {
-        setErrorMsg(bassinError.message)
+      const firstError = bassinRes.error || listesRes.error || couvreursRes.error || garantiesRes.error || rapportsRes.error || intRes.error
+      if (firstError) {
+        setErrorMsg(firstError.message)
         setLoading(false)
         return
       }
 
-      // 2) Bâtiment
+      const bassinData = bassinRes.data
+      const garantiesData = garantiesRes.data
+
+      // Groupe 2 : requêtes dépendantes (bâtiment dépend du bassin, fichiers des interventions)
       let batData: BatimentRow | null = null
       if (bassinData?.batiment_id) {
         const { data, error } = await supabaseBrowser
@@ -391,45 +308,6 @@ export default function AdminBassinDetailPage() {
         if (!error && data) {
           batData = data as BatimentRow
         }
-      }
-
-      // 3) Listes de choix
-      const { data: listesData, error: listesError } = await supabaseBrowser
-        .from('listes_choix')
-        .select('id, categorie, label, couleur, ordre')
-
-      if (listesError) {
-        setErrorMsg(listesError.message)
-        setLoading(false)
-        return
-      }
-
-      // 3.1) Entreprises (couvreurs)
-      const { data: couvreursData, error: couvreursError } = await supabaseBrowser
-        .from('entreprises')
-        .select('id, type, nom')
-        .eq('type', 'couvreur')
-        .order('nom', { ascending: true })
-
-      if (couvreursError) {
-        setErrorMsg(couvreursError.message)
-        setLoading(false)
-        return
-      }
-
-      // 4) Garanties du bassin
-      const { data: garantiesData, error: garantiesError } = await supabaseBrowser
-        .from('garanties')
-        .select(
-          'id, bassin_id, type_garantie_id, fournisseur, numero_garantie, date_debut, date_fin, statut_id, couverture, commentaire, fichier_pdf_url'
-        )
-        .eq('bassin_id', bassinId)
-        .order('date_debut', { ascending: true })
-
-      if (garantiesError) {
-        setErrorMsg(garantiesError.message)
-        setLoading(false)
-        return
       }
 
       // Trouver la garantie avec date de fin la plus proche
@@ -449,34 +327,8 @@ export default function AdminBassinDetailPage() {
         setGarantieProche(null)
       }
 
-      // 5) Rapports du bassin
-      const { data: rapportsData, error: rapportsError } = await supabaseBrowser
-        .from('rapports')
-        .select('id, bassin_id, type_id, date_rapport, numero_ct, titre, description, file_url')
-        .eq('bassin_id', bassinId)
-        .order('date_rapport', { ascending: false })
-
-      if (rapportsError) {
-        setErrorMsg(rapportsError.message)
-        setLoading(false)
-        return
-      }
-
-      // 6) Interventions + fichiers
-      const { data: intData, error: intError } = await supabaseBrowser
-        .from('interventions')
-        .select('id, bassin_id, date_intervention, type_intervention_id, commentaire, location_geojson, created_at')
-        .eq('bassin_id', bassinId)
-        .order('date_intervention', { ascending: false })
-        .order('created_at', { ascending: false })
-
-      if (intError) {
-        setErrorMsg(intError.message)
-        setLoading(false)
-        return
-      }
-
-      const intRows = (intData || []) as InterventionRow[]
+      // Fichiers d'interventions (dépend des IDs d'interventions)
+      const intRows = (intRes.data || []) as InterventionRow[]
       const ids = intRows.map((i) => i.id)
 
       let filesRows: InterventionFichierRow[] = []
@@ -509,10 +361,10 @@ export default function AdminBassinDetailPage() {
 
       setBassin(bassinData as BassinRow)
       setBatiment(batData)
-      setListes((listesData || []) as ListeChoix[])
-      setCouvreurs((couvreursData || []) as EntrepriseRow[])
+      setListes((listesRes.data || []) as ListeChoix[])
+      setCouvreurs((couvreursRes.data || []) as EntrepriseRow[])
       setGaranties((garantiesData || []) as GarantieRow[])
-      setRapports((rapportsData || []) as RapportRow[])
+      setRapports((rapportsRes.data || []) as RapportRow[])
       setInterventions(combined)
       setLoading(false)
     }
@@ -545,7 +397,7 @@ export default function AdminBassinDetailPage() {
         if (error) throw error
         return data.signedUrl
       } catch (err) {
-        console.error('Erreur création URL signée:', err)
+        logger.error('Erreur création URL signée:', err)
         return ''
       }
     }
@@ -565,15 +417,15 @@ export default function AdminBassinDetailPage() {
         setImageUrls(urlMap)
       })
       .catch((err) => {
-        console.error('Erreur chargement URLs images:', err)
+        logger.error('Erreur chargement URLs images:', err)
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modalImagesOpen, selectedInterventionForImages])
 
   // Listes de choix garanties / rapports
-  const typesGarantie = listes.filter((l) => l.categorie === 'type_garantie')
-  const statutsGarantie = listes.filter((l) => l.categorie === 'statut_garantie')
-  const typesRapport = listes.filter((l) => l.categorie === 'type_rapport')
+  const typesGarantie = useMemo(() => listes.filter((l) => l.categorie === 'type_garantie'), [listes])
+  const statutsGarantie = useMemo(() => listes.filter((l) => l.categorie === 'statut_garantie'), [listes])
+  const typesRapport = useMemo(() => listes.filter((l) => l.categorie === 'type_rapport'), [listes])
 
   // Interventions - type_interventions
   const typesInterventions = useMemo(() => {
@@ -825,7 +677,7 @@ export default function AdminBassinDetailPage() {
 
     if (badUuidFields.length > 0) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('BUG: champs uuid = "undefined" dans payload', { payload, badUuidFields })
+        logger.error('BUG: champs uuid = "undefined" dans payload', { payload, badUuidFields })
       }
       alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
       return
@@ -949,7 +801,7 @@ export default function AdminBassinDetailPage() {
 
     if (badUuidFields.length > 0) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('BUG: champs uuid = "undefined" dans payload rapport', { payload, badUuidFields })
+        logger.error('BUG: champs uuid = "undefined" dans payload rapport', { payload, badUuidFields })
       }
       alert('BUG interne: un champ uuid vaut "undefined" (voir console).')
       return
@@ -1009,7 +861,7 @@ export default function AdminBassinDetailPage() {
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
     } catch (err) {
-      console.error('Erreur téléchargement fichier:', err)
+      logger.error('Erreur téléchargement fichier:', err)
       alert('Erreur lors du téléchargement du fichier.')
     }
   }
@@ -1145,7 +997,7 @@ export default function AdminBassinDetailPage() {
 
     if (intError) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur refresh interventions', intError)
+        logger.error('Erreur refresh interventions', intError)
       }
       alert('Erreur chargement interventions : ' + intError.message)
       return
@@ -1164,7 +1016,7 @@ export default function AdminBassinDetailPage() {
 
       if (filesError) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur refresh intervention_fichiers', filesError)
+          logger.error('Erreur refresh intervention_fichiers', filesError)
         }
         alert('Erreur chargement fichiers interventions : ' + filesError.message)
         return
@@ -1224,7 +1076,7 @@ export default function AdminBassinDetailPage() {
 
     if (!result.success || !result.data) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur save intervention', result.error)
+        logger.error('Erreur save intervention', result.error)
       }
       alert('Erreur enregistrement intervention : ' + (result.error ?? 'Erreur inconnue'))
       return
@@ -1242,7 +1094,7 @@ export default function AdminBassinDetailPage() {
 
         if (upErr) {
           if (process.env.NODE_ENV === 'development') {
-            console.error('Erreur upload fichier intervention', upErr)
+            logger.error('Erreur upload fichier intervention', upErr)
           }
           alert('Erreur upload fichier : ' + upErr.message)
           continue
@@ -1257,7 +1109,7 @@ export default function AdminBassinDetailPage() {
 
         if (insErr) {
           if (process.env.NODE_ENV === 'development') {
-            console.error('Erreur insert intervention_fichiers', insErr)
+            logger.error('Erreur insert intervention_fichiers', insErr)
           }
           alert('Erreur indexation fichier : ' + insErr.message)
         }
@@ -1287,7 +1139,7 @@ export default function AdminBassinDetailPage() {
 
         if (rmErr) {
           if (process.env.NODE_ENV === 'development') {
-            console.error('Erreur suppression storage interventions', rmErr)
+            logger.error('Erreur suppression storage interventions', rmErr)
           }
           alert('Erreur suppression fichiers (storage) : ' + rmErr.message)
           return
@@ -1301,7 +1153,7 @@ export default function AdminBassinDetailPage() {
 
       if (delFilesErr) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur suppression intervention_fichiers', delFilesErr)
+          logger.error('Erreur suppression intervention_fichiers', delFilesErr)
         }
         alert('Erreur suppression fichiers (DB) : ' + delFilesErr.message)
         return
@@ -1313,7 +1165,7 @@ export default function AdminBassinDetailPage() {
 
     if (!result.success) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur suppression intervention', result.error)
+        logger.error('Erreur suppression intervention', result.error)
       }
       alert('Erreur suppression intervention : ' + (result.error ?? 'Erreur inconnue'))
       return
@@ -1333,7 +1185,7 @@ export default function AdminBassinDetailPage() {
 
       if (error) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur signed url', error)
+          logger.error('Erreur signed url', error)
         }
         alert('Erreur accès fichier : ' + error.message)
         return
@@ -1361,7 +1213,7 @@ export default function AdminBassinDetailPage() {
     if (rmErr) {
       setBusyFileIds((p) => ({ ...p, [fileToDelete.id]: false }))
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur suppression storage file', rmErr)
+        logger.error('Erreur suppression storage file', rmErr)
       }
       alert('Erreur suppression fichier (storage) : ' + rmErr.message)
       return
@@ -1373,7 +1225,7 @@ export default function AdminBassinDetailPage() {
 
     if (!result.success) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur suppression DB file', result.error)
+        logger.error('Erreur suppression DB file', result.error)
       }
       alert('Erreur suppression fichier (DB) : ' + (result.error ?? 'Erreur inconnue'))
       return

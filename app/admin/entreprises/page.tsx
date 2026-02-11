@@ -23,6 +23,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { Toast } from '@/components/ui/Toast'
+import { logger } from '@/lib/logger'
 
 type EntrepriseRow = {
   id: string
@@ -288,8 +289,8 @@ export default function AdminEntreprisesPage() {
     }
 
     const payload = buildPayload()
-    console.log('🔍 DEBUG - Payload envoyé:', JSON.stringify(payload, null, 2))
-    console.log('🔍 DEBUG - Type envoyé:', payload.type, '(longueur:', payload.type.length, ')')
+    logger.log('🔍 DEBUG - Payload envoyé:', JSON.stringify(payload, null, 2))
+    logger.log('🔍 DEBUG - Type envoyé:', payload.type, '(longueur:', payload.type.length, ')')
 
     await createEntreprise(payload)
   }

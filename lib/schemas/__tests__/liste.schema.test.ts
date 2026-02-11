@@ -3,7 +3,7 @@ import {
   createListeChoixSchema,
   updateListeChoixSchema,
   updateOrdreSchema,
-  CATEGORIES_VALIDES,
+  CATEGORIES_REFERENCE,
 } from '../liste.schema';
 
 describe('Liste Schema Validation', () => {
@@ -47,7 +47,7 @@ describe('Liste Schema Validation', () => {
     });
 
     it('devrait accepter toutes les catégories valides', () => {
-      CATEGORIES_VALIDES.forEach((categorie) => {
+      CATEGORIES_REFERENCE.forEach((categorie: string) => {
         const liste = {
           categorie,
           label: 'Test Label',
@@ -58,9 +58,19 @@ describe('Liste Schema Validation', () => {
       });
     });
 
-    it('devrait rejeter une catégorie invalide', () => {
+    it('devrait accepter toute catégorie valide (chaîne non vide)', () => {
+      const validListe = {
+        categorie: 'categorie_personnalisee',
+        label: 'Test',
+      };
+
+      const result = createListeChoixSchema.safeParse(validListe);
+      expect(result.success).toBe(true);
+    });
+
+    it('devrait rejeter une catégorie vide', () => {
       const invalidListe = {
-        categorie: 'categorie_inexistante',
+        categorie: '',
         label: 'Test',
       };
 
@@ -316,28 +326,18 @@ describe('Liste Schema Validation', () => {
       }
     });
 
-    it('devrait accepter une description de longueur raisonnable', () => {
+    it('devrait ignorer les champs inconnus (ex: description)', () => {
       const validListe = {
         categorie: 'etat_bassin',
         label: 'Test',
         description: 'x'.repeat(500),
       };
 
+      // Zod strips unknown keys by default
       const result = createListeChoixSchema.safeParse(validListe);
       expect(result.success).toBe(true);
-    });
-
-    it('devrait rejeter une description trop longue (> 500 caractères)', () => {
-      const invalidListe = {
-        categorie: 'etat_bassin',
-        label: 'Test',
-        description: 'x'.repeat(501),
-      };
-
-      const result = createListeChoixSchema.safeParse(invalidListe);
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.issues[0].message).toContain('trop longue');
+      if (result.success) {
+        expect((result.data as Record<string, unknown>).description).toBeUndefined();
       }
     });
   });

@@ -14,6 +14,8 @@ import {
   Map as MapIcon,
   AlertTriangle,
 } from 'lucide-react'
+import type { GeoJSONPolygon } from '@/types/maps'
+import type { ClientRow, ListeChoix } from '@/types/database'
 
 /**
  * IMPORTANT
@@ -21,11 +23,6 @@ import {
  * - id DOIT matcher l'id déjà utilisé dans le projet (script-loader)
  */
 const GOOGLE_MAPS_LIBRARIES: Libraries = ['drawing', 'geometry']
-
-type ClientRow = {
-  id: string
-  name: string | null
-}
 
 type BatimentRow = {
   id: string
@@ -40,24 +37,12 @@ type BatimentRow = {
   nb_bassins: number
 }
 
-type GeoJSONPolygon = {
-  type: 'Polygon'
-  coordinates: number[][][]
-}
-
 type BassinRow = {
   id: string
   batiment_id: string | null
   name: string | null
   etat_id: string | null
   polygone_geojson: GeoJSONPolygon | null
-}
-
-type ListeChoix = {
-  id: string
-  categorie: string
-  label: string | null
-  couleur: string | null
 }
 
 type CartePolygon = {

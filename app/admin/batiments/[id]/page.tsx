@@ -6,7 +6,10 @@ import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { useValidatedId } from '@/lib/hooks/useValidatedId'
 import { useApiMutation } from '@/lib/hooks/useApiMutation'
-import { StateBadge, BassinState } from '@/components/ui/StateBadge'
+import { StateBadge } from '@/components/ui/StateBadge'
+import type { GeoJSONPolygon } from '@/types/maps'
+import type { BatimentRow, BassinRow, ListeChoix, ClientRow } from '@/types/database'
+import { mapEtatToStateBadge } from '@/lib/utils/bassin-utils'
 import { validateCoordinates } from '@/lib/utils/validation'
 import { GoogleMap, Polygon, useLoadScript } from '@react-google-maps/api'
 import {
@@ -35,50 +38,7 @@ import {
   Ruler,
 } from 'lucide-react'
 
-type GeoJSONPolygon = {
-  type: 'Polygon'
-  coordinates: number[][][]
-}
-
-type BatimentRow = {
-  id: string
-  name: string | null
-  address: string | null
-  city: string | null
-  postal_code: string | null
-  latitude: number | null
-  longitude: number | null
-  client_id: string | null
-  notes: string | null
-}
-
-type ClientOption = {
-  id: string
-  name: string | null
-}
-
-type ListeChoix = {
-  id: string
-  categorie: string
-  label: string
-  couleur: string | null
-  ordre: number | null
-}
-
-type BassinRow = {
-  id: string
-  name: string | null
-  membrane_type_id: string | null
-  surface_m2: number | null
-  annee_installation: number | null
-  date_derniere_refection: string | null
-  etat_id: string | null
-  duree_vie_id: string | null
-  duree_vie_text: string | null
-  reference_interne: string | null
-  notes: string | null
-  polygone_geojson: GeoJSONPolygon | null
-}
+type ClientOption = ClientRow
 
 type BatimentBasinsMapProps = {
   center: { lat: number; lng: number }
@@ -86,26 +46,6 @@ type BatimentBasinsMapProps = {
   etats: ListeChoix[]
   hoveredBassinId: string | null
   onHoverBassin: (id: string | null) => void
-}
-
-/** mappe un libellé d'état en type pour StateBadge */
-function mapEtatToStateBadge(etat: string | null): BassinState {
-  if (!etat) return 'non_evalue'
-
-  // Normaliser pour gérer accents (très -> tres)
-  const v = etat
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-
-  // IMPORTANT: traiter "tres bon" AVANT "bon"
-  if (v.includes('urgent')) return 'urgent'
-  if (v.includes('tres bon') || v.includes('excellent')) return 'tres_bon'
-  if (v.includes('bon')) return 'bon'
-  if (v.includes('surveiller')) return 'a_surveille'
-  if (v.includes('planifier') || v.includes('planification')) return 'planifier'
-
-  return 'non_evalue'
 }
 
 export default function AdminBatimentDetailPage() {
@@ -155,77 +95,56 @@ export default function AdminBatimentDetailPage() {
     setLoading(true)
     setErrorMsg(null)
 
-    // 1) Bâtiment + client
-    const { data: batimentData, error: batimentError } = await supabaseBrowser
-      .from('batiments')
-      .select(
-        `
-          id,
-          name,
-          address,
-          city,
-          postal_code,
-          latitude,
-          longitude,
-          client_id,
-          notes,
-          clients (
+    // Requêtes parallèles — aucune dépendance entre elles
+    const [batimentRes, listesRes, bassinsRes, clientsRes] = await Promise.all([
+      supabaseBrowser
+        .from('batiments')
+        .select(
+          `
             id,
-            name
-          )
-        `
-      )
-      .eq('id', batimentId)
-      .single()
+            name,
+            address,
+            city,
+            postal_code,
+            latitude,
+            longitude,
+            client_id,
+            notes,
+            clients (
+              id,
+              name
+            )
+          `
+        )
+        .eq('id', batimentId)
+        .single(),
+      supabaseBrowser
+        .from('listes_choix')
+        .select('id, categorie, label, couleur, ordre'),
+      supabaseBrowser
+        .from('bassins')
+        .select(
+          'id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
+        )
+        .eq('batiment_id', batimentId)
+        .order('name', { ascending: true }),
+      supabaseBrowser
+        .from('clients')
+        .select('id, name')
+        .order('name', { ascending: true }),
+    ])
 
-    if (batimentError) {
-      setErrorMsg(batimentError.message)
+    const firstError = batimentRes.error || listesRes.error || bassinsRes.error || clientsRes.error
+    if (firstError) {
+      setErrorMsg(firstError.message)
       setLoading(false)
       return
     }
 
-    // 2) Listes de choix
-    const { data: listesData, error: listesError } = await supabaseBrowser
-      .from('listes_choix')
-      .select('id, categorie, label, couleur, ordre')
-
-    if (listesError) {
-      setErrorMsg(listesError.message)
-      setLoading(false)
-      return
-    }
-
-    // 3) Bassins du bâtiment
-    const { data: bassinsData, error: bassinsError } = await supabaseBrowser
-      .from('bassins')
-      .select(
-        'id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
-      )
-      .eq('batiment_id', batimentId)
-      .order('name', { ascending: true })
-
-    if (bassinsError) {
-      setErrorMsg(bassinsError.message)
-      setLoading(false)
-      return
-    }
-
-    // 4) Clients
-    const { data: clientsData, error: clientsError } = await supabaseBrowser
-      .from('clients')
-      .select('id, name')
-      .order('name', { ascending: true })
-
-    if (clientsError) {
-      setErrorMsg(clientsError.message)
-      setLoading(false)
-      return
-    }
-
-    setBatiment(batimentData as BatimentRow)
-    setListes(listesData || [])
-    setBassins((bassinsData || []) as BassinRow[])
-    setClients((clientsData || []) as ClientOption[])
+    setBatiment(batimentRes.data as BatimentRow)
+    setListes(listesRes.data || [])
+    setBassins((bassinsRes.data || []) as BassinRow[])
+    setClients((clientsRes.data || []) as ClientOption[])
     setLoading(false)
   }
 
@@ -266,86 +185,8 @@ export default function AdminBatimentDetailPage() {
 
   useEffect(() => {
     if (!batimentId) return
-
-    const fetchData = async () => {
-      setLoading(true)
-      setErrorMsg(null)
-
-      // 1) Bâtiment + client
-      const { data: batimentData, error: batimentError } = await supabaseBrowser
-        .from('batiments')
-        .select(
-          `
-          id,
-          name,
-          address,
-          city,
-          postal_code,
-          latitude,
-          longitude,
-          client_id,
-          notes,
-          clients (
-            id,
-            name
-          )
-        `
-        )
-        .eq('id', batimentId)
-        .single()
-
-      if (batimentError) {
-        setErrorMsg(batimentError.message)
-        setLoading(false)
-        return
-      }
-
-      // 2) Listes de choix
-      const { data: listesData, error: listesError } = await supabaseBrowser
-        .from('listes_choix')
-        .select('id, categorie, label, couleur, ordre')
-
-      if (listesError) {
-        setErrorMsg(listesError.message)
-        setLoading(false)
-        return
-      }
-
-      // 3) Bassins du bâtiment
-      const { data: bassinsData, error: bassinsError } = await supabaseBrowser
-        .from('bassins')
-        .select(
-          'id, name, membrane_type_id, surface_m2, annee_installation, date_derniere_refection, etat_id, duree_vie_id, duree_vie_text, reference_interne, notes, polygone_geojson'
-        )
-        .eq('batiment_id', batimentId)
-        .order('name', { ascending: true })
-
-      if (bassinsError) {
-        setErrorMsg(bassinsError.message)
-        setLoading(false)
-        return
-      }
-
-      // 4) Clients
-      const { data: clientsData, error: clientsError } = await supabaseBrowser
-        .from('clients')
-        .select('id, name')
-        .order('name', { ascending: true })
-
-      if (clientsError) {
-        setErrorMsg(clientsError.message)
-        setLoading(false)
-        return
-      }
-
-      setBatiment(batimentData as BatimentRow)
-      setListes(listesData || [])
-      setBassins((bassinsData || []) as BassinRow[])
-      setClients((clientsData || []) as ClientOption[])
-      setLoading(false)
-    }
-
     void fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batimentId])
 
   // Validation UUID en cours
@@ -362,32 +203,35 @@ export default function AdminBatimentDetailPage() {
     )
   }
 
-  const membranes = listes
-    .filter((l) => l.categorie === 'membrane')
-    .slice()
-    .sort(
-      (a, b) =>
-        (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
-        (a.label || '').localeCompare(b.label || '', 'fr-CA')
-    )
+  const membranes = useMemo(() =>
+    listes
+      .filter((l) => l.categorie === 'membrane')
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
+          (a.label || '').localeCompare(b.label || '', 'fr-CA')
+      ), [listes])
 
-  const etats = listes
-    .filter((l) => l.categorie === 'etat_bassin')
-    .slice()
-    .sort(
-      (a, b) =>
-        (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
-        (a.label || '').localeCompare(b.label || '', 'fr-CA')
-    )
+  const etats = useMemo(() =>
+    listes
+      .filter((l) => l.categorie === 'etat_bassin')
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
+          (a.label || '').localeCompare(b.label || '', 'fr-CA')
+      ), [listes])
 
-  const durees = listes
-    .filter((l) => l.categorie === 'duree_vie')
-    .slice()
-    .sort(
-      (a, b) =>
-        (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
-        (a.label || '').localeCompare(b.label || '', 'fr-CA')
-    )
+  const durees = useMemo(() =>
+    listes
+      .filter((l) => l.categorie === 'duree_vie')
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.ordre ?? 999999) - (b.ordre ?? 999999) ||
+          (a.label || '').localeCompare(b.label || '', 'fr-CA')
+      ), [listes])
 
   const mapCenter =
     batiment && batiment.latitude != null && batiment.longitude != null

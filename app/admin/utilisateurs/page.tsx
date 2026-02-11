@@ -18,6 +18,7 @@ import { Pagination, usePagination } from '@/components/ui/Pagination'
 import { Users, UserPlus, Shield, KeyRound, Ban, CheckCircle2, X, Search, SlidersHorizontal } from 'lucide-react'
 import { useToast } from '@/lib/toast-context'
 import { useApiMutation } from '@/lib/hooks/useApiMutation'
+import { logger } from '@/lib/logger'
 
 export default function AdminUtilisateursPage() {
   // Toast global
@@ -214,7 +215,7 @@ export default function AdminUtilisateursPage() {
       })
     } catch (err: any) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur inattendue save:', err)
+        logger.error('Erreur inattendue save:', err)
       }
       setErrorMsg(err.message || 'Erreur inattendue.')
     }

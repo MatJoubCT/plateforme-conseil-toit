@@ -34,6 +34,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { useApiMutation } from '@/lib/hooks/useApiMutation'
+import { logger } from '@/lib/logger'
 
 type ListeChoixRow = {
   id: string
@@ -328,7 +329,7 @@ export default function AdminListesChoixPage() {
       }
     } catch (err: any) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur inattendue listes_choix:', err)
+        logger.error('Erreur inattendue listes_choix:', err)
       }
       setToast({ type: 'error', message: err.message || 'Erreur inattendue.' })
     } finally {
@@ -401,7 +402,7 @@ export default function AdminListesChoixPage() {
       setOrderDirty(false)
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur sauvegarde ordre listes_choix', error)
+        logger.error('Erreur sauvegarde ordre listes_choix', error)
       }
       setToast({ type: 'error', message: "Erreur lors de l'enregistrement de l'ordre. Vérifiez la console." })
     } finally {
@@ -509,7 +510,7 @@ export default function AdminListesChoixPage() {
       return { used: false }
     } catch (err) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur checkItemUsed', err)
+        logger.error('Erreur checkItemUsed', err)
       }
       return {
         used: true,
@@ -541,7 +542,7 @@ export default function AdminListesChoixPage() {
       await deleteItem({ id: itemToDelete.id })
     } catch (err: any) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur inattendue delete listes_choix:', err)
+        logger.error('Erreur inattendue delete listes_choix:', err)
       }
       setToast({ type: 'error', message: err.message || 'Erreur inattendue.' })
     } finally {
