@@ -208,10 +208,11 @@ export default function AdminUtilisateursPage() {
     try {
       await updateUser({
         userId: editingUser.user_id,
+        profileId: editingUser.id,
         fullName: editFullName.trim() || null,
         role: editRole,
-        clientIds: selectedClientIds,
-        batimentIds: selectedBatimentIds,
+        selectedClientIds: selectedClientIds,
+        selectedBatimentIds: selectedBatimentIds,
       })
     } catch (err: any) {
       if (process.env.NODE_ENV === 'development') {
@@ -752,7 +753,7 @@ export default function AdminUtilisateursPage() {
           toggleBatiment={toggleBatiment}
           onClose={closeModal}
           onSave={handleSave}
-          errorMsg={errorMsg}
+          errorMsg={errorMsg || updateError}
           successMsg={successMsg}
         />
       )}
