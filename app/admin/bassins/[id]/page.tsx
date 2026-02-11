@@ -2866,12 +2866,12 @@ export default function AdminBassinDetailPage() {
       </Dialog>
 
       {/* Modal images */}
-      <Dialog open={modalImagesOpen} onOpenChange={setModalImagesOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto p-0">
-          <DialogHeader className="sticky top-0 z-10 border-b border-slate-200 bg-white px-6 py-4">
+      <Dialog open={modalImagesOpen && !!selectedInterventionForImages} onOpenChange={setModalImagesOpen}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
             <DialogTitle>Images de l&apos;intervention</DialogTitle>
             {selectedInterventionForImages && (
-              <DialogDescription className="text-sm text-slate-600 mt-1">
+              <p className="text-sm text-slate-600 mt-1">
                 {new Date(selectedInterventionForImages.date_intervention).toLocaleDateString('fr-FR', {
                   year: 'numeric',
                   month: 'long',
@@ -2883,12 +2883,12 @@ export default function AdminBassinDetailPage() {
                     {selectedInterventionForImages.commentaire}
                   </>
                 )}
-              </DialogDescription>
+              </p>
             )}
           </DialogHeader>
 
           {/* Contenu du modal */}
-          <div className="p-6">
+          <div className="flex-1 overflow-y-auto px-6 py-4">
             {selectedInterventionForImages && (() => {
               const imageFiles = (selectedInterventionForImages.files || []).filter((f) =>
                 f.mime_type?.startsWith('image/')
@@ -2949,11 +2949,11 @@ export default function AdminBassinDetailPage() {
           </div>
 
           {/* Footer du modal */}
-          <DialogFooter className="sticky bottom-0 border-t border-slate-200 bg-slate-50 px-6 py-4">
-            <p className="text-xs text-slate-600 text-center w-full">
+          <div className="border-t border-slate-200 bg-slate-50 px-6 py-4">
+            <p className="text-xs text-slate-600 text-center">
               Cliquez sur une image pour la télécharger et l&apos;ouvrir
             </p>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
