@@ -127,18 +127,18 @@ export async function PUT(req: NextRequest) {
       )
     }
 
-    // Notification (fire-and-forget) — notifier les clients du bassin
-    void (async () => {
-      try {
-        const ctx = await getBassinContext(validated.bassinId)
-        await notifyForBassin(validated.bassinId, {
-          type: 'garantie_updated',
-          title: 'Garantie modifiée',
-          message: `Une garantie a été modifiée pour le bassin ${ctx.bassinName} de ${ctx.batimentName}.`,
-          link: `/client/bassins/${validated.bassinId}`,
-        }, { notifyClients: true, notifyAdmins: false })
-      } catch { /* silencieux */ }
-    })()
+    // Notification — notifier les clients du bassin
+    try {
+      const ctx = await getBassinContext(validated.bassinId)
+      await notifyForBassin(validated.bassinId, {
+        type: 'garantie_updated',
+        title: 'Garantie modifiée',
+        message: `Une garantie a été modifiée pour le bassin ${ctx.bassinName} de ${ctx.batimentName}.`,
+        link: `/client/bassins/${validated.bassinId}`,
+      }, { notifyClients: true, notifyAdmins: false })
+    } catch (notifError) {
+      console.error('[NOTIFICATIONS] Erreur notification garantie update (admin):', notifError)
+    }
 
     return NextResponse.json({ ok: true, data })
   } catch (e: unknown) {

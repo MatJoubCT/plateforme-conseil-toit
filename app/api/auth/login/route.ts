@@ -95,20 +95,20 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 7. Notification (fire-and-forget) — notifier admins quand un client se connecte
+    // 7. Notification — notifier admins quand un client se connecte
     if (profile.role === 'client') {
-      void (async () => {
-        try {
-          const adminIds = await getAdminUserIds()
-          await createNotifications({
-            userIds: adminIds,
-            type: 'client_login',
-            title: 'Connexion client',
-            message: `${profile.full_name || user.email} s'est connecté(e) à la plateforme.`,
-            link: null,
-          })
-        } catch { /* silencieux */ }
-      })()
+      try {
+        const adminIds = await getAdminUserIds()
+        await createNotifications({
+          userIds: adminIds,
+          type: 'client_login',
+          title: 'Connexion client',
+          message: `${profile.full_name || user.email} s'est connecté(e) à la plateforme.`,
+          link: null,
+        })
+      } catch (notifError) {
+        console.error('[NOTIFICATIONS] Erreur notification login:', notifError)
+      }
     }
 
     // 8. Retourner les données utilisateur (la session est déjà dans les cookies)
