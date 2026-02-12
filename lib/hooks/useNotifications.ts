@@ -4,14 +4,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
 import { getSessionToken } from '@/lib/hooks/useSessionToken'
 import type { NotificationRow } from '@/types/database'
-
-const POLL_INTERVAL_MS = 60_000 // 60 secondes
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 export function useNotifications() {
   const [notifications, setNotifications] = useState<NotificationRow[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const channelRef = useRef<RealtimeChannel | null>(null)
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -37,16 +36,69 @@ export function useNotifications() {
     }
   }, [])
 
-  // Fetch initial + polling
+  // Fetch initial + abonnement temps réel
   useEffect(() => {
-    void fetchNotifications()
+    let cancelled = false
 
-    intervalRef.current = setInterval(() => {
-      void fetchNotifications()
-    }, POLL_INTERVAL_MS)
+    async function init() {
+      const { data: sessionData } = await supabaseBrowser.auth.getSession()
+      if (cancelled || !sessionData?.session?.user) {
+        setLoading(false)
+        return
+      }
+
+      const userId = sessionData.session.user.id
+
+      // Fetch initial
+      await fetchNotifications()
+
+      // Souscrire aux changements temps réel sur la table notifications
+      channelRef.current = supabaseBrowser
+        .channel(`notifications:${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            const newNotif = payload.new as NotificationRow
+            setNotifications((prev) => [newNotif, ...prev].slice(0, 50))
+            setUnreadCount((prev) => prev + 1)
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            const deletedId = (payload.old as { id: string }).id
+            setNotifications((prev) => {
+              const removed = prev.find((n) => n.id === deletedId)
+              if (removed && !removed.is_read) {
+                setUnreadCount((c) => Math.max(0, c - 1))
+              }
+              return prev.filter((n) => n.id !== deletedId)
+            })
+          }
+        )
+        .subscribe()
+    }
+
+    void init()
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
+      cancelled = true
+      if (channelRef.current) {
+        supabaseBrowser.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
     }
   }, [fetchNotifications])
 

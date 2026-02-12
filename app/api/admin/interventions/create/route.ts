@@ -102,10 +102,23 @@ export async function POST(req: NextRequest) {
     void (async () => {
       try {
         const ctx = await getBassinContext(validated.bassinId)
+
+        // Récupérer le label du type d'intervention
+        let typeLabel = ''
+        if (validated.typeInterventionId) {
+          const { data: typeData } = await supabaseAdmin
+            .from('listes_choix')
+            .select('label')
+            .eq('id', validated.typeInterventionId)
+            .single()
+          if (typeData?.label) typeLabel = typeData.label
+        }
+
+        const typePart = typeLabel ? ` (${typeLabel})` : ''
         await notifyForBassin(validated.bassinId, {
           type: 'intervention_added',
           title: 'Nouvelle intervention',
-          message: `Une intervention a été ajoutée au bassin ${ctx.bassinName} de ${ctx.batimentName}.`,
+          message: `Une intervention${typePart} a été ajoutée au bassin ${ctx.bassinName} de ${ctx.batimentName}.`,
           link: `/admin/bassins/${validated.bassinId}`,
         })
       } catch { /* silencieux */ }
