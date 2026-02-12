@@ -6,11 +6,14 @@ import { getSessionToken } from '@/lib/hooks/useSessionToken'
 import type { NotificationRow } from '@/types/database'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
+const FALLBACK_POLL_MS = 30_000 // Polling de secours 30s (au cas où Realtime déconnecte)
+
 export function useNotifications() {
   const [notifications, setNotifications] = useState<NotificationRow[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const channelRef = useRef<RealtimeChannel | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -36,23 +39,29 @@ export function useNotifications() {
     }
   }, [])
 
-  // Fetch initial + abonnement temps réel
+  // Fetch initial + polling de secours (identique à l'ancien comportement)
+  useEffect(() => {
+    void fetchNotifications()
+
+    intervalRef.current = setInterval(() => {
+      void fetchNotifications()
+    }, FALLBACK_POLL_MS)
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
+  }, [fetchNotifications])
+
+  // Abonnement Realtime pour les mises à jour instantanées
   useEffect(() => {
     let cancelled = false
 
-    async function init() {
+    async function setupRealtime() {
       const { data: sessionData } = await supabaseBrowser.auth.getSession()
-      if (cancelled || !sessionData?.session?.user) {
-        setLoading(false)
-        return
-      }
+      if (cancelled || !sessionData?.session?.user) return
 
       const userId = sessionData.session.user.id
 
-      // Fetch initial
-      await fetchNotifications()
-
-      // Souscrire aux changements temps réel sur la table notifications
       channelRef.current = supabaseBrowser
         .channel(`notifications:${userId}`)
         .on(
@@ -91,7 +100,7 @@ export function useNotifications() {
         .subscribe()
     }
 
-    void init()
+    void setupRealtime()
 
     return () => {
       cancelled = true
@@ -100,7 +109,7 @@ export function useNotifications() {
         channelRef.current = null
       }
     }
-  }, [fetchNotifications])
+  }, [])
 
   const markAsRead = useCallback(
     async (id: string) => {
