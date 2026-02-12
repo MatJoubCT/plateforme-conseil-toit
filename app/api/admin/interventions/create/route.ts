@@ -6,6 +6,7 @@ import { createInterventionSchema } from '@/lib/schemas/bassin.schema'
 import { checkCsrf } from '@/lib/csrf'
 import { rateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { sanitizeError, logError, GENERIC_ERROR_MESSAGES } from '@/lib/validation'
+import { notifyForBassin, getBassinContext } from '@/lib/notifications/create'
 
 export async function POST(req: NextRequest) {
   let authenticatedUser: { id: string; email: string | undefined } | null = null
@@ -96,6 +97,19 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       )
     }
+
+    // Notification (fire-and-forget)
+    void (async () => {
+      try {
+        const ctx = await getBassinContext(validated.bassinId)
+        await notifyForBassin(validated.bassinId, {
+          type: 'intervention_added',
+          title: 'Nouvelle intervention',
+          message: `Une intervention a été ajoutée au bassin ${ctx.bassinName} de ${ctx.batimentName}.`,
+          link: `/admin/bassins/${validated.bassinId}`,
+        })
+      } catch { /* silencieux */ }
+    })()
 
     return NextResponse.json({ ok: true, data })
   } catch (e: unknown) {

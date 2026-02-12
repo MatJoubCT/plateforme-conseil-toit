@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabaseClient'
 import { rateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { sanitizeError, logError, GENERIC_ERROR_MESSAGES } from '@/lib/validation'
+import { createNotifications, getAdminUserIds } from '@/lib/notifications/create'
 
 const loginSchema = z.object({
   email: z.string().email('Email invalide'),
@@ -94,7 +95,23 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 7. Retourner les données utilisateur (la session est déjà dans les cookies)
+    // 7. Notification (fire-and-forget) — notifier admins quand un client se connecte
+    if (profile.role === 'client') {
+      void (async () => {
+        try {
+          const adminIds = await getAdminUserIds()
+          await createNotifications({
+            userIds: adminIds,
+            type: 'client_login',
+            title: 'Connexion client',
+            message: `${profile.full_name || user.email} s'est connecté(e) à la plateforme.`,
+            link: null,
+          })
+        } catch { /* silencieux */ }
+      })()
+    }
+
+    // 8. Retourner les données utilisateur (la session est déjà dans les cookies)
     return NextResponse.json({
       ok: true,
       user: {

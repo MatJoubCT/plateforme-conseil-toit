@@ -21,6 +21,7 @@ import {
   BriefcaseBusiness,
   Boxes,
 } from 'lucide-react'
+import NotificationBell from '@/components/notifications/NotificationBell'
 
 type NavItem = {
   label: string
@@ -361,8 +362,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             {userFullName || 'Admin'}
           </span>
 
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-[10px] font-bold text-white shadow-md">
-            {getInitials(userFullName)}
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-[10px] font-bold text-white shadow-md">
+              {getInitials(userFullName)}
+            </div>
           </div>
         </header>
 
@@ -378,8 +382,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               </p>
             </div>
 
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-sm font-bold text-white shadow-lg ring-2 ring-slate-200">
-              {getInitials(userFullName)}
+            <div className="flex items-center gap-3">
+              <NotificationBell />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-sm font-bold text-white shadow-lg ring-2 ring-slate-200">
+                {getInitials(userFullName)}
+              </div>
             </div>
           </div>
         </div>
