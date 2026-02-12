@@ -348,7 +348,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       {/* Contenu principal */}
       <div className="flex min-h-screen flex-1 flex-col md:ml-72">
         {/* Barre supérieure (mobile) */}
-        <header className="flex items-center justify-between gap-3 border-b border-slate-200/70 bg-white/80 backdrop-blur-md px-4 py-3 shadow-sm md:hidden">
+        <header className="relative z-50 flex items-center justify-between gap-3 border-b border-slate-200/70 bg-white/80 backdrop-blur-md px-4 py-3 shadow-sm md:hidden">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -371,7 +371,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </header>
 
         {/* Header statique (desktop) */}
-        <div className="hidden border-b border-slate-200/70 bg-white/80 backdrop-blur-md shadow-sm md:block">
+        <div className="relative z-50 hidden border-b border-slate-200/70 bg-white/80 backdrop-blur-md shadow-sm md:block">
           <div className="flex items-center justify-between px-6 py-4 lg:px-8">
             <div>
               <h1 className="text-lg font-bold text-slate-900">
