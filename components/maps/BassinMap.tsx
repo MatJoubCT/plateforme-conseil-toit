@@ -252,12 +252,13 @@ function BassinMap({
 
     if (isEditing) {
       setIsEditing(false)
+      setPathSafe(pathRef.current) // Synchroniser le state React depuis la ref
       await savePolygon(pathRef.current)
       return
     }
 
     setIsEditing(true)
-  }, [readonly, isLocked, isEditing, savePolygon])
+  }, [readonly, isLocked, isEditing, savePolygon, setPathSafe])
 
   const handleResetPolygon = useCallback(async () => {
     if (readonly) return
@@ -277,7 +278,9 @@ function BassinMap({
     })
   }, [readonly])
 
-  // Listeners sur le path Google -> met à jour state + ref
+  // Listeners sur le path Google -> met à jour ref (PAS le state pendant l'édition)
+  // Important : ne pas appeler setPath() ici, sinon le <Polygon path={…}> re-render
+  // recrée un nouveau MVCArray et les listeners deviennent orphelins.
   useEffect(() => {
     if (!isLoaded) return
     if (!polygonInstance) return
@@ -289,7 +292,9 @@ function BassinMap({
         lat: latLng.lat(),
         lng: latLng.lng(),
       }))
-      setPathSafe(newPoints)
+      pathRef.current = newPoints
+      const a = computeArea(newPoints)
+      if (a !== null) setAreaM2(a)
     }
 
     const listeners = [
@@ -299,7 +304,7 @@ function BassinMap({
     ]
 
     return () => listeners.forEach((l) => l.remove())
-  }, [isLoaded, polygonInstance, setPathSafe])
+  }, [isLoaded, polygonInstance, computeArea])
 
   const handlePolygonComplete = useCallback(
     async (poly: google.maps.Polygon) => {
