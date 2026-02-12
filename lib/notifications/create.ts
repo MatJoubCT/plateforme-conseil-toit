@@ -38,19 +38,40 @@ export async function createNotifications(params: CreateNotificationsParams): Pr
 
 /**
  * Résout les user_id des utilisateurs clients ayant accès à un client_id donné.
+ * Vérifie les deux sources d'accès : user_profiles.client_id ET user_clients.
  */
 export async function getClientUserIds(clientId: string): Promise<string[]> {
-  const { data, error } = await supabaseAdmin
+  // 1. Utilisateurs avec accès via user_clients (many-to-many)
+  const { data: ucData, error: ucError } = await supabaseAdmin
     .from('user_clients')
     .select('user_id')
     .eq('client_id', clientId)
 
-  if (error || !data) {
-    logger.error('Erreur résolution users client', { error: error?.message, clientId })
-    return []
+  if (ucError) {
+    logger.error('Erreur résolution users client (user_clients)', { error: ucError.message, clientId })
   }
 
-  return data.map((row) => row.user_id).filter(Boolean) as string[]
+  // 2. Utilisateurs avec client_id primaire dans user_profiles
+  const { data: profileData, error: profileError } = await supabaseAdmin
+    .from('user_profiles')
+    .select('user_id')
+    .eq('client_id', clientId)
+    .eq('role', 'client')
+    .eq('is_active', true)
+
+  if (profileError) {
+    logger.error('Erreur résolution users client (user_profiles)', { error: profileError.message, clientId })
+  }
+
+  const userIds = new Set<string>()
+  for (const row of ucData || []) {
+    if (row.user_id) userIds.add(row.user_id)
+  }
+  for (const row of profileData || []) {
+    if (row.user_id) userIds.add(row.user_id)
+  }
+
+  return [...userIds]
 }
 
 /**
