@@ -107,31 +107,31 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Notification (fire-and-forget) — notifier admins seulement (le client est déjà l'auteur)
-    void (async () => {
-      try {
-        const ctx = await getBassinContext(validated.bassinId)
+    // Notification — notifier admins seulement (le client est déjà l'auteur)
+    try {
+      const ctx = await getBassinContext(validated.bassinId)
 
-        // Récupérer le label du type d'intervention
-        let typeLabel = ''
-        if (validated.typeInterventionId) {
-          const { data: typeData } = await supabaseAdmin
-            .from('listes_choix')
-            .select('label')
-            .eq('id', validated.typeInterventionId)
-            .single()
-          if (typeData?.label) typeLabel = typeData.label
-        }
+      // Récupérer le label du type d'intervention
+      let typeLabel = ''
+      if (validated.typeInterventionId) {
+        const { data: typeData } = await supabaseAdmin
+          .from('listes_choix')
+          .select('label')
+          .eq('id', validated.typeInterventionId)
+          .single()
+        if (typeData?.label) typeLabel = typeData.label
+      }
 
-        const typePart = typeLabel ? ` (${typeLabel})` : ''
-        await notifyForBassin(validated.bassinId, {
-          type: 'intervention_added',
-          title: 'Nouvelle intervention',
-          message: `Une intervention${typePart} a été ajoutée au bassin ${ctx.bassinName} de ${ctx.batimentName}.`,
-          link: `/admin/bassins/${validated.bassinId}`,
-        }, { notifyClients: false, notifyAdmins: true })
-      } catch { /* silencieux */ }
-    })()
+      const typePart = typeLabel ? ` (${typeLabel})` : ''
+      await notifyForBassin(validated.bassinId, {
+        type: 'intervention_added',
+        title: 'Nouvelle intervention',
+        message: `Une intervention${typePart} a été ajoutée au bassin ${ctx.bassinName} de ${ctx.batimentName}.`,
+        link: `/admin/bassins/${validated.bassinId}`,
+      }, { notifyClients: false, notifyAdmins: true })
+    } catch (notifError) {
+      console.error('[NOTIFICATIONS] Erreur notification intervention (client):', notifError)
+    }
 
     return NextResponse.json({ ok: true, data })
   } catch (e: unknown) {

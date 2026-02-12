@@ -32,7 +32,8 @@ export async function createNotifications(params: CreateNotificationsParams): Pr
   const { error } = await supabaseAdmin.from('notifications').insert(rows)
 
   if (error) {
-    logger.error('Erreur création notifications', { error: error.message, type, userIds })
+    // Console.error pour toujours voir les erreurs (le logger dev-only n'affiche rien en production)
+    console.error('[NOTIFICATIONS] Erreur insertion:', error.message, { type, count: userIds.length })
   }
 }
 

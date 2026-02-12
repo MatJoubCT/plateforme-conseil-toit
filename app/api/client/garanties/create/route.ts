@@ -124,18 +124,18 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Notification (fire-and-forget) — notifier admins seulement (le client est l'auteur)
-    void (async () => {
-      try {
-        const ctx = await getBassinContext(validated.bassinId)
-        await notifyForBassin(validated.bassinId, {
-          type: 'garantie_added',
-          title: 'Nouvelle garantie',
-          message: `Une garantie a été ajoutée au bassin ${ctx.bassinName} de ${ctx.batimentName}.`,
-          link: `/admin/bassins/${validated.bassinId}`,
-        }, { notifyClients: false, notifyAdmins: true })
-      } catch { /* silencieux */ }
-    })()
+    // Notification — notifier admins seulement (le client est l'auteur)
+    try {
+      const ctx = await getBassinContext(validated.bassinId)
+      await notifyForBassin(validated.bassinId, {
+        type: 'garantie_added',
+        title: 'Nouvelle garantie',
+        message: `Une garantie a été ajoutée au bassin ${ctx.bassinName} de ${ctx.batimentName}.`,
+        link: `/admin/bassins/${validated.bassinId}`,
+      }, { notifyClients: false, notifyAdmins: true })
+    } catch (notifError) {
+      console.error('[NOTIFICATIONS] Erreur notification garantie create (client):', notifError)
+    }
 
     return NextResponse.json({ ok: true, data })
   } catch (e: unknown) {
