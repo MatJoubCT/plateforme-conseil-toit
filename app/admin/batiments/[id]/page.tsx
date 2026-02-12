@@ -59,6 +59,7 @@ export default function AdminBatimentDetailPage() {
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [hoveredBassinId, setHoveredBassinId] = useState<string | null>(null)
+  const bassinsListRef = useRef<HTMLDivElement>(null)
 
   // Modal édition bâtiment
   const [editOpen, setEditOpen] = useState(false)
@@ -188,6 +189,15 @@ export default function AdminBatimentDetailPage() {
     void fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batimentId])
+
+  // Scroll automatique vers le bassin survolé sur la carte
+  useEffect(() => {
+    if (!hoveredBassinId || !bassinsListRef.current) return
+    const el = bassinsListRef.current.querySelector(`[data-bassin-id="${hoveredBassinId}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [hoveredBassinId])
 
   // Validation UUID en cours
   if (!batimentId) {
@@ -622,7 +632,7 @@ export default function AdminBatimentDetailPage() {
                 </button>
               </div>
             ) : (
-              <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+              <div ref={bassinsListRef} className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
                 {bassins.map((b) => {
                   const membraneLabel =
                     membranes.find((m) => m.id === b.membrane_type_id)?.label ??
@@ -651,6 +661,7 @@ export default function AdminBatimentDetailPage() {
                   return (
                     <div
                       key={b.id}
+                      data-bassin-id={b.id}
                       onMouseEnter={() => setHoveredBassinId(b.id)}
                       onMouseLeave={() => setHoveredBassinId(null)}
                       onClick={() => router.push(`/admin/bassins/${b.id}`)}

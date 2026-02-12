@@ -43,6 +43,7 @@ export default function ClientBatimentDetailPage() {
   const [listes, setListes] = useState<ListeChoix[]>([])
   const [bassins, setBassins] = useState<BassinRow[]>([])
   const [hoveredBassinId, setHoveredBassinId] = useState<string | null>(null)
+  const bassinsListRef = useRef<HTMLDivElement>(null)
   const [clientName, setClientName] = useState<string>('Client non défini')
 
   useEffect(() => {
@@ -176,6 +177,15 @@ export default function ClientBatimentDetailPage() {
 
     void load()
   }, [batimentId])
+
+  // Scroll automatique vers le bassin survolé sur la carte
+  useEffect(() => {
+    if (!hoveredBassinId || !bassinsListRef.current) return
+    const el = bassinsListRef.current.querySelector(`[data-bassin-id="${hoveredBassinId}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [hoveredBassinId])
 
   if (!batimentId) {
     return (
@@ -421,7 +431,7 @@ export default function ClientBatimentDetailPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+              <div ref={bassinsListRef} className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
                 {bassins.map((b) => {
                   const membraneLabel =
                     membranes.find((m) => m.id === b.membrane_type_id)?.label ??
@@ -450,6 +460,7 @@ export default function ClientBatimentDetailPage() {
                   return (
                     <div
                       key={b.id}
+                      data-bassin-id={b.id}
                       onMouseEnter={() => setHoveredBassinId(b.id)}
                       onMouseLeave={() => setHoveredBassinId(null)}
                       onClick={() => router.push(`/client/bassins/${b.id}`)}
