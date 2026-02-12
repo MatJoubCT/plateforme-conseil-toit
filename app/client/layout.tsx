@@ -17,6 +17,7 @@ import {
   Menu,
   X,
 } from 'lucide-react'
+import NotificationBell from '@/components/notifications/NotificationBell'
 
 type NavItem = {
   label: string
@@ -301,7 +302,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
       {/* Contenu principal */}
       <div className="flex min-h-screen flex-1 flex-col md:ml-72">
         {/* Barre supérieure (mobile) */}
-        <header className="flex items-center justify-between gap-3 border-b border-slate-200/70 bg-white/80 backdrop-blur-md px-4 py-3 shadow-sm md:hidden">
+        <header className="relative z-50 flex items-center justify-between gap-3 border-b border-slate-200/70 bg-white/80 backdrop-blur-md px-4 py-3 shadow-sm md:hidden">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -315,13 +316,16 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
             {clientName || 'Client'}
           </span>
 
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-[10px] font-bold text-white shadow-md">
-            {getInitials(clientName)}
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-[10px] font-bold text-white shadow-md">
+              {getInitials(clientName)}
+            </div>
           </div>
         </header>
 
         {/* Header statique (desktop) */}
-        <div className="hidden border-b border-slate-200/70 bg-white/80 backdrop-blur-md shadow-sm md:block">
+        <div className="relative z-50 hidden border-b border-slate-200/70 bg-white/80 backdrop-blur-md shadow-sm md:block">
           <div className="flex items-center justify-between px-6 py-4 lg:px-8">
             <div>
               <h1 className="text-lg font-bold text-slate-900">
@@ -332,8 +336,11 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
               </p>
             </div>
 
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-sm font-bold text-white shadow-lg ring-2 ring-slate-200">
-              {getInitials(clientName)}
+            <div className="flex items-center gap-3">
+              <NotificationBell />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-sm font-bold text-white shadow-lg ring-2 ring-slate-200">
+                {getInitials(clientName)}
+              </div>
             </div>
           </div>
         </div>

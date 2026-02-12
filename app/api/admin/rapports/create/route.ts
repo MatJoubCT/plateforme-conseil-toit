@@ -6,6 +6,7 @@ import { createRapportSchema } from '@/lib/schemas/rapport.schema'
 import { checkCsrf } from '@/lib/csrf'
 import { rateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { sanitizeError, logError, GENERIC_ERROR_MESSAGES } from '@/lib/validation'
+import { notifyForBassin, getBassinContext } from '@/lib/notifications/create'
 
 export async function POST(req: NextRequest) {
   let authenticatedUser: { id: string; email: string | undefined } | null = null
@@ -96,6 +97,19 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       )
     }
+
+    // Notification (fire-and-forget) — notifier les clients
+    void (async () => {
+      try {
+        const ctx = await getBassinContext(validated.bassin_id)
+        await notifyForBassin(validated.bassin_id, {
+          type: 'rapport_added',
+          title: 'Nouveau rapport',
+          message: `Un nouveau rapport a été ajouté au bassin ${ctx.bassinName} de ${ctx.batimentName}.`,
+          link: `/client/bassins/${validated.bassin_id}`,
+        }, { notifyClients: true, notifyAdmins: false })
+      } catch { /* silencieux */ }
+    })()
 
     return NextResponse.json({ ok: true, data })
   } catch (e: unknown) {
