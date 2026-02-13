@@ -166,6 +166,81 @@ export async function requireAdmin(req: Request): Promise<AuthResult> {
  * if (error) return error
  * // À partir d'ici, user est authentifié, client, actif, avec ses clientIds
  */
+/**
+ * Middleware d'authentification qui vérifie :
+ * 1. Présence du token Bearer
+ * 2. Validité du token
+ * 3. Existence du profil utilisateur
+ *
+ * Ne vérifie PAS le rôle — accepte admin et client.
+ *
+ * @param req - La requête Next.js
+ * @returns Objet avec error (NextResponse) ou user (données utilisateur)
+ *
+ * @example
+ * const { error, user } = await requireAuth(req)
+ * if (error) return error
+ * // À partir d'ici, user est authentifié (admin ou client)
+ */
+export async function requireAuth(req: Request): Promise<AuthResult> {
+  const token = getBearerToken(req)
+  if (!token) {
+    return {
+      error: NextResponse.json(
+        { error: 'Authorization Bearer token manquant.' },
+        { status: 401 }
+      ),
+      user: null
+    }
+  }
+
+  const { data: userData, error: userErr } = await supabaseAdmin.auth.getUser(token)
+  if (userErr || !userData?.user) {
+    return {
+      error: NextResponse.json(
+        { error: 'Token invalide ou session expirée.' },
+        { status: 401 }
+      ),
+      user: null
+    }
+  }
+
+  const { data: callerProfile, error: profileErr } = await supabaseAdmin
+    .from('user_profiles')
+    .select('role, user_id, full_name')
+    .eq('user_id', userData.user.id)
+    .maybeSingle()
+
+  if (profileErr) {
+    return {
+      error: NextResponse.json(
+        { error: `Impossible de lire le profil: ${profileErr.message}` },
+        { status: 500 }
+      ),
+      user: null
+    }
+  }
+
+  if (!callerProfile) {
+    return {
+      error: NextResponse.json(
+        { error: 'Profil introuvable.' },
+        { status: 403 }
+      ),
+      user: null
+    }
+  }
+
+  return {
+    error: null,
+    user: {
+      id: userData.user.id,
+      email: userData.user.email,
+      profile: callerProfile
+    }
+  }
+}
+
 export async function requireClient(req: Request): Promise<ClientAuthResult> {
   const token = getBearerToken(req)
   if (!token) {
