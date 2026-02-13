@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Notification — notifier clients et admins
+    // Notification — liens différents pour clients et admins
     try {
       const ctx = await getBassinContext(validated.bassinId)
 
@@ -114,12 +114,23 @@ export async function POST(req: NextRequest) {
       }
 
       const typePart = typeLabel ? ` (${typeLabel})` : ''
+      const message = `Une intervention${typePart} a été ajoutée au bassin ${ctx.bassinName} de ${ctx.batimentName}.`
+
+      // Notifier les clients avec un lien client
       await notifyForBassin(validated.bassinId, {
         type: 'intervention_added',
         title: 'Nouvelle intervention',
-        message: `Une intervention${typePart} a été ajoutée au bassin ${ctx.bassinName} de ${ctx.batimentName}.`,
+        message,
+        link: `/client/bassins/${validated.bassinId}`,
+      }, { notifyClients: true, notifyAdmins: false })
+
+      // Notifier les admins avec un lien admin
+      await notifyForBassin(validated.bassinId, {
+        type: 'intervention_added',
+        title: 'Nouvelle intervention',
+        message,
         link: `/admin/bassins/${validated.bassinId}`,
-      })
+      }, { notifyClients: false, notifyAdmins: true })
     } catch (notifError) {
       console.error('[NOTIFICATIONS] Erreur notification intervention (admin):', notifError)
     }
