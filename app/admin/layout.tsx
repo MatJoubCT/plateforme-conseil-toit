@@ -22,6 +22,7 @@ import {
   Boxes,
 } from 'lucide-react'
 import NotificationBell from '@/components/notifications/NotificationBell'
+import UserProfilePanel from '@/components/UserProfilePanel'
 
 type NavItem = {
   label: string
@@ -364,9 +365,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
           <div className="flex items-center gap-2">
             <NotificationBell />
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-[10px] font-bold text-white shadow-md">
-              {getInitials(userFullName)}
-            </div>
+            <UserProfilePanel
+              userFullName={userFullName}
+              onNameUpdated={setUserFullName}
+              onLogout={handleLogout}
+              avatarSize="sm"
+            />
           </div>
         </header>
 
@@ -384,9 +388,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
             <div className="flex items-center gap-3">
               <NotificationBell />
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-ct-primary to-[#2d6ba8] text-sm font-bold text-white shadow-lg ring-2 ring-slate-200">
-                {getInitials(userFullName)}
-              </div>
+              <UserProfilePanel
+                userFullName={userFullName}
+                onNameUpdated={setUserFullName}
+                onLogout={handleLogout}
+                avatarSize="md"
+              />
             </div>
           </div>
         </div>

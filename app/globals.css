@@ -335,6 +335,11 @@ textarea:focus {
   transform-origin: top right;
 }
 
+.profile-panel {
+  animation: notification-panel-in 0.15s ease-out;
+  transform-origin: top right;
+}
+
 /* ========================================
    Icônes de table au hover (desktop)
    ======================================== */
