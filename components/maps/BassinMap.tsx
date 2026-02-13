@@ -73,6 +73,11 @@ function BassinMap({
 
   const [polygonInstance, setPolygonInstance] = useState<google.maps.Polygon | null>(null)
 
+  // Gestion impérative des markers intervention (MarkerF ne nettoie pas fiablement)
+  const intMarkersRef = useRef<Map<string, google.maps.Marker>>(new Map())
+  const onMarkerClickRef = useRef(onInterventionMarkerClick)
+  onMarkerClickRef.current = onInterventionMarkerClick
+
   const hasFittedRef = useRef(false)
   const lastBassinIdRef = useRef<string | null>(null)
 
@@ -407,6 +412,57 @@ function BassinMap({
     [isLoaded]
   )
 
+  // Sync des markers intervention de manière impérative
+  // (remplace MarkerF qui ne nettoie pas les markers à l'unmount)
+  useEffect(() => {
+    if (!map || !isLoaded) return
+
+    const current = intMarkersRef.current
+    const desiredIds = new Set(interventionMarkers.map((m) => m.id))
+
+    // Retirer les markers supprimés
+    for (const [id, marker] of current) {
+      if (!desiredIds.has(id)) {
+        google.maps.event.clearInstanceListeners(marker)
+        marker.setMap(null)
+        current.delete(id)
+      }
+    }
+
+    // Ajouter ou mettre à jour les markers
+    for (const m of interventionMarkers) {
+      const selected = selectedInterventionId === m.id
+      let marker = current.get(m.id)
+
+      if (!marker) {
+        marker = new google.maps.Marker({
+          position: m.position,
+          map,
+        })
+        marker.addListener('click', () => {
+          onMarkerClickRef.current?.(m.id)
+        })
+        current.set(m.id, marker)
+      }
+
+      marker.setPosition(m.position)
+      marker.setTitle(m.title ?? undefined)
+      marker.setIcon(markerIcon(selected) ?? null)
+      marker.setZIndex(selected ? 50 : 10)
+    }
+  }, [map, isLoaded, interventionMarkers, selectedInterventionId, markerIcon])
+
+  // Nettoyage complet à l'unmount
+  useEffect(() => {
+    return () => {
+      intMarkersRef.current.forEach((marker) => {
+        google.maps.event.clearInstanceListeners(marker)
+        marker.setMap(null)
+      })
+      intMarkersRef.current.clear()
+    }
+  }, [])
+
   if (loadError) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center rounded-xl bg-red-50 p-6 text-center">
@@ -518,19 +574,7 @@ function BassinMap({
             />
           )}
 
-          {interventionMarkers.map((m) => {
-            const selected = selectedInterventionId === m.id
-            return (
-              <MarkerF
-                key={m.id}
-                position={m.position}
-                title={m.title ?? undefined}
-                icon={markerIcon(selected)}
-                zIndex={selected ? 50 : 10}
-                onClick={() => onInterventionMarkerClick?.(m.id)}
-              />
-            )
-          })}
+          {/* Les markers intervention sont gérés de manière impérative via useEffect */}
 
           {pointPicker?.value && (
             <MarkerF
