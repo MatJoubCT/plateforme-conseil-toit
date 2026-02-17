@@ -22,11 +22,14 @@ import {
 import {
   Building2,
   ChevronLeft,
+  FileText,
   Pencil,
   Trash2,
   Plus,
   Layers,
   MapPin,
+  Ruler,
+  ShieldCheck,
   User,
   Clock,
   Hash,
@@ -35,7 +38,6 @@ import {
   AlertTriangle,
   Map,
   Calendar,
-  Ruler,
 } from 'lucide-react'
 
 type ClientOption = ClientRow
@@ -55,6 +57,8 @@ export default function AdminBatimentDetailPage() {
   const [batiment, setBatiment] = useState<BatimentRow | null>(null)
   const [listes, setListes] = useState<ListeChoix[]>([])
   const [bassins, setBassins] = useState<BassinRow[]>([])
+  const [bassinsWithRapport, setBassinsWithRapport] = useState<Set<string>>(new Set())
+  const [bassinsWithGarantie, setBassinsWithGarantie] = useState<Set<string>>(new Set())
   const [clients, setClients] = useState<ClientOption[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -146,6 +150,24 @@ export default function AdminBatimentDetailPage() {
     setListes(listesRes.data || [])
     setBassins((bassinsRes.data || []) as BassinRow[])
     setClients((clientsRes.data || []) as ClientOption[])
+
+    // Charger les indicateurs rapports & garanties par bassin
+    const bassinIds = (bassinsRes.data || []).map((b: any) => b.id as string)
+    if (bassinIds.length > 0) {
+      const [rapportsRes, garantiesRes] = await Promise.all([
+        supabaseBrowser
+          .from('rapports')
+          .select('bassin_id')
+          .in('bassin_id', bassinIds),
+        supabaseBrowser
+          .from('garanties')
+          .select('bassin_id')
+          .in('bassin_id', bassinIds),
+      ])
+      setBassinsWithRapport(new Set((rapportsRes.data || []).map((r: any) => r.bassin_id as string)))
+      setBassinsWithGarantie(new Set((garantiesRes.data || []).map((g: any) => g.bassin_id as string)))
+    }
+
     setLoading(false)
   }
 
@@ -726,15 +748,27 @@ export default function AdminBatimentDetailPage() {
                           )}
                         </div>
 
-                        {/* Indicateur polygone */}
-                        <div
-                          className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
-                            hasPolygon
-                              ? 'bg-green-100 text-green-600'
-                              : 'bg-slate-100 text-slate-400'
-                          }`}
-                        >
-                          <MapPin className="h-4 w-4" />
+                        {/* Indicateurs rapport, garantie, polygone */}
+                        <div className="flex items-center gap-1.5">
+                          {bassinsWithRapport.has(b.id) && (
+                            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-600" title="Rapport disponible">
+                              <FileText className="h-3.5 w-3.5" />
+                            </div>
+                          )}
+                          {bassinsWithGarantie.has(b.id) && (
+                            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-600" title="Garantie disponible">
+                              <ShieldCheck className="h-3.5 w-3.5" />
+                            </div>
+                          )}
+                          <div
+                            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                              hasPolygon
+                                ? 'bg-green-100 text-green-600'
+                                : 'bg-slate-100 text-slate-400'
+                            }`}
+                          >
+                            <MapPin className="h-4 w-4" />
+                          </div>
                         </div>
                       </div>
                     </div>
