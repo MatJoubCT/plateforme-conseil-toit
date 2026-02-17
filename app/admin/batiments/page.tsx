@@ -126,6 +126,9 @@ export default function AdminBatimentsPage() {
         nb_bassins: row.bassins?.[0]?.count ?? 0,
       }))
 
+      formattedBatiments.sort((a, b) =>
+        (a.name ?? '').localeCompare(b.name ?? '', 'fr', { numeric: true })
+      )
       setBatiments(formattedBatiments)
 
       // Clients pour sélecteurs
