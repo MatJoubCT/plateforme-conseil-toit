@@ -133,7 +133,10 @@ export default function AdminClientDetailPage() {
       return
     }
 
-    setBatiments((data || []) as BatimentRecord[])
+    const sorted = ((data || []) as BatimentRecord[]).sort((a, b) =>
+      (a.name ?? '').localeCompare(b.name ?? '', 'fr', { numeric: true })
+    )
+    setBatiments(sorted)
   }
 
   // Hooks de mutation

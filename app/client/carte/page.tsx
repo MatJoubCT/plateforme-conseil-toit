@@ -330,8 +330,12 @@ export default function ClientCartePage() {
         nb_bassins: countByBatiment.get(b.id) ?? 0,
       }))
 
+      const sortedBatiments = merged.sort((a, b) =>
+        (a.name ?? '').localeCompare(b.name ?? '', 'fr', { numeric: true })
+      )
+
       setClients((clientsRes.data || []) as ClientRow[])
-      setBatiments(merged)
+      setBatiments(sortedBatiments)
       setBassins(filteredBassins)
       setListes((listesRes.data || []) as ListeChoix[])
       setLoading(false)
