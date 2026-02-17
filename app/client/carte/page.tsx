@@ -189,6 +189,16 @@ export default function ClientCartePage() {
   const [listes, setListes] = useState<ListeChoix[]>([])
 
   const [hoveredBatimentId, setHoveredBatimentId] = useState<string | null>(null)
+  const batimentsListRef = useRef<HTMLDivElement>(null)
+
+  // Scroll automatique vers le bâtiment survolé sur la carte
+  useEffect(() => {
+    if (!hoveredBatimentId || !batimentsListRef.current) return
+    const el = batimentsListRef.current.querySelector(`[data-batiment-id="${hoveredBatimentId}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [hoveredBatimentId])
 
   useEffect(() => {
     async function load() {
@@ -496,7 +506,7 @@ export default function ClientCartePage() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+              <div ref={batimentsListRef} className="overflow-x-auto max-h-[600px] overflow-y-auto">
                 <table className="w-full">
                   <thead className="border-b-2 border-slate-200 sticky top-0 z-10">
                     <tr>
@@ -521,6 +531,7 @@ export default function ClientCartePage() {
                       return (
                         <tr
                           key={b.id}
+                          data-batiment-id={b.id}
                           className={`group cursor-pointer transition-all ${
                             isHovered
                               ? 'bg-ct-primary/10 shadow-sm'
