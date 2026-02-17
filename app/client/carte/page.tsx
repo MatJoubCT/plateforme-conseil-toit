@@ -498,18 +498,18 @@ export default function ClientCartePage() {
             ) : (
               <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                 <table className="w-full">
-                  <thead className="border-b-2 border-slate-200 bg-slate-50 sticky top-0 z-10">
+                  <thead className="border-b-2 border-slate-200 sticky top-0 z-10">
                     <tr>
-                      <th className="py-4 pl-6 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
+                      <th className="bg-slate-50 py-4 pl-6 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
                         Bâtiment
                       </th>
-                      <th className="py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden md:table-cell">
+                      <th className="bg-slate-50 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden md:table-cell">
                         Client
                       </th>
-                      <th className="py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden lg:table-cell">
+                      <th className="bg-slate-50 py-4 text-left text-xs font-bold uppercase tracking-wide text-slate-600 hidden lg:table-cell">
                         Localisation
                       </th>
-                      <th className="py-4 pr-6 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
+                      <th className="bg-slate-50 py-4 pr-6 text-center text-xs font-bold uppercase tracking-wide text-slate-600">
                         Bassins
                       </th>
                     </tr>
