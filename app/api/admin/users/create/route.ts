@@ -65,35 +65,70 @@ export async function POST(req: NextRequest) {
     const origin = getValidatedOrigin(req)
     const redirectTo = `${origin}/auth/callback`
 
-    // 1) Invitation standard
-    const inviteRes = await supabaseAdmin.auth.admin.inviteUserByEmail(email, { redirectTo })
-    let userId: string | null = inviteRes.data?.user?.id ?? null
+    let userId: string | null = null
+    let emailSent = true
 
-    // 2) Si déjà enregistré → generateLink(invite)
+    // 1) Invitation standard (envoie un email)
+    const inviteRes = await supabaseAdmin.auth.admin.inviteUserByEmail(email, { redirectTo })
+    userId = inviteRes.data?.user?.id ?? null
+
+    // 2) Gestion des erreurs d'invitation
     if (inviteRes.error) {
       const msg = inviteRes.error.message || 'Erreur Supabase Auth'
       const isAlreadyRegistered = msg.toLowerCase().includes('already been registered')
+      const isRateLimit = msg.toLowerCase().includes('rate limit')
 
-      if (!isAlreadyRegistered) {
+      if (isAlreadyRegistered) {
+        // Utilisateur existe déjà → générer un lien d'invitation
+        userId = await findUserIdByEmail(email)
+        if (!userId) {
+          return NextResponse.json(
+            { error: "L'utilisateur existe déjà dans Auth, mais impossible de retrouver son user_id." },
+            { status: 500 },
+          )
+        }
+
+        const { error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'invite',
+          email,
+          options: { redirectTo },
+        })
+
+        if (linkErr) {
+          // Si le generateLink échoue aussi à cause du rate limit, on continue quand même
+          const linkMsg = linkErr.message || ''
+          if (!linkMsg.toLowerCase().includes('rate limit')) {
+            return NextResponse.json({ error: `generateLink(invite) refusé : ${linkMsg}` }, { status: 400 })
+          }
+          emailSent = false
+        }
+      } else if (isRateLimit) {
+        // Rate limit email → créer l'utilisateur sans envoyer d'email
+        const createRes = await supabaseAdmin.auth.admin.createUser({
+          email,
+          email_confirm: true,
+        })
+
+        if (createRes.error) {
+          const createMsg = createRes.error.message || ''
+          // Si l'utilisateur existe déjà, récupérer son ID
+          if (createMsg.toLowerCase().includes('already been registered') || createMsg.toLowerCase().includes('already exists')) {
+            userId = await findUserIdByEmail(email)
+            if (!userId) {
+              return NextResponse.json(
+                { error: "L'utilisateur existe déjà, mais impossible de retrouver son user_id." },
+                { status: 500 },
+              )
+            }
+          } else {
+            return NextResponse.json({ error: createMsg }, { status: 400 })
+          }
+        } else {
+          userId = createRes.data.user.id
+        }
+        emailSent = false
+      } else {
         return NextResponse.json({ error: msg }, { status: 400 })
-      }
-
-      userId = await findUserIdByEmail(email)
-      if (!userId) {
-        return NextResponse.json(
-          { error: "L'utilisateur existe déjà dans Auth, mais impossible de retrouver son user_id." },
-          { status: 500 },
-        )
-      }
-
-      const { error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'invite',
-        email,
-        options: { redirectTo },
-      })
-
-      if (linkErr) {
-        return NextResponse.json({ error: `generateLink(invite) refusé : ${linkErr.message}` }, { status: 400 })
       }
     }
 
@@ -139,7 +174,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, profile })
+    return NextResponse.json({ ok: true, profile, emailSent })
   } catch (e: unknown) {
     // Log détaillé côté serveur
     logError('API /admin/users/create', e, { userId: authenticatedUser?.id })
