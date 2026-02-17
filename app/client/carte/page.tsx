@@ -101,7 +101,12 @@ function ClientCarteMap({
     })
 
     if (hasPoints) {
-      map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 })
+      map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 })
+      const listener = google.maps.event.addListenerOnce(map, 'idle', () => {
+        const z = map.getZoom()
+        if (z !== undefined && z > 18) map.setZoom(18)
+      })
+      return () => google.maps.event.removeListener(listener)
     } else {
       map.setCenter({ lat: 46.5, lng: -72.5 })
       map.setZoom(7)
