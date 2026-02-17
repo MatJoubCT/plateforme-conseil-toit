@@ -132,8 +132,12 @@ export default function AdminUtilisateursPage() {
     method: 'POST',
     endpoint: '/api/admin/users/create',
     defaultErrorMessage: 'Erreur lors de la création.',
-    onSuccess: async () => {
-      toast.success('Utilisateur créé. Invitation envoyée par courriel.')
+    onSuccess: async (data) => {
+      if (data?.emailSent === false) {
+        toast.warning('Utilisateur créé, mais l\'email d\'invitation n\'a pas pu être envoyé (limite atteinte). Utilisez « Réinitialiser le mot de passe » pour envoyer un lien de connexion.')
+      } else {
+        toast.success('Utilisateur créé. Invitation envoyée par courriel.')
+      }
       setShowCreateModal(false)
       await loadUsersData()
     },
