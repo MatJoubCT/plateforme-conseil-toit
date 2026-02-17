@@ -130,6 +130,7 @@ function ClientCarteMap({
     <GoogleMap
       onLoad={(m) => {
         setMap(m)
+        m.setMapTypeId('satellite')
         m.setOptions({ rotateControl: false, tilt: 0, heading: 0 })
         m.setTilt(0)
         m.setHeading(0)
@@ -138,7 +139,6 @@ function ClientCarteMap({
       center={initialCenter}
       zoom={15}
       options={{
-        mapTypeId: 'satellite',
         streetViewControl: false,
         fullscreenControl: true,
         rotateControl: false,
