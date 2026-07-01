@@ -5,7 +5,6 @@ import {
   GoogleMap,
   Polygon,
   useJsApiLoader,
-  DrawingManager,
   MarkerF,
 } from '@react-google-maps/api'
 import { supabaseBrowser } from '@/lib/supabaseBrowser'
@@ -41,7 +40,10 @@ type BassinMapProps = {
   pointPicker?: PointPickerProps
 }
 
-const libraries: ('drawing' | 'geometry')[] = ['drawing', 'geometry']
+// NOTE: le DrawingManager de Google Maps a été retiré à partir de la v3.65
+// (https://developers.google.com/maps/deprecations). Le tracé d'un nouveau
+// polygone est désormais géré manuellement via les clics sur la carte.
+const libraries: 'geometry'[] = ['geometry']
 
 function samePoint(a: LatLngLiteral, b: LatLngLiteral, eps = 1e-10) {
   return Math.abs(a.lat - b.lat) < eps && Math.abs(a.lng - b.lng) < eps
@@ -70,6 +72,8 @@ function BassinMap({
   const [areaM2, setAreaM2] = useState<number | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [isLocked, setIsLocked] = useState(false)
+  // Mode « tracé d'un nouveau polygone » : chaque clic sur la carte ajoute un sommet
+  const [drawingNew, setDrawingNew] = useState(false)
 
   const [polygonInstance, setPolygonInstance] = useState<google.maps.Polygon | null>(null)
 
@@ -256,13 +260,22 @@ function BassinMap({
     if (isLocked) return
 
     if (isEditing) {
+      const pts = pathRef.current
+      // Un polygone valide comporte 0 sommet (aucun) ou au moins 3
+      if (pts.length > 0 && pts.length < 3) {
+        alert('Ajoutez au moins 3 points pour former un polygone, ou réinitialisez.')
+        return
+      }
       setIsEditing(false)
-      setPathSafe(pathRef.current) // Synchroniser le state React depuis la ref
-      await savePolygon(pathRef.current)
+      setDrawingNew(false)
+      setPathSafe(pts) // Synchroniser le state React depuis la ref
+      await savePolygon(pts)
       return
     }
 
     setIsEditing(true)
+    // Aucun polygone existant : on démarre en mode tracé (clics sur la carte)
+    setDrawingNew(pathRef.current.length === 0)
   }, [readonly, isLocked, isEditing, savePolygon, setPathSafe])
 
   const handleResetPolygon = useCallback(async () => {
@@ -272,7 +285,9 @@ function BassinMap({
     setPathSafe([])
     await savePolygon([])
     setPolygonInstance(null)
-  }, [readonly, savePolygon, setPathSafe])
+    // Si on est en édition, permettre de retracer immédiatement un nouveau polygone
+    if (isEditing && !isLocked) setDrawingNew(true)
+  }, [readonly, savePolygon, setPathSafe, isEditing, isLocked])
 
   const handleToggleLock = useCallback(() => {
     if (readonly) return
@@ -311,44 +326,15 @@ function BassinMap({
     return () => listeners.forEach((l) => l.remove())
   }, [isLoaded, polygonInstance, computeArea])
 
-  const handlePolygonComplete = useCallback(
-    async (poly: google.maps.Polygon) => {
-      if (readonly || !isEditing || isLocked) {
-        poly.setMap(null)
-        return
-      }
-
-      const newPoints: LatLngLiteral[] = poly
-        .getPath()
-        .getArray()
-        .map((latLng) => ({ lat: latLng.lat(), lng: latLng.lng() }))
-
-      poly.setMap(null)
-
-      setPathSafe(newPoints)
-      await savePolygon(newPoints)
-      setIsEditing(false)
+  // Ajoute un sommet au tracé courant (mode « nouveau polygone »)
+  const addVertex = useCallback(
+    (e: google.maps.MapMouseEvent) => {
+      if (!e.latLng) return
+      const pos: LatLngLiteral = { lat: e.latLng.lat(), lng: e.latLng.lng() }
+      setPathSafe([...pathRef.current, pos])
     },
-    [isEditing, isLocked, savePolygon, readonly, setPathSafe]
+    [setPathSafe]
   )
-
-  const drawingOptions = useMemo(() => {
-    if (readonly) {
-      return { drawingControl: false, drawingMode: null } as google.maps.drawing.DrawingManagerOptions
-    }
-
-    if (!isLoaded || typeof google === 'undefined') {
-      return { drawingControl: false } as google.maps.drawing.DrawingManagerOptions
-    }
-
-    return {
-      drawingControl: false,
-      drawingMode:
-        isEditing && !isLocked && pathRef.current.length === 0
-          ? google.maps.drawing.OverlayType.POLYGON
-          : null,
-    } as google.maps.drawing.DrawingManagerOptions
-  }, [isLoaded, isEditing, isLocked, readonly])
 
   // -----
   // POINT PICKER: fonctionne sur la carte ET sur le polygone
@@ -373,16 +359,24 @@ function BassinMap({
 
   const handleMapClick = useCallback(
     (e: google.maps.MapMouseEvent) => {
+      if (!readonly && drawingNew && !isLocked) {
+        addVertex(e)
+        return
+      }
       pickFromEvent(e)
     },
-    [pickFromEvent]
+    [readonly, drawingNew, isLocked, addVertex, pickFromEvent]
   )
 
   const handlePolygonClick = useCallback(
     (e: google.maps.MapMouseEvent) => {
+      if (!readonly && drawingNew && !isLocked) {
+        addVertex(e)
+        return
+      }
       pickFromEvent(e)
     },
-    [pickFromEvent]
+    [readonly, drawingNew, isLocked, addVertex, pickFromEvent]
   )
 
   const pickerMarkerIcon = useMemo(() => {
@@ -507,6 +501,12 @@ function BassinMap({
             )}
           </p>
 
+          {drawingNew && (
+            <p className="mt-1 text-xs font-medium text-ct-primary">
+              Mode tracé : cliquez sur la carte pour ajouter des sommets (min. 3), puis « Terminer le tracé ».
+            </p>
+          )}
+
           {pointPicker?.enabled && (
             <p className="mt-1 text-xs font-medium text-ct-primary">
               Mode localisation actif : cliquez sur la carte OU sur le polygone pour placer le point.
@@ -522,7 +522,11 @@ function BassinMap({
               onClick={() => void handleToggleEdit()}
               disabled={isLocked}
             >
-              {isEditing ? 'Terminer la modification' : 'Modifier le polygone'}
+              {isEditing
+                ? drawingNew
+                  ? 'Terminer le tracé'
+                  : 'Terminer la modification'
+                : 'Modifier le polygone'}
             </button>
 
             <button
@@ -589,9 +593,6 @@ function BassinMap({
             />
           )}
 
-          {!readonly && (
-            <DrawingManager options={drawingOptions as any} onPolygonComplete={handlePolygonComplete} />
-          )}
         </GoogleMap>
       </div>
     </div>
